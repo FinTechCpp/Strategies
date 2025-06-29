@@ -1,16 +1,16 @@
-# Ajouter les sources de la bibliothèque
+# Add library src files to the library
 file(GLOB SOURCES "src/*.cpp")
 
-# Créer la bibliothèque
+# Create the library
 add_library(strategies STATIC ${SOURCES})
 
-# Configurer les chemins d'include
+# Configure include paths
 target_include_directories(strategies
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include/Strategies
 )
 
-# Ajouter spdlog pour les headers qui l'utilisent
+# Add spdlog for headers that use it
 find_package(spdlog REQUIRED)
 target_link_libraries(strategies PUBLIC spdlog::spdlog)
