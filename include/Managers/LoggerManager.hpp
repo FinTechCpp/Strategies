@@ -281,7 +281,7 @@ public:
 
     // Logs de performance
     void log_execution_time(int64_t duration_us, int level = LogLevel::DEBUG) override {
-        std::string msg = "Temps d'exécution: " + fast_double_to_string(duration_us) + " us";
+        std::string msg = "Temps d'exécution: " + fast_int_to_string(duration_us) + " us";
 
         // Changer le niveau si le traitement prend trop de temps
         if (duration_us > 20) {  // Plus de 20 us
