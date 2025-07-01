@@ -89,8 +89,8 @@ struct PositionInfo {
 
     PositionInfo() = default;
 
-    PositionInfo(bool in_pos, double entry, double tp, double sl, double closed_pnl = 0.0)
-        : in_position(in_pos), entry_price(entry), take_profit_price(tp), closed_trade_pnl(closed_pnl) {}
+    PositionInfo(bool in_pos, double entry_price, double tp_price, double closed_trade_pnl = 0.0)
+        : in_position(in_pos), entry_price(entry_price), take_profit_price(tp_price), closed_trade_pnl(closed_trade_pnl) {}
 };
 
 // Composition plutôt qu'héritage pour la structure utilisée dans les stratégies
