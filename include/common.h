@@ -15,6 +15,11 @@ struct Time {
     bool operator<=(const Time& other) const;
     bool operator==(const Time& other) const;
     bool operator!=(const Time& other) const;
+
+    Time() = default;
+
+    Time(int h, int m, int s = 0)
+        : hour(h), minute(m), second(s) {}
 };
 
 // TODO : on pourrait mettre en commun avec la class Date du backtestEngine
@@ -81,16 +86,14 @@ struct BasicCandle {
 
 // Structure pour les données de position/trading
 struct PositionInfo {
-    bool in_position = false;
+    // Pour le break-even, si la strategie n'utilise pas le break-even, pas necessaire
     double entry_price = 0.0;
     double take_profit_price = 0.0;
-    // double position_pl_pct = 0.0;
+
+    // Pour la perte maximale journalière, si la stratégie n'utilise pas la perte maximale journalière, pas nécessaire
     double closed_trade_pnl = 0.0;
 
     PositionInfo() = default;
-
-    // PositionInfo(bool in_pos, double entry_price, double tp_price, double closed_trade_pnl)
-    //     : in_position(in_pos), entry_price(entry_price), take_profit_price(tp_price), closed_trade_pnl(closed_trade_pnl) {}
 };
 
 // Composition plutôt qu'héritage pour la structure utilisée dans les stratégies

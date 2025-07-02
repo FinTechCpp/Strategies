@@ -172,11 +172,7 @@ bool Strategy::check_time() {
 }
 
 std::unique_ptr<Signal> Strategy::check_break_even() {
-    if (!position_info.in_position || !base_config.use_break_even) {
-        return nullptr;
-    }
-
-    if (position_info.entry_price <= 0.0 || position_info.take_profit_price <= 0.0) {
+    if (!base_config.use_break_even || position_info.entry_price <= 0.0 || position_info.take_profit_price <= 0.0) {
         // Données insuffisantes pour calculer le break-even
         return nullptr;
     }
@@ -342,9 +338,6 @@ void Strategy::execute() {
     // Quick time check before executing anything else
     if (!check_time()) {
         logger->log_execution_step("Vérification horaires", false);
-        if (position_info.in_position) {
-            logger->log_general("Hors horaires de trading - Liquidation de position", LogLevel::INFO);
-        }
         
         signal = generate_liquidation_signal();
         is_executing = false;
@@ -354,13 +347,13 @@ void Strategy::execute() {
 
     // Mise à jour des indicateurs
     if (!update_indicators()) {
-        logger->log_execution_step("Mise à jour indicateurs", false);
-        logger->log_general("Indicateurs non prêts - Arrêt de l'exécution", LogLevel::INFO);
+        logger->log_execution_step("Indicateurs pas encore prêts", false);
+        // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
         reset();
         is_executing = false;
         return;
     }
-    logger->log_execution_step("Mise à jour indicateurs", true);
+    // logger->log_execution_step("Mise à jour indicateurs", true);
     
     before();
     
@@ -428,9 +421,10 @@ Signal* Strategy::update_candle(const Candle& candle) {
         logger->log_general("PnL du trade fermé: " + logger->fast_double_to_string(last_trade_pnl));
     }
 
-    if (position_info.in_position) {
-        logger->log_general("En position: Prix d'entrée=" + logger->fast_double_to_string(position_info.entry_price));
-    }
+    // mettre des log pour debug les position infos => entry_price et take_profit_price
+    // if (position_info.in_position) {
+    //     logger->log_general("En position: Prix d'entrée=" + logger->fast_double_to_string(position_info.entry_price));
+    // }
 
     // Add to buffer for historical calculations
     candle_manager.add_candle(candle.ohlc);
