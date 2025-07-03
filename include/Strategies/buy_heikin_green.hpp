@@ -70,6 +70,8 @@ private:
     double current_atrlog = 0.0;
     double k_previous = 0.0;
     double d_previous = 0.0;
+    double k_previous_2 = 0.0;
+    double k_previous_3 = 0.0;
     
     // Filters
     std::vector<std::function<bool()>> active_filters;
@@ -110,7 +112,9 @@ private:
         int threshold = config.stoch_threshold;
         bool current_below = current_stoch_k < threshold;
         bool previous_below = k_previous > 0.0 && k_previous < threshold;
-        bool result = current_below || previous_below;
+        bool before_previous_below = k_previous_2 > 0.0 && k_previous_2 < threshold;
+        bool before_before_previous_below = k_previous_3 > 0.0 && k_previous_3 < threshold;
+        bool result = current_below || previous_below || before_previous_below || before_before_previous_below;
         
         logger->log_filter_result("Stochastique", result);
 
@@ -120,11 +124,19 @@ private:
         else if (previous_below) {
             logger->log_filter_comparison("Stochastique K précédent", k_previous, threshold, "<", true);
         } 
+        else if (before_previous_below) {
+            logger->log_filter_comparison("Stochastique K précédent-2", k_previous_2, threshold, "<", true);
+        } 
+        else if (before_before_previous_below) {
+            logger->log_filter_comparison("Stochastique K précédent-3", k_previous_3, threshold, "<", true);
+        } 
         else {
-            logger->log_filter_detail("Stochastique", "K actuel et précédent au-dessus du seuil " + std::to_string(threshold));
+            logger->log_filter_detail("Stochastique", "K actuel et 3 précédents au-dessus du seuil " + std::to_string(threshold));
         }
 
         // Update previous values
+        k_previous_3 = k_previous_2;
+        k_previous_2 = k_previous;
         k_previous = current_stoch_k;
         d_previous = current_stoch_d;
         
