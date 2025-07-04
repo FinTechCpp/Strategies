@@ -92,6 +92,7 @@ protected:
 private:
     double calculate_trade_risk(bool is_long);
     bool is_trade_risk_acceptable(double risk);
+    bool is_daily_max_profit_reached();
     bool is_new_trading_day();
     void update_daily_pnl_tracking();
 

@@ -161,6 +161,11 @@ struct StrategyBaseConfig {
     bool use_daily_max_loss = false;
     double daily_max_loss_percentage = 2.0;
     double daily_max_loss_amount = 0.0; // Calculé à partir de cash et daily_max_loss_percentage
+    
+    // Profit maximal journalier
+    bool use_daily_max_profit = false;
+    double daily_max_profit_percentage = 5.0;
+    double daily_max_profit_amount = 0.0; // Calculé à partir de cash et daily_max_profit_percentage
 };
 
 // Surcharge de l'opérateur de flux pour StrategyBaseConfig
@@ -223,6 +228,11 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Use daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No") << "\n";
     os << "  Daily max loss %: " << config.daily_max_loss_percentage << "%\n";
     os << "  Daily max loss amount: " << config.daily_max_loss_amount << "\n";
+    
+    // Daily maximum profit
+    os << "  Use daily max profit: " << (config.use_daily_max_profit ? "Yes" : "No") << "\n";
+    os << "  Daily max profit %: " << config.daily_max_profit_percentage << "%\n";
+    os << "  Daily max profit amount: " << config.daily_max_profit_amount << "\n";
     
     os << "}";
     return os;

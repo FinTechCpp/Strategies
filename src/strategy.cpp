@@ -76,6 +76,19 @@ bool Strategy::is_trade_risk_acceptable(double risk) {
     return (daily_pnl - risk) >= -max_loss_amount;
 }
 
+// Check if daily max profit has been reached
+bool Strategy::is_daily_max_profit_reached() {
+    if (!base_config.use_daily_max_profit) {
+        return false;  // If the limit is not enabled, profit limit never reached
+    }
+
+    // Calculate the daily profit limit
+    double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
+
+    // Check if the daily profit has reached the limit
+    return daily_pnl >= max_profit_amount;
+}
+
 bool Strategy::is_new_trading_day() {
     if (!candle_manager.get_latest_candle().date.is_valid() || !current_trading_day.is_valid()) {
         return true;
@@ -87,7 +100,7 @@ bool Strategy::is_new_trading_day() {
 }
     
 void Strategy::update_daily_pnl_tracking() {
-    if (!base_config.use_daily_max_loss) {
+    if (!base_config.use_daily_max_loss && !base_config.use_daily_max_profit) {
         return;
     }
 
@@ -96,17 +109,28 @@ void Strategy::update_daily_pnl_tracking() {
         current_trading_day = candle_manager.get_latest_candle().date;
         daily_pnl = 0.0;
 
-        // Calculate the maximum allowed loss amount for this day
-        double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
-        
-        logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
-                          " - Perte max autorisée: " + logger->fast_double_to_string(max_loss_amount) + 
-                          " (" + logger->fast_double_to_string(base_config.daily_max_loss_percentage) + "%)", LogLevel::INFO);
+        if (base_config.use_daily_max_loss) {
+            // Calculate the maximum allowed loss amount for this day
+            double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
+            
+            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+                              " - Perte max autorisée: " + logger->fast_double_to_string(max_loss_amount) + 
+                              " (" + logger->fast_double_to_string(base_config.daily_max_loss_percentage) + "%)", LogLevel::INFO);
+        }
+
+        if (base_config.use_daily_max_profit) {
+            // Calculate the maximum allowed profit amount for this day
+            double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
+            
+            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+                              " - Profit max autorisé: " + logger->fast_double_to_string(max_profit_amount) + 
+                              " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
+        }
     }
     
     if (last_trade_pnl != 0.0) {
         daily_pnl += last_trade_pnl;
-
+        
         logger->log_general("P&L du trade: " + logger->fast_double_to_string(last_trade_pnl) + 
                           " - P&L journalier cumulé: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
 
@@ -333,6 +357,7 @@ void Strategy::execute() {
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
+    
     // Update indicators
     if (!update_indicators()) {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
@@ -342,6 +367,20 @@ void Strategy::execute() {
         return;
     }
     // logger->log_execution_step("Mise à jour indicateurs", true);
+    
+    // Check if daily max profit has been reached
+    if (is_daily_max_profit_reached()) {
+        logger->log_execution_step("Profit max journalier atteint", false);
+        double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
+        logger->log_general("Profit maximum journalier atteint: " + 
+                          logger->fast_double_to_string(daily_pnl) + 
+                          " >= " + logger->fast_double_to_string(max_profit_amount) + 
+                          " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
+        
+        signal = generate_liquidation_signal();
+        is_executing = false;
+        return;
+    }
 
     // Time check
     if (!check_time()) {
