@@ -131,14 +131,13 @@ private:
             logger->log_filter_comparison("Stochastique K précédent-3", k_previous_3, threshold, "<", true);
         } 
         else {
-            logger->log_filter_detail("Stochastique", "K actuel et 3 précédents au-dessus du seuil " + std::to_string(threshold));
+            logger->log_filter_detail("Stochastique", 
+                "K actuel: " + logger->fast_double_to_string(current_stoch_k) + 
+                ", K-1: " + logger->fast_double_to_string(k_previous) + 
+                ", K-2: " + logger->fast_double_to_string(k_previous_2) + 
+                ", K-3: " + logger->fast_double_to_string(k_previous_3) + 
+                " - Tous au-dessus du seuil " + std::to_string(threshold));
         }
-
-        // Update previous values
-        k_previous_3 = k_previous_2;
-        k_previous_2 = k_previous;
-        k_previous = current_stoch_k;
-        d_previous = current_stoch_d;
         
         return result;
     }
@@ -394,6 +393,13 @@ private:
         
         // Update Stochastic si nécessaire
         if (config.use_stoch_filter) {
+            // Update previous values BEFORE updating current values
+            k_previous_3 = k_previous_2;
+            k_previous_2 = k_previous;
+            k_previous = current_stoch_k;
+            d_previous = current_stoch_d;
+            
+            // Now update current values
             auto stoch_values = stochastic_calculator->update(candle_manager.get_latest_candle());
             current_stoch_k = stoch_values.first;
             current_stoch_d = stoch_values.second;
