@@ -2,11 +2,11 @@
 
 
 
-// Fonction utilitaire pour parser une chaîne de date ISO
+// Utilitary function to parse ISO 8601 date strings
 DateTime parse_iso_datetime(const std::string& iso_date) {
     DateTime result;
     
-    // Vérification de la longueur minimale
+    // Minimal validation for ISO 8601 format
     if (iso_date.size() < 19) {
         return result;  // Return invalid date
     }
@@ -19,8 +19,8 @@ DateTime parse_iso_datetime(const std::string& iso_date) {
         return result;  // Return invalid date
     }
     
-    result.year = tm.tm_year + 1900;  // tm_year est années depuis 1900
-    result.month = tm.tm_mon + 1;     // tm_mon est 0-11
+    result.year = tm.tm_year + 1900;  // tm_year is years since 1900
+    result.month = tm.tm_mon + 1;     // tm_mon is 0-11
     result.day = tm.tm_mday;
     result.time.hour = tm.tm_hour;
     result.time.minute = tm.tm_min;
@@ -29,9 +29,9 @@ DateTime parse_iso_datetime(const std::string& iso_date) {
     return result;
 }
 
-// Fonction pour obtenir le jour de la semaine (0=lundi, 6=dimanche)
+// Function to get the day of the week (0=Monday, 6=Sunday)
 int get_day_of_week(const DateTime& date) {
-    // Formule pour calculer le jour de la semaine
+    // Formula to calculate the day of the week
     std::tm timeinfo = {};
     timeinfo.tm_year = date.year - 1900;
     timeinfo.tm_mon = date.month - 1;
@@ -40,14 +40,13 @@ int get_day_of_week(const DateTime& date) {
     std::time_t time = std::mktime(&timeinfo);
     std::tm* local_tm = std::localtime(&time);
     int weekday = local_tm->tm_wday;
-    
-    // Convertir de Sunday=0 à Sunday=6
+    // Convert from Sunday=0 to Sunday=6
     return (weekday == 0) ? 6 : weekday - 1;
 }
     
 
 // Implementation of Strategy class methods
-// Calcule le risque potentiel d'un trade en valeur monétaire
+// Calculate the potential risk of a trade in monetary value
 double Strategy::calculate_trade_risk(bool is_long) {
     double position_value;
     double risk_value;
@@ -63,17 +62,17 @@ double Strategy::calculate_trade_risk(bool is_long) {
     return risk_value;
 }
 
-// Vérifie si un trade est acceptable en termes de risque quotidien
+// Check is if the trade risk is acceptable based on daily max loss
 bool Strategy::is_trade_risk_acceptable(double risk) {
     if (!base_config.use_daily_max_loss) {
-        return true;  // Si la limite n'est pas activée, tous les trades sont acceptables
+        return true;  // If the limit is not enabled, all trades are acceptable
     }
-    
-    // Calculer la limite de perte quotidienne
+
+    // Calculate the daily loss limit
     double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
-    
-    // Vérifier si le trade nous ferait dépasser la limite
-    // daily_pnl est le PnL cumulé jusqu'à présent, risk est le montant maximum que nous pourrions perdre
+
+    // Check if the trade would exceed the limit
+    // daily_pnl is the cumulative PnL so far, risk is the maximum amount we could lose
     return (daily_pnl - risk) >= -max_loss_amount;
 }
 
@@ -91,13 +90,13 @@ void Strategy::update_daily_pnl_tracking() {
     if (!base_config.use_daily_max_loss) {
         return;
     }
-    
-    // Si c'est un nouveau jour, on réinitialise le compteur et on réactive le trading
+
+    // If it's a new day, reset the counter and reactivate trading
     if (is_new_trading_day()) {
         current_trading_day = candle_manager.get_latest_candle().date;
         daily_pnl = 0.0;
-        
-        // Calculer le montant maximum de perte autorisé pour cette journée
+
+        // Calculate the maximum allowed loss amount for this day
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
@@ -115,7 +114,7 @@ void Strategy::update_daily_pnl_tracking() {
     }
 }
 
-// Méthode pour vérifier si on est dans les horaires de trading
+// Method to check if we are within trading hours
 bool Strategy::check_time() {
     if (!candle_manager.get_latest_candle().date.is_valid()) {
         logger->log_time_check(false, "Date de bougie invalide", LogLevel::WARNING);
@@ -125,7 +124,7 @@ bool Strategy::check_time() {
     const DateTime& current_date = candle_manager.get_latest_candle().date;
     const Time& current_time = current_date.time;
 
-    // Mettre à jour le jour de la semaine une seule fois par jour
+    // Update the current trading day if it's a new day
     if (current_date.day != last_check_date.day ||
         current_date.month != last_check_date.month ||
         current_date.year != last_check_date.year) {
@@ -144,7 +143,7 @@ bool Strategy::check_time() {
         }
     }
 
-    // Vérifier les heures de trading à chaque bougie
+    // Check trading hours on each candle
     bool after_start = (base_config.trading_from < current_time);
 
     bool before_end = (current_time < base_config.trading_to);
@@ -152,7 +151,6 @@ bool Strategy::check_time() {
     time_check = after_start && before_end;
 
     if (!weekday_check) {
-        // On a déjà loggé ce cas plus haut, mais on le re-log si jamais
         logger->log_time_check(false, "Jour non autorisé pour le trading: " +
                              current_date.to_string(), LogLevel::INFO);
         return false;
@@ -173,17 +171,17 @@ bool Strategy::check_time() {
 
 std::unique_ptr<Signal> Strategy::check_break_even() {
     if (!base_config.use_break_even || position_info.entry_price <= 0.0 || position_info.take_profit_price <= 0.0) {
-        // Données insuffisantes pour calculer le break-even
+        // Insufficient data to calculate break-even
         return nullptr;
     }
 
-    // Récupérer la dernière bougie
+    // Get the latest candle
     const BasicCandle& latest_candle = candle_manager.get_latest_candle();
     if (!latest_candle.date.is_valid()) {
-        return nullptr;  // Pas de bougie valide
+        return nullptr;  // No valid candle
     }
-    
-    // Calculer le prix seuil pour le break-even
+
+    // Calculate the threshold price for break-even
     double entry_to_tp_distance = position_info.take_profit_price - position_info.entry_price;
     double break_even_price = position_info.entry_price + (entry_to_tp_distance * base_config.break_even_threshold);
 
@@ -191,8 +189,8 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     double reference_price = position_sign > 0 ? latest_candle.high : latest_candle.low;
 
 
-    // Pour un long: vérifie si high >= seuil
-    // Pour un short: vérifie si low <= seuil
+    // For a long: check if high >= threshold
+    // For a short: check if low <= threshold
     bool threshold_reached = position_sign > 0 ? 
                              reference_price >= break_even_price : 
                              reference_price <= break_even_price;
@@ -259,13 +257,13 @@ void Strategy::execute_long() {
         logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
     }
-    
-    // Calculer le risque et vérifier s'il est acceptable
+
+    // Calculate risk and check if it's acceptable
     double risk = calculate_trade_risk(true);
     logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
-        // Le trade est trop risqué par rapport à notre limite quotidienne
+        // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade LONG rejeté: risque excessif", LogLevel::WARNING);
@@ -291,13 +289,13 @@ void Strategy::execute_short() {
         logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
     }
-    
-    // Calculer le risque et vérifier s'il est acceptable
+
+    // Calculate risk and check if it's acceptable
     double risk = calculate_trade_risk(false);
     logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
-        // Le trade est trop risqué par rapport à notre limite quotidienne
+        // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
@@ -331,11 +329,21 @@ void Strategy::execute() {
     }
     
     is_executing = true;
-    
-    // Mise à jour du suivi des pertes journalières
+
+    // Update daily PnL tracking
     update_daily_pnl_tracking();
-    
-    // Quick time check before executing anything else
+
+    // Update indicators
+    if (!update_indicators()) {
+        logger->log_execution_step("Indicateurs pas encore prêts", false);
+        // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
+        reset();
+        is_executing = false;
+        return;
+    }
+    // logger->log_execution_step("Mise à jour indicateurs", true);
+
+    // Time check
     if (!check_time()) {
         logger->log_execution_step("Vérification horaires", false);
         
@@ -345,15 +353,6 @@ void Strategy::execute() {
     }
     logger->log_execution_step("Vérification horaires", true);
 
-    // Mise à jour des indicateurs
-    if (!update_indicators()) {
-        logger->log_execution_step("Indicateurs pas encore prêts", false);
-        // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
-        reset();
-        is_executing = false;
-        return;
-    }
-    // logger->log_execution_step("Mise à jour indicateurs", true);
     
     before();
     
@@ -405,26 +404,21 @@ Signal* Strategy::update_candle(const Candle& candle) {
 
     position_info = candle.position;
 
-    // Mettre à jour le logger avec la bougie actuelle
+    // Update logger with the current candle
     logger->set_current_candle(candle);
-    logger->clear();  // Vider les logs précédents
-    
+    logger->clear();  // Clear previous logs
+
     logger->log_general("OHLC: " + 
         logger->fast_double_to_string(candle.ohlc.open) + "/" + 
         logger->fast_double_to_string(candle.ohlc.high) + "/" + 
         logger->fast_double_to_string(candle.ohlc.low) + "/" + 
         logger->fast_double_to_string(candle.ohlc.close));
 
-    // Store the last trade P&L si fourni dans candle
+    // Store the last trade P&L if provided in candle
     if (position_info.closed_trade_pnl != 0.0) {
         last_trade_pnl = position_info.closed_trade_pnl;
         logger->log_general("PnL du trade fermé: " + logger->fast_double_to_string(last_trade_pnl));
     }
-
-    // mettre des log pour debug les position infos => entry_price et take_profit_price
-    // if (position_info.in_position) {
-    //     logger->log_general("En position: Prix d'entrée=" + logger->fast_double_to_string(position_info.entry_price));
-    // }
 
     // Add to buffer for historical calculations
     candle_manager.add_candle(candle.ohlc);
