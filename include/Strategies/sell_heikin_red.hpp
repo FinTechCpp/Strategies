@@ -305,6 +305,7 @@ public:
         take_profit_distance = PositionManager::calculateTakeProfit(
             base_config,
             current_atr,
+            stop_loss_distance,
             logger
         );
         

@@ -39,10 +39,13 @@ public:
     static double calculateTakeProfit(
         const StrategyBaseConfig& config,
         double current_atr,
+        double stop_loss_distance,
         const std::unique_ptr<ILogger>& logger
     ) {
         if (config.use_atr_for_tp && current_atr > 0.0) {
             return calculateTakeProfitWithATR(config, current_atr, logger);
+        } else if (config.use_sl_ratio_for_tp && stop_loss_distance > 0.0) {
+            return calculateTakeProfitWithSLRatio(config, stop_loss_distance, logger);
         } else {
             // Utiliser valeur fixe pour TP
             if (logger) logger->log_general("Utilisation de valeur fixe pour TP: " + 
@@ -188,6 +191,26 @@ private:
         );
         
         if (logger) logger->log_general("TP calculé avec ATR: " + std::to_string(take_profit_distance), LogLevel::INFO);
+        return take_profit_distance;
+    }
+    
+    // Calcul du TP basé sur le ratio SL
+    static double calculateTakeProfitWithSLRatio(
+        const StrategyBaseConfig& config,
+        double stop_loss_distance,
+        const std::unique_ptr<ILogger>& logger
+    ) {
+        if (logger) logger->log_general("Utilisation du ratio SL pour calculer TP", LogLevel::INFO);
+
+        // Calcul TP basé sur le ratio SL avec minimum
+        double take_profit_distance = std::max(
+            stop_loss_distance * config.tp_sl_ratio,
+            config.min_take_profit_distance
+        );
+        
+        if (logger) logger->log_general("TP calculé avec ratio SL: " + std::to_string(take_profit_distance) + 
+            " (SL=" + std::to_string(stop_loss_distance) + 
+            ", ratio=" + std::to_string(config.tp_sl_ratio) + ")", LogLevel::INFO);
         return take_profit_distance;
     }
     

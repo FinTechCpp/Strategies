@@ -145,6 +145,10 @@ struct StrategyBaseConfig {
     bool use_minmax_for_sl = false;
     int sl_minmax_periods = 5;
     double sl_minmax_delta = 5.0;
+    
+    // Nouveau paramètre pour TP basé sur SL
+    bool use_sl_ratio_for_tp = false;
+    double tp_sl_ratio = 2.0;  // TP = SL * ratio
         
     // Risk management
     bool use_risk_based_sizing = false;
@@ -213,6 +217,10 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Use Min/Max for SL: " << (config.use_minmax_for_sl ? "Yes" : "No") << "\n";
     os << "  SL Min/Max periods: " << config.sl_minmax_periods << "\n";
     os << "  SL Min/Max delta: " << config.sl_minmax_delta << "\n";
+    
+    // SL ratio for TP
+    os << "  Use SL ratio for TP: " << (config.use_sl_ratio_for_tp ? "Yes" : "No") << "\n";
+    os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
