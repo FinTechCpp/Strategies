@@ -2,7 +2,6 @@
 
 #include "Managers/LoggerManager.hpp"
 
-// Factory pour créer le bon type de logger
 class LoggerFactory {
 private:
     static bool logging_enabled;

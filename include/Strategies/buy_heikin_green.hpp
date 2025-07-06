@@ -14,12 +14,15 @@ struct BuyHeikinGreenConfig {
     int stoch_threshold = 20;
     int rsi_period = 14;
     int rsi_threshold = 30;
+    int supertrend_atr_period = 10;
+    double supertrend_multiplier = 3.0;
     
     bool use_ema_short_filter = false;
     bool use_ema_long_filter = false;
     bool use_stoch_filter = false;
     bool use_rsi_filter = false;
     bool use_previous_ha_candle_red_filter = false;
+    bool use_supertrend_filter = false;
 
     // Overload the << operator for easy printing
     friend std::ostream& operator<<(std::ostream& os, const BuyHeikinGreenConfig& config) {
@@ -34,6 +37,9 @@ struct BuyHeikinGreenConfig {
            << "  RSI (Used: " << (config.use_rsi_filter ? "Yes" : "No") << "):\n"
            << "    Period: " << config.rsi_period << "\n"
            << "    Threshold: " << config.rsi_threshold << "\n"
+           << "  Supertrend (Used: " << (config.use_supertrend_filter ? "Yes" : "No") << "):\n"
+           << "    ATR Period: " << config.supertrend_atr_period << "\n"
+           << "    Multiplier: " << config.supertrend_multiplier << "\n"
            << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
            << "}";
         return os;
@@ -50,6 +56,7 @@ private:
     std::unique_ptr<STOCH> stochastic_calculator;
     std::unique_ptr<RSI> rsi_calculator;
     std::unique_ptr<ATRLOG> atrlog_calculator;
+    std::unique_ptr<SUPERTREND> supertrend_calculator;
     
     // Indicator names
     std::string ema_short_name;
@@ -58,6 +65,7 @@ private:
     std::string stoch_d_name;
     std::string rsi_name;
     std::string atrlog_name;
+    std::string supertrend_name;
     
     // Indicator values
     double current_ema_short = 0.0;
@@ -72,6 +80,8 @@ private:
     double d_previous = 0.0;
     double k_previous_2 = 0.0;
     double k_previous_3 = 0.0;
+    double current_supertrend = 0.0;
+    int current_supertrend_direction = 0;
     
     // Filters
     std::vector<std::function<bool()>> active_filters;
@@ -220,6 +230,29 @@ private:
         }
     }
     
+    bool supertrend_filter() {
+        if (current_supertrend == 0.0) {
+            logger->log_filter_result("Supertrend", false);
+            logger->log_filter_detail("Supertrend", "Valeur Supertrend non calculée (0.0)");
+            return false;
+        }
+        
+        // Filter is true if price is above Supertrend band (uptrend)
+        bool result = price() > current_supertrend;
+        
+        logger->log_filter_result("Supertrend", result);
+        logger->log_filter_comparison("Supertrend", price(), current_supertrend, 
+                                    result ? ">" : "<=", result);
+        
+        // Additional logging for trend direction
+        std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
+                                     (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+        logger->log_filter_detail("Supertrend", "Direction: " + trend_direction + 
+                                ", Supertrend: " + logger->fast_double_to_string(current_supertrend));
+
+        return result;
+    }
+    
     bool initialize_indicators() {
         // Déterminer la période maximale nécessaire en fonction des indicateurs activés
         int max_period = 0;
@@ -235,6 +268,9 @@ private:
         
         if (config.use_rsi_filter)
             max_period = std::max(max_period, config.rsi_period * 2);
+        
+        if (config.use_supertrend_filter)
+            max_period = std::max(max_period, config.supertrend_atr_period * 2);
         
         if (base_config.use_atr_for_sl || base_config.use_atr_for_tp)
             max_period = std::max(max_period, base_config.atr_period * 2);
@@ -353,6 +389,30 @@ private:
             }
         }
         
+        // Initialize Supertrend
+        if (config.use_supertrend_filter) {
+            logger->log_general("Initialisation du Supertrend (période ATR: " + 
+                logger->fast_int_to_string(config.supertrend_atr_period) + 
+                ", multiplicateur: " + logger->fast_double_to_string(config.supertrend_multiplier) + ")");
+            
+            auto supertrend_values = supertrend_calculator->initialize_with_history(candles);
+            current_supertrend = supertrend_values.first;
+            current_supertrend_direction = supertrend_values.second;
+            bool success = (current_supertrend > 0.0);
+            all_required_initialized = all_required_initialized && success;
+
+            logger->log_general("Initialisation du Supertrend: " + 
+                            std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
+                            success ? LogLevel::INFO : LogLevel::ERROR);
+
+            if (success) {
+                logger->log_indicator_value(supertrend_name, current_supertrend);
+                std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
+                                             (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+                logger->log_filter_detail(supertrend_name, "Direction: " + trend_direction);
+            }
+        }
+        
         // Bilan de l'initialisation
         logger->log_general("Initialisation des indicateurs: " + 
             std::string(all_required_initialized ? "TOUS INITIALISÉS AVEC SUCCÈS" : "CERTAINS ONT ÉCHOUÉ"), 
@@ -373,8 +433,9 @@ private:
         bool need_stoch = config.use_stoch_filter && !stochastic_calculator->initialized();
         bool need_rsi = config.use_rsi_filter && !rsi_calculator->initialized();
         bool need_atrlog = (base_config.use_atr_for_sl || base_config.use_atr_for_tp) && !atrlog_calculator->initialized();
+        bool need_supertrend = config.use_supertrend_filter && !supertrend_calculator->initialized();
         
-        if (need_ema_short || need_ema_long || need_stoch || need_rsi || need_atrlog) {            
+        if (need_ema_short || need_ema_long || need_stoch || need_rsi || need_atrlog || need_supertrend) {            
             // Try to initialize indicators if they're not initialized
             return initialize_indicators();
         }
@@ -417,6 +478,18 @@ private:
         if (base_config.use_atr_for_sl || base_config.use_atr_for_tp) {
             current_atrlog = atrlog_calculator->update(candle_manager.get_latest_candle());
             logger->log_indicator_value(atrlog_name, current_atrlog);
+        }
+        
+        // Update Supertrend si nécessaire
+        if (config.use_supertrend_filter) {
+            auto supertrend_values = supertrend_calculator->update(candle_manager.get_latest_candle());
+            current_supertrend = supertrend_values.first;
+            current_supertrend_direction = supertrend_values.second;
+            logger->log_indicator_value(supertrend_name, current_supertrend);
+            
+            std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
+                                         (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+            logger->log_filter_detail(supertrend_name, "Direction: " + trend_direction);
         }
         
         return true;
@@ -503,6 +576,10 @@ public:
         );
         rsi_calculator = std::make_unique<RSI>(config.rsi_period);
         atrlog_calculator = std::make_unique<ATRLOG>(base_cfg.atr_period);
+        supertrend_calculator = std::make_unique<SUPERTREND>(
+            config.supertrend_atr_period,
+            config.supertrend_multiplier
+        );
         
         // Initialize indicator names
         ema_short_name = "EMA_" + logger->fast_int_to_string(config.ema_short_period);
@@ -515,6 +592,8 @@ public:
                       logger->fast_int_to_string(config.stoch_slowd);
         rsi_name = "RSI_" + logger->fast_int_to_string(config.rsi_period);
         atrlog_name = "ATRLOG_" + logger->fast_int_to_string(base_cfg.atr_period);
+        supertrend_name = "SUPERTREND_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
+                         logger->fast_double_to_string(config.supertrend_multiplier);
 
         // Setup active filters
         if (config.use_ema_short_filter) {
@@ -531,6 +610,9 @@ public:
         }
         if (config.use_previous_ha_candle_red_filter) {
             active_filters.push_back([this]() { return this->previous_ha_candle_red_filter(); });
+        }
+        if (config.use_supertrend_filter) {
+            active_filters.push_back([this]() { return this->supertrend_filter(); });
         }
     }
 };
