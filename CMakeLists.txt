@@ -8,8 +8,4 @@ add_library(strategies STATIC ${SOURCES})
 target_include_directories(strategies
     PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${CMAKE_CURRENT_SOURCE_DIR}/include/Strategies
 )
-
-# Add spdlog for headers that use it
-target_link_libraries(strategies PUBLIC spdlog::spdlog)
