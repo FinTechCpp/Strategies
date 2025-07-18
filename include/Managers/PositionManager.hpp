@@ -241,7 +241,7 @@ private:
         double leveraged_capital = initial_capital * config.leverage_limit;
         
         // Limit max position size to a percentage of capital with leverage
-        double max_position_value = leveraged_capital * config.max_position_percentage / 100.0;
+        double max_position_value = leveraged_capital;
         double max_position_size = max_position_value / current_price;
 
         if (logger) logger->log_position_sizing(max_position_size, max_position_size, 
@@ -251,11 +251,9 @@ private:
         double raw_position_size = std::min(risk_based_position_size, max_position_size);
         double final_position_size;
         
-        // If size >= 1, round to lower 0,5 
-        if (raw_position_size >= 1.0) {
-            final_position_size = std::floor(raw_position_size * 2.0) / 2.0;
-            if (logger) logger->log_position_sizing(raw_position_size, final_position_size, "arrondi au 0.5 inférieur", LogLevel::INFO);
-        } 
+        // Round to lower 0,5 
+        final_position_size = std::floor(raw_position_size * 2.0) / 2.0;
+        if (logger) logger->log_position_sizing(raw_position_size, final_position_size, "arrondi au 0.5 inférieur", LogLevel::INFO);
         
         return final_position_size;
     }

@@ -124,52 +124,51 @@ struct StrategyBaseConfig {
     bool enable_logging = true; // Enable or disable logging
 
     // Time settings
-    Time trading_from = {7, 0, 0};   // 7:00 AM
-    Time trading_to = {23, 0, 0};    // 11:00 PM
-    std::vector<int> trading_days = {0, 1, 2, 3, 4};  // 0=Monday, 6=Sunday
+    Time trading_from;
+    Time trading_to;
+    std::vector<int> trading_days;
     
     // Fixed SL/TP values
-    double take_profit_distance = 30.0;
-    double stop_loss_distance = 20.0;
+    double take_profit_distance;
+    double stop_loss_distance;
     
     // Paramètres ATR pour SL et TP
-    bool use_atr_for_sl = false;     // Important: valeur par défaut false
-    bool use_atr_for_tp = false;     // Important: valeur par défaut false
-    int atr_period = 14;
-    double stop_loss_atr_multiplier = 2.0; // sl_atr_multiple
-    double take_profit_atr_multiplier = 3.0; // tp_atr_multiple
-    double min_stop_loss_distance = 5.0;
-    double min_take_profit_distance = 5.0;
+    bool use_atr_for_sl;     // Important: valeur par défaut false
+    bool use_atr_for_tp;     // Important: valeur par défaut false
+    int atr_period;
+    double stop_loss_atr_multiplier;
+    double take_profit_atr_multiplier;
+    double min_stop_loss_distance;
+    double min_take_profit_distance;
     
     // Nouveaux paramètres Min/Max pour SL
-    bool use_minmax_for_sl = false;
-    int sl_minmax_periods = 5;
-    double sl_minmax_delta = 5.0;
+    bool use_minmax_for_sl;
+    int sl_minmax_periods;
+    double sl_minmax_delta;
     
     // Nouveau paramètre pour TP basé sur SL
-    bool use_sl_ratio_for_tp = false;
-    double tp_sl_ratio = 2.0;  // TP = SL * ratio
-        
+    bool use_sl_ratio_for_tp;
+    double tp_sl_ratio;
+
     // Risk management
-    bool use_risk_based_sizing = false;
-    double risk_percentage = 1.0; // risk_per_trade_pct
-    double cash = 100000.0;
-    double max_position_percentage = 100.0;
-    double leverage_limit = 20.0;
-    
+    bool use_risk_based_sizing;
+    double risk_percentage;
+    double cash;
+    double leverage_limit;
+
     // Break-even parameters
-    bool use_break_even = false;
-    double break_even_threshold = 0.7;
+    bool use_break_even;
+    double break_even_threshold;
 
     // Perte maximale journalière
-    bool use_daily_max_loss = false;
-    double daily_max_loss_percentage = 2.0;
-    double daily_max_loss_amount = 0.0; // Calculé à partir de cash et daily_max_loss_percentage
+    bool use_daily_max_loss;
+    double daily_max_loss_percentage;
+    double daily_max_loss_amount; // Calculé à partir de cash et daily_max_loss_percentage
     
     // Profit maximal journalier
-    bool use_daily_max_profit = false;
-    double daily_max_profit_percentage = 5.0;
-    double daily_max_profit_amount = 0.0; // Calculé à partir de cash et daily_max_profit_percentage
+    bool use_daily_max_profit;
+    double daily_max_profit_percentage;
+    double daily_max_profit_amount; // Calculé à partir de cash et daily_max_profit_percentage
 };
 
 // Surcharge de l'opérateur de flux pour StrategyBaseConfig
@@ -226,7 +225,6 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
     os << "  Risk percentage: " << config.risk_percentage << "%\n";
     os << "  Cash: " << config.cash << "\n";
-    os << "  Max position %: " << config.max_position_percentage << "%\n";
     
     // Break-even parameters
     os << "  Use break-even: " << (config.use_break_even ? "Yes" : "No") << "\n";

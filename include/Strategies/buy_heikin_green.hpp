@@ -6,16 +6,16 @@
 #include <functional>
 
 struct BuyHeikinGreenConfig {
-    int ema_short_period = 150;
-    int ema_long_period = 198;
-    int stoch_fastk = 10;
-    int stoch_slowk = 7;
-    int stoch_slowd = 3;
-    int stoch_threshold = 20;
-    int rsi_period = 14;
-    int rsi_threshold = 30;
-    int supertrend_atr_period = 10;
-    double supertrend_multiplier = 3.0;
+    int ema_short_period;
+    int ema_long_period;
+    int stoch_fastk;
+    int stoch_slowk;
+    int stoch_slowd;
+    int stoch_threshold;
+    int rsi_period;
+    int rsi_threshold;
+    int supertrend_atr_period;
+    double supertrend_multiplier;
     
     bool use_ema_short_filter = false;
     bool use_ema_long_filter = false;
