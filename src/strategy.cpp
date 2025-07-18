@@ -232,6 +232,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
         auto be_signal = std::make_unique<Signal>();
         be_signal->action = "MOVE_SL";
         be_signal->new_sl = position_info.entry_price;
+        be_signal->price = break_even_price;
         return be_signal;
     }
 
