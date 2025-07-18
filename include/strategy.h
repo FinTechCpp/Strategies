@@ -57,7 +57,6 @@ protected:
     double stop_loss_distance = 0.0;
     
     // Execution control
-    bool is_executing = false;
     std::unique_ptr<Signal> signal;
     
     // Cache for time checking

@@ -347,13 +347,6 @@ bool Strategy::execute_filters() {
 }
 
 void Strategy::execute() {
-    if (is_executing) {
-        logger->log_execution_step("Exécution déjà en cours", false);
-        return;
-    }
-    
-    is_executing = true;
-
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
@@ -363,10 +356,9 @@ void Strategy::execute() {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
         // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
         reset();
-        is_executing = false;
         return;
     }
-    // logger->log_execution_step("Mise à jour indicateurs", true);
+
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
@@ -378,7 +370,6 @@ void Strategy::execute() {
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         
         signal = generate_liquidation_signal();
-        is_executing = false;
         return;
     }
 
@@ -387,10 +378,19 @@ void Strategy::execute() {
         logger->log_execution_step("Vérification horaires", false);
         
         signal = generate_liquidation_signal();
-        is_executing = false;
         return;
     }
     logger->log_execution_step("Vérification horaires", true);
+
+
+    // Check for break-even signal before executing strategy
+    auto be_signal = check_break_even();
+    if (be_signal) {
+        logger->log_general("Signal de break-even généré: " + 
+                          logger->fast_double_to_string(be_signal->new_sl));
+        signal = std::move(be_signal);
+        return;
+    }
 
     
     before();
@@ -405,7 +405,6 @@ void Strategy::execute() {
     } else {
         logger->log_execution_step("Conditions d entrée", false);
         reset();
-        is_executing = false;
         return;
     }
     
@@ -413,7 +412,6 @@ void Strategy::execute() {
         logger->log_execution_step("Filtres", false);
         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
         reset();
-        is_executing = false;
         return;
     }
     logger->log_execution_step("Filtres", true);
@@ -425,7 +423,6 @@ void Strategy::execute() {
     }
     
     after();
-    is_executing = false;
 }
 
 
@@ -461,19 +458,6 @@ Signal* Strategy::update_candle(const Candle& candle) {
 
     // Add to buffer for historical calculations
     candle_manager.add_candle(candle.ohlc);
-
-    
-    // Check for break-even signal before executing strategy
-    auto be_signal = check_break_even();
-    if (be_signal) {
-        logger->log_general("Signal de break-even généré: " + 
-                          logger->fast_double_to_string(be_signal->new_sl));
-        signal = std::move(be_signal);
-
-        logger->finalize_and_send_logs();
-
-        return signal.get();
-    }
     
     // Execute strategy
     execute();
