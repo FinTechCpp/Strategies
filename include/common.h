@@ -159,6 +159,7 @@ struct StrategyBaseConfig {
     // Break-even parameters
     bool use_break_even;
     double break_even_threshold;
+    double break_even_offset_per_mille; // Pour mille du prix d'entrée pour déplacer le BE relativement au prix d'entrée
 
     // Perte maximale journalière
     bool use_daily_max_loss;
@@ -230,6 +231,7 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     // Break-even parameters
     os << "  Use break-even: " << (config.use_break_even ? "Yes" : "No") << "\n";
     os << "  Break-even threshold: " << config.break_even_threshold << "\n";
+    os << "  Break-even offset percentage: " << config.break_even_offset_per_mille << "%\n";
     
     // Daily maximum loss
     os << "  Use daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No") << "\n";
