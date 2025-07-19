@@ -149,6 +149,11 @@ struct StrategyBaseConfig {
     // Nouveau paramètre pour TP basé sur SL
     bool use_sl_ratio_for_tp;
     double tp_sl_ratio;
+    
+    // Nouveau paramètre pour TP basé sur SuperTrend
+    bool use_supertrend_for_tp;
+    int tp_supertrend_atr_period;
+    double tp_supertrend_multiplier;
 
     // Risk management
     bool use_risk_based_sizing;
@@ -221,6 +226,11 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     // SL ratio for TP
     os << "  Use SL ratio for TP: " << (config.use_sl_ratio_for_tp ? "Yes" : "No") << "\n";
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
+
+    // SuperTrend parameters for TP
+    os << "  Use SuperTrend for TP: " << (config.use_supertrend_for_tp ? "Yes" : "No") << "\n";
+    os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
+    os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n";
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";

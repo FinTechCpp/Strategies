@@ -42,7 +42,11 @@ public:
         double stop_loss_distance,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (config.use_atr_for_tp && current_atr > 0.0) {
+        if (config.use_supertrend_for_tp) {
+            // SuperTrend TP : pas de TP fixe à l'ouverture, sortie basée sur inversion de tendance
+            if (logger) logger->log_general("Utilisation du SuperTrend pour TP - pas de distance fixe", LogLevel::INFO);
+            return 0.0;  // Pas de TP fixe
+        } else if (config.use_atr_for_tp && current_atr > 0.0) {
             return calculateTakeProfitWithATR(config, current_atr, logger);
         } else if (config.use_sl_ratio_for_tp && stop_loss_distance > 0.0) {
             return calculateTakeProfitWithSLRatio(config, stop_loss_distance, logger);

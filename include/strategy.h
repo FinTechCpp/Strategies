@@ -14,6 +14,7 @@
 #include <iostream>
 #include <sstream>
 #include "Indicators/indicators.hpp"
+#include "Indicators/supertrend.hpp"
 
 // Fonction utilitaire pour parser une chaîne de date ISO
 DateTime parse_iso_datetime(const std::string& iso_date);
@@ -71,6 +72,11 @@ protected:
     
     // Cache pour le dernier trade
     double last_trade_pnl = 0.0;
+    
+    // SuperTrend pour TP (optionnel)
+    std::unique_ptr<SUPERTREND> tp_supertrend_calculator;
+    int previous_supertrend_direction = 0;
+    bool has_open_position = false;
 
     // Core strategy methods to implement in derived classes
     virtual bool update_indicators() { return true; };
@@ -99,6 +105,7 @@ private:
     bool check_time();
     
     std::unique_ptr<Signal> check_break_even();
+    std::unique_ptr<Signal> check_supertrend_exit();
     std::unique_ptr<Signal> generate_buy_signal();
     std::unique_ptr<Signal> generate_sell_signal();
     std::unique_ptr<Signal> generate_liquidation_signal();

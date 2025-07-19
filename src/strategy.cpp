@@ -239,6 +239,46 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     return nullptr;
 }
 
+std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
+    // Vérifier si la stratégie utilise SuperTrend pour TP et si on a une position ouverte
+    if (!base_config.use_supertrend_for_tp || !has_open_position || !tp_supertrend_calculator) {
+        return nullptr;
+    }
+
+    // Obtenir la bougie actuelle
+    const BasicCandle& latest_candle = candle_manager.get_latest_candle();
+    if (!latest_candle.date.is_valid()) {
+        return nullptr;
+    }
+
+    // Mettre à jour le SuperTrend avec la bougie actuelle
+    auto [supertrend_value, current_direction] = tp_supertrend_calculator->update(latest_candle);
+    
+    // Vérifier s'il y a eu une inversion de tendance
+    if (previous_supertrend_direction != 0 && current_direction != previous_supertrend_direction) {
+        logger->log_general("Inversion SuperTrend détectée: " + 
+                          std::to_string(previous_supertrend_direction) + " -> " + 
+                          std::to_string(current_direction) + 
+                          " @ " + logger->fast_double_to_string(supertrend_value), LogLevel::INFO);
+        
+        // Générer un signal de liquidation
+        auto exit_signal = std::make_unique<Signal>();
+        exit_signal->action = "LIQUIDATE";
+        exit_signal->price = latest_candle.close;
+        
+        // Réinitialiser le suivi de position
+        has_open_position = false;
+        previous_supertrend_direction = 0;
+        
+        return exit_signal;
+    }
+    
+    // Mettre à jour la direction précédente
+    previous_supertrend_direction = current_direction;
+    
+    return nullptr;
+}
+
 std::unique_ptr<Signal> Strategy::generate_buy_signal() {
     auto sig = std::make_unique<Signal>();
     sig->action = "BUY";
@@ -310,6 +350,20 @@ void Strategy::execute_long() {
     
     logger->log_signal("BUY", buy_price, buy_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
+    
+    // Marquer qu'une position est maintenant ouverte
+    if (base_config.use_supertrend_for_tp && tp_supertrend_calculator) {
+        has_open_position = true;
+        // Initialiser le SuperTrend avec l'historique disponible
+        auto candles = candle_manager.get_last_candles(std::max(base_config.tp_supertrend_atr_period + 1, 50));
+        if (candles.size() >= static_cast<size_t>(base_config.tp_supertrend_atr_period + 1)) {
+            auto [st_value, st_direction] = tp_supertrend_calculator->initialize_with_history(candles);
+            previous_supertrend_direction = st_direction;
+            logger->log_general("SuperTrend TP initialisé: valeur=" + 
+                              logger->fast_double_to_string(st_value) + 
+                              ", direction=" + std::to_string(st_direction), LogLevel::DEBUG);
+        }
+    }
             
     signal = generate_buy_signal();
 }
@@ -349,6 +403,20 @@ void Strategy::execute_short() {
     
     logger->log_signal("SELL", sell_price, sell_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
+    
+    // Marquer qu'une position est maintenant ouverte
+    if (base_config.use_supertrend_for_tp && tp_supertrend_calculator) {
+        has_open_position = true;
+        // Initialiser le SuperTrend avec l'historique disponible
+        auto candles = candle_manager.get_last_candles(std::max(base_config.tp_supertrend_atr_period + 1, 50));
+        if (candles.size() >= static_cast<size_t>(base_config.tp_supertrend_atr_period + 1)) {
+            auto [st_value, st_direction] = tp_supertrend_calculator->initialize_with_history(candles);
+            previous_supertrend_direction = st_direction;
+            logger->log_general("SuperTrend TP initialisé: valeur=" + 
+                              logger->fast_double_to_string(st_value) + 
+                              ", direction=" + std::to_string(st_direction), LogLevel::DEBUG);
+        }
+    }
     
     signal = generate_sell_signal();
 }
@@ -407,6 +475,14 @@ void Strategy::execute() {
         return;
     }
 
+    // Check for SuperTrend exit signal if position is open
+    auto st_exit_signal = check_supertrend_exit();
+    if (st_exit_signal) {
+        logger->log_general("Signal de sortie SuperTrend généré");
+        signal = std::move(st_exit_signal);
+        return;
+    }
+
     
     before();
     
@@ -447,6 +523,15 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     logger(LoggerFactory::createLogger()) {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
+    
+    // Initialize SuperTrend for TP if enabled
+    if (base_config.use_supertrend_for_tp) {
+        tp_supertrend_calculator = std::make_unique<SUPERTREND>(
+            base_config.tp_supertrend_atr_period,
+            base_config.tp_supertrend_multiplier,
+            "TP_SUPERTREND"
+        );
+    }
 }
 
 // Main update method
