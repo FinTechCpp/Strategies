@@ -224,6 +224,7 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
     os << "  Risk percentage: " << config.risk_percentage << "%\n";
+    os << "  Leverage limit: " << config.leverage_limit << "\n";
     os << "  Cash: " << config.cash << "\n";
     
     // Break-even parameters

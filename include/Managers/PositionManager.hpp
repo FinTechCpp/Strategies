@@ -229,12 +229,12 @@ private:
         double risk_percentage = config.risk_percentage;
         double risk_amount = initial_capital * risk_percentage / 100.0;
 
-        if (logger) logger->log_risk_calculation(risk_amount, risk_percentage);
+        logger->log_risk_calculation(risk_amount, risk_percentage);
         
         // Calculate position size for SL to represent exactly risk_amount
         double risk_based_position_size = risk_amount / stop_loss_distance;
 
-        if (logger) logger->log_position_sizing(risk_based_position_size, risk_based_position_size, 
+        logger->log_position_sizing(risk_based_position_size, risk_based_position_size, 
             "basé sur le risque", LogLevel::DEBUG);
         
         // Use total available capital with leverage
@@ -244,16 +244,23 @@ private:
         double max_position_value = leveraged_capital;
         double max_position_size = max_position_value / current_price;
 
-        if (logger) logger->log_position_sizing(max_position_size, max_position_size, 
+        logger->log_position_sizing(max_position_size, max_position_size, 
             "limite maximale", LogLevel::DEBUG);
         
         // Take the MINIMUM between risk-based size and limit
         double raw_position_size = std::min(risk_based_position_size, max_position_size);
-        double final_position_size;
+
+        if (risk_based_position_size > max_position_size) {
+            logger->log_general("Taille de position basée sur le risque (" + 
+                std::to_string(risk_based_position_size) + 
+                ") dépasse la limite maximale (" + 
+                std::to_string(max_position_size) + 
+                "), ajustement à la limite", LogLevel::WARNING);
+        }
         
         // Round to lower 0,5 
-        final_position_size = std::floor(raw_position_size * 2.0) / 2.0;
-        if (logger) logger->log_position_sizing(raw_position_size, final_position_size, "arrondi au 0.5 inférieur", LogLevel::INFO);
+        double final_position_size = std::floor(raw_position_size * 2.0) / 2.0;
+        logger->log_position_sizing(raw_position_size, final_position_size, "arrondi au 0.5 inférieur", LogLevel::INFO);
         
         return final_position_size;
     }

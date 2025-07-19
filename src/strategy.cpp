@@ -278,9 +278,16 @@ void Strategy::reset() {
 void Strategy::execute_long() {
     go_long();
     
-    if (buy_quantity <= 0.0 || buy_price <= 0.0) {
+    if (buy_quantity < 0.0 || buy_price <= 0.0) {
         logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
+    }
+
+    if (buy_quantity == 0.0) {
+        logger->log_general("Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
+        // If quantity is zero, we cannot proceed with the trade
+        reset();
+        return;
     }
 
     // Calculate risk and check if it's acceptable
@@ -310,9 +317,16 @@ void Strategy::execute_long() {
 void Strategy::execute_short() {
     go_short();
     
-    if (sell_quantity <= 0.0 || sell_price <= 0.0) {
+    if (sell_quantity < 0.0 || sell_price <= 0.0) {
         logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
+    }
+
+    if (sell_quantity == 0.0) {
+        logger->log_general("Quantité de vente nulle, trade annulé", LogLevel::WARNING);
+        // If quantity is zero, we cannot proceed with the trade
+        reset();
+        return;
     }
 
     // Calculate risk and check if it's acceptable
