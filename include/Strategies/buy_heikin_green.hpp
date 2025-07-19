@@ -80,8 +80,7 @@ private:
     double d_previous = 0.0;
     double k_previous_2 = 0.0;
     double k_previous_3 = 0.0;
-    double current_supertrend = 0.0;
-    int current_supertrend_direction = 0;
+
     
     // Filters
     std::vector<std::function<bool()>> active_filters;
@@ -481,7 +480,7 @@ private:
         }
         
         // Update Supertrend si nécessaire
-        if (config.use_supertrend_filter) {
+        if (config.use_supertrend_filter || base_config.use_supertrend_for_tp) {
             auto supertrend_values = supertrend_calculator->update(candle_manager.get_latest_candle());
             current_supertrend = supertrend_values.first;
             current_supertrend_direction = supertrend_values.second;

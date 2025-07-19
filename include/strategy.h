@@ -76,7 +76,8 @@ protected:
     // SuperTrend pour TP (optionnel)
     std::unique_ptr<SUPERTREND> tp_supertrend_calculator;
     int previous_supertrend_direction = 0;
-    bool has_open_position = false;
+    double current_supertrend = 0.0;
+    int current_supertrend_direction = 0;
 
     // Core strategy methods to implement in derived classes
     virtual bool update_indicators() { return true; };
