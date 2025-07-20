@@ -73,8 +73,7 @@ protected:
     // Cache pour le dernier trade
     double last_trade_pnl = 0.0;
     
-    // SuperTrend pour TP (optionnel)
-    std::unique_ptr<SUPERTREND> tp_supertrend_calculator;
+    // SuperTrend pour TP - values updated by derived classes
     int previous_supertrend_direction = 0;
     double current_supertrend = 0.0;
     int current_supertrend_direction = 0;
