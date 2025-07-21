@@ -8,11 +8,13 @@ a take-profit multiplier.
 
 import numpy as np
 import onnx
-from onnx import helper, TensorProto, mapping
+from onnx import helper, TensorProto
 import onnxruntime as ort
 import sys
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-def create_simple_tp_model(input_size=10, output_size=1, model_path="tp_model.onnx"):
+def create_simple_tp_model(input_size: int = 10, output_size: int = 1, model_path: str = "tp_model.onnx"):
     """
     Create a simple linear model for take-profit prediction.
     
@@ -81,11 +83,11 @@ def create_simple_tp_model(input_size=10, output_size=1, model_path="tp_model.on
     
     # Save the model
     onnx.save(model, model_path)
-    
-    print(f"✅ ONNX model created successfully: {model_path}")
+
+    logging.info(f"✅ ONNX model created successfully: {model_path}")
     return model_path
 
-def test_model(model_path, input_size=10):
+def test_model(model_path: str, input_size: int = 10):
     """
     Test the created ONNX model with sample inputs.
     """
@@ -96,10 +98,10 @@ def test_model(model_path, input_size=10):
         # Get input and output names
         input_name = session.get_inputs()[0].name
         output_name = session.get_outputs()[0].name
-        
-        print(f"📊 Model input: {input_name}, shape: {session.get_inputs()[0].shape}")
-        print(f"📊 Model output: {output_name}, shape: {session.get_outputs()[0].shape}")
-        
+
+        logging.info(f"📊 Model input: {input_name}, shape: {session.get_inputs()[0].shape}")
+        logging.info(f"📊 Model output: {output_name}, shape: {session.get_outputs()[0].shape}")
+
         # Create test inputs (simulating market features)
         test_cases = [
             # [ATR, SL_distance, price_features...]
@@ -107,18 +109,18 @@ def test_model(model_path, input_size=10):
             np.array([[0.2, 0.1, -0.01, 0.02, -0.015, 0.01, -0.02, 0.005, -0.01, -0.005]], dtype=np.float32),
             np.array([[0.05, 0.02, 0.005, 0.01, 0.008, -0.003, 0.012, 0.007, -0.002, 0.004]], dtype=np.float32),
         ]
-        
-        print("\n🧪 Testing model with sample inputs:")
+
+        logging.info("\n🧪 Testing model with sample inputs:")
         for i, test_input in enumerate(test_cases):
             result = session.run([output_name], {input_name: test_input})
             tp_multiplier = result[0][0][0]
-            print(f"Test {i+1}: ATR={test_input[0][0]:.3f}, SL={test_input[0][1]:.3f} → TP Multiplier={tp_multiplier:.3f}")
-        
-        print("✅ Model test completed successfully!")
+            logging.info(f"Test {i+1}: ATR={test_input[0][0]:.3f}, SL={test_input[0][1]:.3f} → TP Multiplier={tp_multiplier:.3f}")
+
+        logging.info("✅ Model test completed successfully!")
         return True
         
     except Exception as e:
-        print(f"❌ Error testing model: {e}")
+        logging.error(f"❌ Error testing model: {e}")
         return False
 
 def create_config_example():
@@ -148,12 +150,12 @@ config.rl_tp_max_multiplier = 5.0;   // Maximum TP multiplier
     
     with open("../models/onnx_model_usage_example.txt", "w") as f:
         f.write(config_example)
-    
-    print("📝 Created usage example: onnx_model_usage_example.txt")
+
+    logging.info("📝 Created usage example: onnx_model_usage_example.txt")
 
 def main():
-    print("🤖 Creating test ONNX model for calculateTakeProfitWithRL function...")
-    
+    logging.info("🤖 Creating test ONNX model for calculateTakeProfitWithRL function...")
+
     # Model configuration
     input_size = 10  # 2 market features + 8 price features (2 candles * 4 OHLC)
     model_path = "../models/tp_model.onnx"
@@ -166,21 +168,21 @@ def main():
         if test_model(created_model, input_size):
             # Create usage example
             create_config_example()
-            
-            print(f"\n🎉 Success! Your test ONNX model is ready:")
-            print(f"   📁 Model file: {model_path}")
-            print(f"   📋 Usage example: ../models/onnx_model_usage_example.txt")
-            print(f"\n💡 To test your C++ function:")
-            print(f"   1. Set config.rl_model_path = \"{model_path}\"")
-            print(f"   2. Set config.rl_lookback_periods = 2")
-            print(f"   3. Call PositionManager::calculateTakeProfit() with use_rl_for_tp = true")
+
+            logging.info(f"\n🎉 Success! Your test ONNX model is ready:")
+            logging.info(f"   📁 Model file: {model_path}")
+            logging.info(f"   📋 Usage example: ../models/onnx_model_usage_example.txt")
+            logging.info(f"\n💡 To test your C++ function:")
+            logging.info(f"   1. Set config.rl_model_path = \"{model_path}\"")
+            logging.info(f"   2. Set config.rl_lookback_periods = 2")
+            logging.info(f"   3. Call PositionManager::calculateTakeProfit() with use_rl_for_tp = true")
             
         else:
-            print("❌ Model creation failed during testing")
+            logging.error("❌ Model creation failed during testing")
             return 1
             
     except Exception as e:
-        print(f"❌ Error creating model: {e}")
+        logging.error(f"❌ Error creating model: {e}")
         return 1
     
     return 0
