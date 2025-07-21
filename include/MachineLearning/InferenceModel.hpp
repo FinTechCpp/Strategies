@@ -19,7 +19,13 @@ public:
     bool load(const std::string& model_path) {
         try {
             Ort::SessionOptions session_options;
+#ifdef _WIN32
+            // Convert string to wide string for Windows
+            std::wstring wide_path(model_path.begin(), model_path.end());
+            session = std::make_unique<Ort::Session>(env, wide_path.c_str(), session_options);
+#else
             session = std::make_unique<Ort::Session>(env, model_path.c_str(), session_options);
+#endif
             
             // Get input and output names
             Ort::AllocatorWithDefaultOptions allocator;
@@ -41,7 +47,7 @@ public:
             
             is_initialized = true;
             return true;
-        } catch (const Ort::Exception& e) {
+        } catch (const Ort::Exception&) {
             is_initialized = false;
             return false;
         }
