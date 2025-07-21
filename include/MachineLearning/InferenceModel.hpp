@@ -8,7 +8,7 @@
 class InferenceModel {
 private:
     Ort::Env env;
-    Ort::Session session{nullptr};
+    std::unique_ptr<Ort::Session> session;
     std::vector<const char*> input_names;
     std::vector<const char*> output_names;
     bool is_initialized = false;
@@ -19,23 +19,23 @@ public:
     bool load(const std::string& model_path) {
         try {
             Ort::SessionOptions session_options;
-            session = Ort::Session(env, model_path.c_str(), session_options);
+            session = std::make_unique<Ort::Session>(env, model_path.c_str(), session_options);
             
             // Get input and output names
             Ort::AllocatorWithDefaultOptions allocator;
-            size_t num_input_nodes = session.GetInputCount();
-            size_t num_output_nodes = session.GetOutputCount();
+            size_t num_input_nodes = session->GetInputCount();
+            size_t num_output_nodes = session->GetOutputCount();
             
             input_names.clear();
             output_names.clear();
             
             for (size_t i = 0; i < num_input_nodes; i++) {
-                auto name = session.GetInputNameAllocated(i, allocator);
+                auto name = session->GetInputNameAllocated(i, allocator);
                 input_names.push_back(name.get());
             }
             
             for (size_t i = 0; i < num_output_nodes; i++) {
-                auto name = session.GetOutputNameAllocated(i, allocator);
+                auto name = session->GetOutputNameAllocated(i, allocator);
                 output_names.push_back(name.get());
             }
             
@@ -67,7 +67,7 @@ public:
         );
         
         // Run inference
-        std::vector<Ort::Value> output_tensors = session.Run(
+        std::vector<Ort::Value> output_tensors = session->Run(
             Ort::RunOptions{nullptr}, 
             input_names.data(), 
             &input_tensor, 
