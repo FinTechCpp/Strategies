@@ -1,0 +1,19 @@
+
+// Example C++ configuration for using the RL model:
+
+StrategyBaseConfig config;
+// ... other config settings ...
+
+// Enable RL-based take profit
+config.use_rl_for_tp = true;
+config.rl_model_path = "/path/to/tp_model.onnx";
+config.rl_lookback_periods = 2;  // Number of recent candles to use (2 candles * 4 OHLC = 8 features + 2 market features = 10 total)
+config.rl_tp_min_multiplier = 0.5;   // Minimum TP multiplier
+config.rl_tp_max_multiplier = 5.0;   // Maximum TP multiplier
+
+// The model expects 10 features in this order:
+// 1. current_atr (float)
+// 2. stop_loss_distance (float)
+// 3-10. Normalized OHLC data from recent candles:
+//       For each candle: (open/current_price - 1), (high/current_price - 1), 
+//                       (low/current_price - 1), (close/current_price - 1)

@@ -155,6 +155,13 @@ struct StrategyBaseConfig {
     int tp_supertrend_atr_period;
     double tp_supertrend_multiplier;
 
+    // Nouveaux paramètres pour TP basé sur RL
+    bool use_rl_for_tp;
+    std::string rl_model_path = "./Models/tp_model.onnx"; // Chemin vers le modèle RL
+    int rl_lookback_periods; // Période de rétroaction pour le modèle RL
+    double rl_tp_min_multiplier; // Multiplicateur minimum pour le TP basé sur RL
+    double rl_tp_max_multiplier; // Multiplicateur maximum pour le TP basé sur RL
+
     // Risk management
     bool use_risk_based_sizing;
     double risk_percentage;

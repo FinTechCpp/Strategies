@@ -542,8 +542,10 @@ private:
         // Calcul du Take Profit
         take_profit_distance = PositionManager::calculateTakeProfit(
             base_config,
+            price(),
             current_atrlog,
             stop_loss_distance,
+            candle_manager,
             logger
         );
 

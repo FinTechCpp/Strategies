@@ -2,6 +2,7 @@
 #include "common.h"
 #include "CandleManager.hpp"
 #include "Managers/LoggerManager.hpp"
+#include "MachineLearning/InferenceModel.hpp"
 #include "strategy.h"
 #include <cmath>
 #include <algorithm>
@@ -35,17 +36,22 @@ public:
         }
     }
     
-    // Calcul du Take Profit avec différentes méthodes  
     static double calculateTakeProfit(
         const StrategyBaseConfig& config,
+        double current_price,
         double current_atr,
         double stop_loss_distance,
+        const CandleManager& candle_manager,
         const std::unique_ptr<ILogger>& logger
     ) {
         if (config.use_supertrend_for_tp) {
             // SuperTrend TP : pas de TP fixe à l'ouverture, sortie basée sur inversion de tendance
             if (logger) logger->log_general("Utilisation du SuperTrend pour TP - pas de distance fixe", LogLevel::INFO);
             return 0.0;  // Pas de TP fixe
+        } else if (config.use_rl_for_tp) {
+            // RL-based TP calculation
+            return calculateTakeProfitWithRL(config, current_price, current_atr, 
+                                            stop_loss_distance, candle_manager, logger);
         } else if (config.use_atr_for_tp && current_atr > 0.0) {
             return calculateTakeProfitWithATR(config, current_atr, logger);
         } else if (config.use_sl_ratio_for_tp && stop_loss_distance > 0.0) {
@@ -175,6 +181,7 @@ private:
             return stop_loss_distance;
         }
     }
+
     
     // Calcul du TP basé sur ATR
     static double calculateTakeProfitWithATR(
@@ -183,7 +190,7 @@ private:
         const std::unique_ptr<ILogger>& logger
     ) {
         if (logger) logger->log_general("Utilisation de l'ATR pour calculer TP", LogLevel::INFO);
-
+        
         // Vérification ATR
         double atr_to_use = current_atr;
         if (atr_to_use <= 0.0) {
@@ -209,7 +216,7 @@ private:
         const std::unique_ptr<ILogger>& logger
     ) {
         if (logger) logger->log_general("Utilisation du ratio SL pour calculer TP", LogLevel::INFO);
-
+        
         // Calcul TP basé sur le ratio SL avec minimum
         double take_profit_distance = std::max(
             stop_loss_distance * config.tp_sl_ratio,
@@ -217,11 +224,23 @@ private:
         );
         
         if (logger) logger->log_general("TP calculé avec ratio SL: " + std::to_string(take_profit_distance) + 
-            " (SL=" + std::to_string(stop_loss_distance) + 
-            ", ratio=" + std::to_string(config.tp_sl_ratio) + ")", LogLevel::INFO);
+        " (SL=" + std::to_string(stop_loss_distance) + 
+        ", ratio=" + std::to_string(config.tp_sl_ratio) + ")", LogLevel::INFO);
         return take_profit_distance;
     }
     
+    // Static cache for the model to avoid reloading
+    static std::unique_ptr<InferenceModel> rl_model;
+    
+    static double calculateTakeProfitWithRL(
+        const StrategyBaseConfig& config,
+        double current_price,
+        double current_atr,
+        double stop_loss_distance,
+        const CandleManager& candle_manager,
+        const std::unique_ptr<ILogger>& logger
+    );
+
     // Calcul de la taille de position basée sur le risque
     static double calculateRiskBasedPositionSize(
         const StrategyBaseConfig& config,
