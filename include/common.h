@@ -22,7 +22,7 @@ struct Time {
         : hour(h), minute(m), second(s) {}
 };
 
-// TODO : on pourrait mettre en commun avec la class Date du backtestEngine
+// TODO: could be shared with the Date class from backtestEngine
 struct DateTime {
     int year = 0;
     int month = 0;
@@ -39,7 +39,7 @@ struct DateTime {
     std::string to_string() const;
 };
 
-// Niveaux de log
+// Logging levels for the strategy
 enum LogLevel {
     CRITICAL = 50,
     FATAL = CRITICAL,
@@ -51,7 +51,7 @@ enum LogLevel {
     NOTSET = 0
 };
 
-// Surcharge de l'opérateur de flux pour LogLevel
+// Overload the << operator for LogLevel to print it as a string
 inline std::ostream& operator<<(std::ostream& os, const LogLevel& level) {
     switch (level) {
         case LogLevel::CRITICAL:
@@ -84,34 +84,34 @@ struct BasicCandle {
         : date(dt), open(o), high(h), low(l), close(c) {}
 };
 
-// Structure pour les données de position/trading
+// Structure for position/trading data
 struct PositionInfo {
-    // Pour le break-even, si la strategie n'utilise pas le break-even, pas necessaire
+    // For break-even, if the strategy does not use break-even, not necessary
     double entry_price = 0.0;
     double take_profit_price = 0.0;
 
-    // Pour la perte maximale journalière, si la stratégie n'utilise pas la perte maximale journalière, pas nécessaire
+    // For daily maximum loss, if the strategy does not use daily maximum loss, not necessary
     double closed_trade_pnl = 0.0;
 
     PositionInfo() = default;
 };
 
-// Composition plutôt qu'héritage pour la structure utilisée dans les stratégies
+// Composition rather than inheritance for the structure used in strategies
 struct Candle {
     BasicCandle ohlc;
     PositionInfo position;
 
     Candle() = default;
 
-    // Constructeur pratique pour les données OHLC
+    // Convenient constructor for OHLC data
     Candle(const DateTime& dt, double o, double h, double l, double c)
         : ohlc(dt, o, h, l, c) {}
 
-    // Constructeur complet
+    // Complete constructor
     Candle(const BasicCandle& basic, const PositionInfo& pos)
         : ohlc(basic), position(pos) {}
 
-    // Accesseurs pratiques pour éviter d'écrire candle.ohlc.xxx
+    // Convenient accessors to avoid writing candle.ohlc.xxx
     double open() const { return ohlc.open; }
     double high() const { return ohlc.high; }
     double low() const { return ohlc.low; }
@@ -124,55 +124,66 @@ struct StrategyBaseConfig {
     bool enable_logging = true; // Enable or disable logging
 
     // Time settings
-    Time trading_from = {7, 0, 0};   // 7:00 AM
-    Time trading_to = {23, 0, 0};    // 11:00 PM
-    std::vector<int> trading_days = {0, 1, 2, 3, 4};  // 0=Monday, 6=Sunday
+    Time trading_from;
+    Time trading_to;
+    std::vector<int> trading_days;
     
     // Fixed SL/TP values
-    double take_profit_distance = 30.0;
-    double stop_loss_distance = 20.0;
-    
-    // Paramètres ATR pour SL et TP
-    bool use_atr_for_sl = false;     // Important: valeur par défaut false
-    bool use_atr_for_tp = false;     // Important: valeur par défaut false
-    int atr_period = 14;
-    double stop_loss_atr_multiplier = 2.0; // sl_atr_multiple
-    double take_profit_atr_multiplier = 3.0; // tp_atr_multiple
-    double min_stop_loss_distance = 5.0;
-    double min_take_profit_distance = 5.0;
-    
-    // Nouveaux paramètres Min/Max pour SL
-    bool use_minmax_for_sl = false;
-    int sl_minmax_periods = 5;
-    double sl_minmax_delta = 5.0;
-    
-    // Nouveau paramètre pour TP basé sur SL
-    bool use_sl_ratio_for_tp = false;
-    double tp_sl_ratio = 2.0;  // TP = SL * ratio
-        
-    // Risk management
-    bool use_risk_based_sizing = false;
-    double risk_percentage = 1.0; // risk_per_trade_pct
-    double cash = 100000.0;
-    double max_position_percentage = 100.0;
-    double leverage_limit = 20.0;
-    
-    // Break-even parameters
-    bool use_break_even = false;
-    double break_even_threshold = 0.7;
+    double take_profit_distance;
+    double stop_loss_distance;
 
-    // Perte maximale journalière
-    bool use_daily_max_loss = false;
-    double daily_max_loss_percentage = 2.0;
-    double daily_max_loss_amount = 0.0; // Calculé à partir de cash et daily_max_loss_percentage
-    
-    // Profit maximal journalier
-    bool use_daily_max_profit = false;
-    double daily_max_profit_percentage = 5.0;
-    double daily_max_profit_amount = 0.0; // Calculé à partir de cash et daily_max_profit_percentage
+    // ATR parameters for SL and TP
+    bool use_atr_for_sl;     // Important: default value is false
+    bool use_atr_for_tp;     // Important: default value is false
+    int atr_period;
+    double stop_loss_atr_multiplier;
+    double take_profit_atr_multiplier;
+    double min_stop_loss_distance;
+    double min_take_profit_distance;
+
+    // New Min/Max parameters for SL
+    bool use_minmax_for_sl;
+    int sl_minmax_periods;
+    double sl_minmax_delta;
+
+    // New parameter for TP based on SL
+    bool use_sl_ratio_for_tp;
+    double tp_sl_ratio;
+
+    // New parameter for TP based on SuperTrend
+    bool use_supertrend_for_tp;
+    int tp_supertrend_atr_period;
+    double tp_supertrend_multiplier;
+
+    // New parameters for TP based on ML/RL
+    bool use_rl_for_tp;
+    std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
+    int rl_lookback_periods; // Number of historical candles to include in features
+    double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
+    double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
+    // Risk management
+    bool use_risk_based_sizing;
+    double risk_percentage;
+    double cash;
+    double leverage_limit;
+
+    // Break-even parameters
+    bool use_break_even;
+    double break_even_threshold;
+    double break_even_offset_per_mille; // Per mille of entry price to move BE relative to entry price
+
+    // Daily maximum loss
+    bool use_daily_max_loss;
+    double daily_max_loss_percentage;
+    double daily_max_loss_amount; // Calculated from cash and daily_max_loss_percentage
+
+    // Daily maximum profit
+    bool use_daily_max_profit;
+    double daily_max_profit_percentage;
+    double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
 };
 
-// Surcharge de l'opérateur de flux pour StrategyBaseConfig
+// Overload of the stream operator for StrategyBaseConfig
 inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& config) {
     os << "StrategyBaseConfig {\n";
 
@@ -221,16 +232,22 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     // SL ratio for TP
     os << "  Use SL ratio for TP: " << (config.use_sl_ratio_for_tp ? "Yes" : "No") << "\n";
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
+
+    // SuperTrend parameters for TP
+    os << "  Use SuperTrend for TP: " << (config.use_supertrend_for_tp ? "Yes" : "No") << "\n";
+    os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
+    os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n";
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
     os << "  Risk percentage: " << config.risk_percentage << "%\n";
+    os << "  Leverage limit: " << config.leverage_limit << "\n";
     os << "  Cash: " << config.cash << "\n";
-    os << "  Max position %: " << config.max_position_percentage << "%\n";
     
     // Break-even parameters
     os << "  Use break-even: " << (config.use_break_even ? "Yes" : "No") << "\n";
     os << "  Break-even threshold: " << config.break_even_threshold << "\n";
+    os << "  Break-even offset percentage: " << config.break_even_offset_per_mille << "%\n";
     
     // Daily maximum loss
     os << "  Use daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No") << "\n";

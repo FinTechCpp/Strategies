@@ -231,10 +231,46 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
 
         auto be_signal = std::make_unique<Signal>();
         be_signal->action = "MOVE_SL";
-        be_signal->new_sl = position_info.entry_price;
+        be_signal->new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);
+        be_signal->price = break_even_price;
         return be_signal;
     }
 
+    return nullptr;
+}
+
+std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
+    // Check if SuperTrend is enabled and we have a pending open position
+    if(!base_config.use_supertrend_for_tp || position_info.entry_price <= 0.0) {
+        // Insufficient data to calculate SuperTrend exit
+        return nullptr;
+    }
+
+    // Obtenir la bougie actuelle
+    const BasicCandle& latest_candle = candle_manager.get_latest_candle();
+    if (!latest_candle.date.is_valid()) 
+        return nullptr;
+
+    // Vérifier s'il y a eu une inversion de tendance
+    if (previous_supertrend_direction != 0 && current_supertrend_direction != previous_supertrend_direction) {
+        logger->log_general("Inversion SuperTrend détectée: " +
+                           std::to_string(previous_supertrend_direction) + " -> " +
+                           std::to_string(current_supertrend_direction) +
+                           " @ " + logger->fast_double_to_string(current_supertrend), LogLevel::INFO);
+
+        // Générer un signal de liquidation
+        auto signal = generate_liquidation_signal();
+
+        // Réinitialiser le suivi de position
+        previous_supertrend_direction = 0;
+
+        return signal;
+    }
+
+    // Mettre à jour la direction précédente
+    previous_supertrend_direction = current_supertrend_direction;
+
+    // Si aucune inversion, ne rien faire
     return nullptr;
 }
 
@@ -277,9 +313,16 @@ void Strategy::reset() {
 void Strategy::execute_long() {
     go_long();
     
-    if (buy_quantity <= 0.0 || buy_price <= 0.0) {
+    if (buy_quantity < 0.0 || buy_price <= 0.0) {
         logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
+    }
+
+    if (buy_quantity == 0.0) {
+        logger->log_general("Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
+        // If quantity is zero, we cannot proceed with the trade
+        reset();
+        return;
     }
 
     // Calculate risk and check if it's acceptable
@@ -302,6 +345,15 @@ void Strategy::execute_long() {
     
     logger->log_signal("BUY", buy_price, buy_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
+    
+    // Marquer qu'une position est maintenant ouverte
+    if (base_config.use_supertrend_for_tp) {
+        // Store the current direction to track trend reversals
+        previous_supertrend_direction = current_supertrend_direction;
+        logger->log_general("SuperTrend TP activé: direction initiale=" + 
+                          std::to_string(current_supertrend_direction) + 
+                          ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
+    }
             
     signal = generate_buy_signal();
 }
@@ -309,9 +361,16 @@ void Strategy::execute_long() {
 void Strategy::execute_short() {
     go_short();
     
-    if (sell_quantity <= 0.0 || sell_price <= 0.0) {
+    if (sell_quantity < 0.0 || sell_price <= 0.0) {
         logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
+    }
+
+    if (sell_quantity == 0.0) {
+        logger->log_general("Quantité de vente nulle, trade annulé", LogLevel::WARNING);
+        // If quantity is zero, we cannot proceed with the trade
+        reset();
+        return;
     }
 
     // Calculate risk and check if it's acceptable
@@ -335,6 +394,15 @@ void Strategy::execute_short() {
     logger->log_signal("SELL", sell_price, sell_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
+    // Marquer qu'une position est maintenant ouverte
+    if (base_config.use_supertrend_for_tp) {
+        // Store the current direction to track trend reversals
+        previous_supertrend_direction = current_supertrend_direction;
+        logger->log_general("SuperTrend TP activé: direction initiale=" + 
+                          std::to_string(current_supertrend_direction) + 
+                          ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
+    }
+    
     signal = generate_sell_signal();
 }
 
@@ -347,13 +415,6 @@ bool Strategy::execute_filters() {
 }
 
 void Strategy::execute() {
-    if (is_executing) {
-        logger->log_execution_step("Exécution déjà en cours", false);
-        return;
-    }
-    
-    is_executing = true;
-
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
@@ -363,10 +424,9 @@ void Strategy::execute() {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
         // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
         reset();
-        is_executing = false;
         return;
     }
-    // logger->log_execution_step("Mise à jour indicateurs", true);
+
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
@@ -378,7 +438,6 @@ void Strategy::execute() {
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         
         signal = generate_liquidation_signal();
-        is_executing = false;
         return;
     }
 
@@ -387,10 +446,27 @@ void Strategy::execute() {
         logger->log_execution_step("Vérification horaires", false);
         
         signal = generate_liquidation_signal();
-        is_executing = false;
         return;
     }
     logger->log_execution_step("Vérification horaires", true);
+
+
+    // Check for break-even signal before executing strategy
+    auto be_signal = check_break_even();
+    if (be_signal) {
+        logger->log_general("Signal de break-even généré: " + 
+                          logger->fast_double_to_string(be_signal->new_sl));
+        signal = std::move(be_signal);
+        return;
+    }
+
+    // Check for SuperTrend exit signal if position is open
+    auto st_exit_signal = check_supertrend_exit();
+    if (st_exit_signal) {
+        logger->log_general("Signal de sortie SuperTrend généré");
+        signal = std::move(st_exit_signal);
+        return;
+    }
 
     
     before();
@@ -405,7 +481,6 @@ void Strategy::execute() {
     } else {
         logger->log_execution_step("Conditions d entrée", false);
         reset();
-        is_executing = false;
         return;
     }
     
@@ -413,7 +488,6 @@ void Strategy::execute() {
         logger->log_execution_step("Filtres", false);
         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
         reset();
-        is_executing = false;
         return;
     }
     logger->log_execution_step("Filtres", true);
@@ -425,7 +499,6 @@ void Strategy::execute() {
     }
     
     after();
-    is_executing = false;
 }
 
 
@@ -461,19 +534,6 @@ Signal* Strategy::update_candle(const Candle& candle) {
 
     // Add to buffer for historical calculations
     candle_manager.add_candle(candle.ohlc);
-
-    
-    // Check for break-even signal before executing strategy
-    auto be_signal = check_break_even();
-    if (be_signal) {
-        logger->log_general("Signal de break-even généré: " + 
-                          logger->fast_double_to_string(be_signal->new_sl));
-        signal = std::move(be_signal);
-
-        logger->finalize_and_send_logs();
-
-        return signal.get();
-    }
     
     // Execute strategy
     execute();
