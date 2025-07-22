@@ -181,6 +181,11 @@ struct StrategyBaseConfig {
     bool use_daily_max_profit;
     double daily_max_profit_percentage;
     double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
+
+    // Daily maximum drawdown
+    bool use_daily_max_drawdown;
+    double daily_max_drawdown_percentage;
+    double daily_max_drawdown_amount; // Calculated from cash and daily_max_drawdown_percentage
 };
 
 // Overload of the stream operator for StrategyBaseConfig
@@ -258,6 +263,11 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Use daily max profit: " << (config.use_daily_max_profit ? "Yes" : "No") << "\n";
     os << "  Daily max profit %: " << config.daily_max_profit_percentage << "%\n";
     os << "  Daily max profit amount: " << config.daily_max_profit_amount << "\n";
+    
+    // Daily maximum drawdown
+    os << "  Use daily max drawdown: " << (config.use_daily_max_drawdown ? "Yes" : "No") << "\n";
+    os << "  Daily max drawdown %: " << config.daily_max_drawdown_percentage << "%\n";
+    os << "  Daily max drawdown amount: " << config.daily_max_drawdown_amount << "\n";
     
     os << "}";
     return os;
