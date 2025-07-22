@@ -22,7 +22,7 @@ struct Time {
         : hour(h), minute(m), second(s) {}
 };
 
-// TODO : on pourrait mettre en commun avec la class Date du backtestEngine
+// TODO: could be shared with the Date class from backtestEngine
 struct DateTime {
     int year = 0;
     int month = 0;
@@ -39,7 +39,7 @@ struct DateTime {
     std::string to_string() const;
 };
 
-// Niveaux de log
+// Logging levels for the strategy
 enum LogLevel {
     CRITICAL = 50,
     FATAL = CRITICAL,
@@ -51,7 +51,7 @@ enum LogLevel {
     NOTSET = 0
 };
 
-// Surcharge de l'opérateur de flux pour LogLevel
+// Overload the << operator for LogLevel to print it as a string
 inline std::ostream& operator<<(std::ostream& os, const LogLevel& level) {
     switch (level) {
         case LogLevel::CRITICAL:
@@ -84,34 +84,34 @@ struct BasicCandle {
         : date(dt), open(o), high(h), low(l), close(c) {}
 };
 
-// Structure pour les données de position/trading
+// Structure for position/trading data
 struct PositionInfo {
-    // Pour le break-even, si la strategie n'utilise pas le break-even, pas necessaire
+    // For break-even, if the strategy does not use break-even, not necessary
     double entry_price = 0.0;
     double take_profit_price = 0.0;
 
-    // Pour la perte maximale journalière, si la stratégie n'utilise pas la perte maximale journalière, pas nécessaire
+    // For daily maximum loss, if the strategy does not use daily maximum loss, not necessary
     double closed_trade_pnl = 0.0;
 
     PositionInfo() = default;
 };
 
-// Composition plutôt qu'héritage pour la structure utilisée dans les stratégies
+// Composition rather than inheritance for the structure used in strategies
 struct Candle {
     BasicCandle ohlc;
     PositionInfo position;
 
     Candle() = default;
 
-    // Constructeur pratique pour les données OHLC
+    // Convenient constructor for OHLC data
     Candle(const DateTime& dt, double o, double h, double l, double c)
         : ohlc(dt, o, h, l, c) {}
 
-    // Constructeur complet
+    // Complete constructor
     Candle(const BasicCandle& basic, const PositionInfo& pos)
         : ohlc(basic), position(pos) {}
 
-    // Accesseurs pratiques pour éviter d'écrire candle.ohlc.xxx
+    // Convenient accessors to avoid writing candle.ohlc.xxx
     double open() const { return ohlc.open; }
     double high() const { return ohlc.high; }
     double low() const { return ohlc.low; }
@@ -131,37 +131,36 @@ struct StrategyBaseConfig {
     // Fixed SL/TP values
     double take_profit_distance;
     double stop_loss_distance;
-    
-    // Paramètres ATR pour SL et TP
-    bool use_atr_for_sl;     // Important: valeur par défaut false
-    bool use_atr_for_tp;     // Important: valeur par défaut false
+
+    // ATR parameters for SL and TP
+    bool use_atr_for_sl;     // Important: default value is false
+    bool use_atr_for_tp;     // Important: default value is false
     int atr_period;
     double stop_loss_atr_multiplier;
     double take_profit_atr_multiplier;
     double min_stop_loss_distance;
     double min_take_profit_distance;
-    
-    // Nouveaux paramètres Min/Max pour SL
+
+    // New Min/Max parameters for SL
     bool use_minmax_for_sl;
     int sl_minmax_periods;
     double sl_minmax_delta;
-    
-    // Nouveau paramètre pour TP basé sur SL
+
+    // New parameter for TP based on SL
     bool use_sl_ratio_for_tp;
     double tp_sl_ratio;
-    
-    // Nouveau paramètre pour TP basé sur SuperTrend
+
+    // New parameter for TP based on SuperTrend
     bool use_supertrend_for_tp;
     int tp_supertrend_atr_period;
     double tp_supertrend_multiplier;
 
-    // Nouveaux paramètres pour TP basé sur RL
+    // New parameters for TP based on ML/RL
     bool use_rl_for_tp;
-    std::string rl_model_path = "./Models/tp_model.onnx"; // Chemin vers le modèle RL
-    int rl_lookback_periods; // Période de rétroaction pour le modèle RL
-    double rl_tp_min_multiplier; // Multiplicateur minimum pour le TP basé sur RL
-    double rl_tp_max_multiplier; // Multiplicateur maximum pour le TP basé sur RL
-
+    std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
+    int rl_lookback_periods; // Number of historical candles to include in features
+    double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
+    double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
     // Risk management
     bool use_risk_based_sizing;
     double risk_percentage;
@@ -171,20 +170,20 @@ struct StrategyBaseConfig {
     // Break-even parameters
     bool use_break_even;
     double break_even_threshold;
-    double break_even_offset_per_mille; // Pour mille du prix d'entrée pour déplacer le BE relativement au prix d'entrée
+    double break_even_offset_per_mille; // Per mille of entry price to move BE relative to entry price
 
-    // Perte maximale journalière
+    // Daily maximum loss
     bool use_daily_max_loss;
     double daily_max_loss_percentage;
-    double daily_max_loss_amount; // Calculé à partir de cash et daily_max_loss_percentage
-    
-    // Profit maximal journalier
+    double daily_max_loss_amount; // Calculated from cash and daily_max_loss_percentage
+
+    // Daily maximum profit
     bool use_daily_max_profit;
     double daily_max_profit_percentage;
-    double daily_max_profit_amount; // Calculé à partir de cash et daily_max_profit_percentage
+    double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
 };
 
-// Surcharge de l'opérateur de flux pour StrategyBaseConfig
+// Overload of the stream operator for StrategyBaseConfig
 inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& config) {
     os << "StrategyBaseConfig {\n";
 

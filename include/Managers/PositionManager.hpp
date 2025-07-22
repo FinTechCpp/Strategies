@@ -11,7 +11,7 @@
 
 class PositionManager {
 public:
-    // Calcul du Stop Loss avec différentes méthodes
+    // Stop Loss calculation 
     static double calculateStopLoss(
         const StrategyBaseConfig& config,
         double current_price,
@@ -29,8 +29,8 @@ public:
                 config, current_price, candle_manager, basic_candle, is_long, logger);
         } 
         else {
-            // Utiliser valeur fixe pour SL
-            if (logger) logger->log_general("Utilisation de valeur fixe pour SL: " + 
+            // Use fixed value for SL
+            if (logger) logger->log_general("Using fixed value for SL: " + 
                 std::to_string(config.stop_loss_distance), LogLevel::INFO);
             return config.stop_loss_distance;
         }
@@ -45,9 +45,9 @@ public:
         const std::unique_ptr<ILogger>& logger
     ) {
         if (config.use_supertrend_for_tp) {
-            // SuperTrend TP : pas de TP fixe à l'ouverture, sortie basée sur inversion de tendance
-            if (logger) logger->log_general("Utilisation du SuperTrend pour TP - pas de distance fixe", LogLevel::INFO);
-            return 0.0;  // Pas de TP fixe
+            // SuperTrend TP: no fixed TP at open, exit based on trend reversal
+            if (logger) logger->log_general("Using SuperTrend for TP - no fixed distance", LogLevel::INFO);
+            return 0.0;  // No fixed TP
         } else if (config.use_rl_for_tp) {
             // RL-based TP calculation
             return calculateTakeProfitWithRL(config, current_price, current_atr, 
@@ -57,14 +57,14 @@ public:
         } else if (config.use_sl_ratio_for_tp && stop_loss_distance > 0.0) {
             return calculateTakeProfitWithSLRatio(config, stop_loss_distance, logger);
         } else {
-            // Utiliser valeur fixe pour TP
-            if (logger) logger->log_general("Utilisation de valeur fixe pour TP: " + 
+            // Use fixed value for TP
+            if (logger) logger->log_general("Using fixed value for TP: " + 
                 std::to_string(config.take_profit_distance), LogLevel::INFO);
             return config.take_profit_distance;
         }
     }
-    
-    // Calcul de la taille de position basée sur le risque
+
+    // Position size calculation based on risk
     static double calculatePositionSize(
         const StrategyBaseConfig& config,
         double current_price,
@@ -75,39 +75,39 @@ public:
             return calculateRiskBasedPositionSize(config, current_price, stop_loss_distance, logger);
         } else {
             // Fixed default size
-            if (logger) logger->log_position_sizing(1.0, 1.0, "taille fixe", LogLevel::INFO);
+            if (logger) logger->log_position_sizing(1.0, 1.0, "fixed size", LogLevel::INFO);
             return 1.0;
         }
     }
 
 private:
-    // Calcul du SL basé sur ATR
+    // Stop Loss calculation based on ATR
     static double calculateStopLossWithATR(
         const StrategyBaseConfig& config,
         double current_atr,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (logger) logger->log_general("Utilisation de l'ATR pour calculer SL", LogLevel::INFO);
+        if (logger) logger->log_general("Using ATR to calculate SL", LogLevel::INFO);
 
-        // Vérification ATR
+        // Check ATR
         double atr_to_use = current_atr;
         if (atr_to_use <= 0.0) {
             atr_to_use = config.min_stop_loss_distance / config.stop_loss_atr_multiplier;
-            if (logger) logger->log_general("ATR non valide, utilisation d'une valeur de secours: " + 
+            if (logger) logger->log_general("Invalid ATR, using fallback value: " + 
                 std::to_string(atr_to_use), LogLevel::WARNING);
         }
-        
-        // Calcul SL basé sur ATR avec minimum
+
+        // Stop Loss calculation based on ATR with minimum
         double stop_loss_distance = std::max(
             atr_to_use * config.stop_loss_atr_multiplier,
             config.min_stop_loss_distance
         );
-        
-        if (logger) logger->log_general("SL calculé avec ATR: " + std::to_string(stop_loss_distance), LogLevel::INFO);
+
+        if (logger) logger->log_general("SL calculated with ATR: " + std::to_string(stop_loss_distance), LogLevel::INFO);
         return stop_loss_distance;
     }
-    
-    // Calcul du SL basé sur Min/Max
+
+    // Stop Loss calculation based on Min/Max
     static double calculateStopLossWithMinMax(
         const StrategyBaseConfig& config,
         double current_price,
@@ -116,66 +116,66 @@ private:
         bool is_long,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (logger) logger->log_general("Utilisation de Min/Max pour calculer SL " + 
+        if (logger) logger->log_general("Using Min/Max to calculate SL " + 
             std::string(is_long ? "(LONG)" : "(SHORT)"), LogLevel::INFO);
         
         int n_periods = std::min(static_cast<int>(candle_manager.size()), config.sl_minmax_periods);
         auto recent_candles = candle_manager.get_last_candles(n_periods);
         
         if (is_long) {
-            // Pour LONG: recherche du minimum 
+            // For LONG: find the minimum
             double min_price = basic_candle.low;
             
             for (const auto& candle : recent_candles) 
                 min_price = std::min(min_price, candle.low);
             
-            if (logger) logger->log_general("Prix minimum trouvé: " + std::to_string(min_price), LogLevel::INFO);
-            
-            // SL = minimum - delta (pour LONG, le SL est sous le minimum)
+            if (logger) logger->log_general("Minimum price found: " + std::to_string(min_price), LogLevel::INFO);
+
+            // SL = minimum - delta (for LONG, the SL is below the minimum)
             double sl_price = min_price - config.sl_minmax_delta;
             double stop_loss_distance = current_price - sl_price;
 
             stop_loss_distance = std::max(stop_loss_distance, config.min_stop_loss_distance);
             
-            // Assurer une distance minimale
+            // Ensure minimum distance
             if (stop_loss_distance <= 0.0 || sl_price >= current_price) {
-                if (logger) logger->log_general("SL Min/Max calculé invalide, utilisation de distance fixe", LogLevel::WARNING);
+                if (logger) logger->log_general("SL Min/Max calculated invalid, using fixed distance", LogLevel::WARNING);
                 return config.stop_loss_distance;
             }
-            
-            if (logger) logger->log_general("SL Min/Max calculé: " + std::to_string(stop_loss_distance) + 
+
+            if (logger) logger->log_general("SL Min/Max calculated: " + std::to_string(stop_loss_distance) + 
                 " (min=" + std::to_string(min_price) + 
                 ", delta=" + std::to_string(config.sl_minmax_delta) + 
-                ", prix SL=" + std::to_string(sl_price) + 
+                ", SL price=" + std::to_string(sl_price) + 
                 ", Min SL=" + std::to_string(config.min_stop_loss_distance) + ")", LogLevel::INFO);
                 
             return stop_loss_distance;
         } 
         else {
-            // Pour SHORT: recherche du maximum
+            // For SHORT: find the maximum
             double max_price = basic_candle.high;
             
             for (const auto& candle : recent_candles) 
                 max_price = std::max(max_price, candle.high);
             
-            if (logger) logger->log_general("Prix maximum trouvé: " + std::to_string(max_price), LogLevel::INFO);
-            
-            // SL = maximum + delta (pour SHORT, le SL est au-dessus du maximum)
+            if (logger) logger->log_general("Maximum price found: " + std::to_string(max_price), LogLevel::INFO);
+
+            // SL = maximum + delta (for SHORT, the SL is above the maximum)
             double sl_price = max_price + config.sl_minmax_delta;
             double stop_loss_distance = sl_price - current_price;
 
             stop_loss_distance = std::max(stop_loss_distance, config.min_stop_loss_distance);
             
-            // Assurer une distance minimale
+            // Ensure minimum distance
             if (stop_loss_distance <= 0.0 || sl_price <= current_price) {
-                if (logger) logger->log_general("SL Min/Max calculé invalide, utilisation de distance fixe", LogLevel::WARNING);
+                if (logger) logger->log_general("SL Min/Max calculated invalid, using fixed distance", LogLevel::WARNING);
                 return config.stop_loss_distance;
             }
-            
-            if (logger) logger->log_general("SL Min/Max calculé: " + std::to_string(stop_loss_distance) + 
+
+            if (logger) logger->log_general("SL Min/Max calculated: " + std::to_string(stop_loss_distance) + 
                 " (max=" + std::to_string(max_price) + 
                 ", delta=" + std::to_string(config.sl_minmax_delta) + 
-                ", prix SL=" + std::to_string(sl_price) + 
+                ", SL price=" + std::to_string(sl_price) + 
                 ", Min SL=" + std::to_string(config.min_stop_loss_distance) + ")", LogLevel::INFO);
                 
             return stop_loss_distance;
@@ -183,19 +183,19 @@ private:
     }
 
     
-    // Calcul du TP basé sur ATR
+    // TP calculation based on ATR
     static double calculateTakeProfitWithATR(
         const StrategyBaseConfig& config,
         double current_atr,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (logger) logger->log_general("Utilisation de l'ATR pour calculer TP", LogLevel::INFO);
-        
-        // Vérification ATR
+        if (logger) logger->log_general("Using ATR to calculate TP", LogLevel::INFO);
+
+        // ATR check
         double atr_to_use = current_atr;
         if (atr_to_use <= 0.0) {
             atr_to_use = config.min_take_profit_distance / config.take_profit_atr_multiplier;
-            if (logger) logger->log_general("ATR non valide, utilisation d'une valeur de secours: " + 
+            if (logger) logger->log_general("Invalid ATR, using fallback value: " + 
                 std::to_string(atr_to_use), LogLevel::WARNING);
         }
         
@@ -205,33 +205,36 @@ private:
             config.min_take_profit_distance
         );
         
-        if (logger) logger->log_general("TP calculé avec ATR: " + std::to_string(take_profit_distance), LogLevel::INFO);
+        if (logger) logger->log_general("TP calculated with ATR: " + std::to_string(take_profit_distance), LogLevel::INFO);
         return take_profit_distance;
     }
-    
-    // Calcul du TP basé sur le ratio SL
+
+    // TP calculation based on SL ratio
     static double calculateTakeProfitWithSLRatio(
         const StrategyBaseConfig& config,
         double stop_loss_distance,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (logger) logger->log_general("Utilisation du ratio SL pour calculer TP", LogLevel::INFO);
+        if (logger) logger->log_general("Using SL ratio to calculate TP", LogLevel::INFO);
         
-        // Calcul TP basé sur le ratio SL avec minimum
+        // TP calculation based on SL ratio with minimum
         double take_profit_distance = std::max(
             stop_loss_distance * config.tp_sl_ratio,
             config.min_take_profit_distance
         );
         
-        if (logger) logger->log_general("TP calculé avec ratio SL: " + std::to_string(take_profit_distance) + 
+        if (logger) logger->log_general("TP calculated with SL ratio: " + std::to_string(take_profit_distance) + 
         " (SL=" + std::to_string(stop_loss_distance) + 
         ", ratio=" + std::to_string(config.tp_sl_ratio) + ")", LogLevel::INFO);
         return take_profit_distance;
     }
     
-    // Static cache for the model to avoid reloading
+    // Static cache for the ML model to avoid reloading
     static std::unique_ptr<InferenceModel> rl_model;
     
+    // Generic ML-based take profit calculation
+    // The model receives market features and outputs a take profit distance directly
+    // Feature engineering and model interpretation is delegated to the trained model
     static double calculateTakeProfitWithRL(
         const StrategyBaseConfig& config,
         double current_price,
@@ -241,7 +244,7 @@ private:
         const std::unique_ptr<ILogger>& logger
     );
 
-    // Calcul de la taille de position basée sur le risque
+    // Position size calculation based on risk
     static double calculateRiskBasedPositionSize(
         const StrategyBaseConfig& config,
         double current_price,
@@ -258,7 +261,7 @@ private:
         double risk_based_position_size = risk_amount / stop_loss_distance;
 
         logger->log_position_sizing(risk_based_position_size, risk_based_position_size, 
-            "basé sur le risque", LogLevel::DEBUG);
+            "based on risk", LogLevel::DEBUG);
         
         // Use total available capital with leverage
         double leveraged_capital = initial_capital * config.leverage_limit;
@@ -268,22 +271,22 @@ private:
         double max_position_size = max_position_value / current_price;
 
         logger->log_position_sizing(max_position_size, max_position_size, 
-            "limite maximale", LogLevel::DEBUG);
+            "maximum limit", LogLevel::DEBUG);
         
         // Take the MINIMUM between risk-based size and limit
         double raw_position_size = std::min(risk_based_position_size, max_position_size);
 
         if (risk_based_position_size > max_position_size) {
-            logger->log_general("Taille de position basée sur le risque (" + 
+            logger->log_general("Risk-based position size (" + 
                 std::to_string(risk_based_position_size) + 
-                ") dépasse la limite maximale (" + 
+                ") exceeds maximum limit (" + 
                 std::to_string(max_position_size) + 
-                "), ajustement à la limite", LogLevel::WARNING);
+                "), adjusting to limit", LogLevel::WARNING);
         }
         
-        // Round to lower 0,5 
+        // Round to lower 0.5
         double final_position_size = std::floor(raw_position_size * 2.0) / 2.0;
-        logger->log_position_sizing(raw_position_size, final_position_size, "arrondi au 0.5 inférieur", LogLevel::INFO);
+        logger->log_position_sizing(raw_position_size, final_position_size, "rounded down to 0.5", LogLevel::INFO);
         
         return final_position_size;
     }
