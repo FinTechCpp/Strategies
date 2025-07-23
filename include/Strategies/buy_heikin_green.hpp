@@ -58,7 +58,8 @@ private:
     std::unique_ptr<STOCH> stochastic_calculator;
     std::unique_ptr<RSI> rsi_calculator;
     std::unique_ptr<ATRLOG> atrlog_calculator;
-    std::unique_ptr<SUPERTREND> supertrend_calculator;
+    std::unique_ptr<SUPERTREND> supertrend_filter_calculator;  // For filter functionality
+    std::unique_ptr<SUPERTREND> supertrend_tp_calculator;      // For TP functionality
     
     // Indicator names
     std::string ema_short_name;
@@ -67,7 +68,8 @@ private:
     std::string stoch_d_name;
     std::string rsi_name;
     std::string atrlog_name;
-    std::string supertrend_name;
+    std::string supertrend_filter_name;  // For filter SuperTrend
+    std::string supertrend_tp_name;      // For TP SuperTrend
     
     // Indicator values
     double current_ema_short = 0.0;
@@ -82,6 +84,10 @@ private:
     double d_previous = 0.0;
     double k_previous_2 = 0.0;
     double k_previous_3 = 0.0;
+    
+    // Filter-specific SuperTrend values (separate from base class TP SuperTrend)
+    double current_supertrend_filter = 0.0;
+    int current_supertrend_filter_direction = 0;
 
     
     // Filters
@@ -229,24 +235,24 @@ private:
     }
     
     bool supertrend_filter() {
-        if (current_supertrend == 0.0) {
-            logger->log_filter_result("Supertrend", false);
-            logger->log_filter_detail("Supertrend", "Valeur Supertrend non calculée (0.0)");
+        if (current_supertrend_filter == 0.0) {
+            logger->log_filter_result("Supertrend Filter", false);
+            logger->log_filter_detail("Supertrend Filter", "Valeur Supertrend non calculée (0.0)");
             return false;
         }
         
         // Filter is true if price is above Supertrend band (uptrend)
-        bool result = price() > current_supertrend;
+        bool result = price() > current_supertrend_filter;
         
-        logger->log_filter_result("Supertrend", result);
-        logger->log_filter_comparison("Supertrend", price(), current_supertrend, 
+        logger->log_filter_result("Supertrend Filter", result);
+        logger->log_filter_comparison("Supertrend Filter", price(), current_supertrend_filter, 
                                     result ? ">" : "<=", result);
         
         // Additional logging for trend direction
-        std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
-                                     (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-        logger->log_filter_detail("Supertrend", "Direction: " + trend_direction + 
-                                ", Supertrend: " + logger->fast_double_to_string(current_supertrend));
+        std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
+                                     (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+        logger->log_filter_detail("Supertrend Filter", "Direction: " + trend_direction + 
+                                ", Supertrend: " + logger->fast_double_to_string(current_supertrend_filter));
 
         return result;
     }
@@ -269,6 +275,9 @@ private:
         
         if (config.use_supertrend_filter)
             max_period = std::max(max_period, config.supertrend_atr_period * 2);
+        
+        if (base_config.use_supertrend_for_tp)
+            max_period = std::max(max_period, base_config.tp_supertrend_atr_period * 2);
         
         if (base_config.use_atr_for_sl || base_config.use_atr_for_tp)
             max_period = std::max(max_period, base_config.atr_period * 2);
@@ -307,9 +316,8 @@ private:
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
-            if (success) {
-                logger->log_indicator_value(ema_short_name, current_ema_short);
-            }
+            if (success) logger->log_indicator_value(ema_short_name, current_ema_short);
+
         }
         
         if (config.use_ema_long_filter) {
@@ -324,9 +332,8 @@ private:
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
-            if (success) {
-            logger->log_indicator_value(ema_long_name, current_ema_long);
-            }
+            if (success) logger->log_indicator_value(ema_long_name, current_ema_long);
+
         }
         
         // Initialize Stochastic
@@ -345,10 +352,7 @@ private:
                         std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                         success ? LogLevel::INFO : LogLevel::ERROR);
 
-            if (success) {
-                logger->log_indicator_value(stoch_k_name, current_stoch_k);
-                logger->log_indicator_value(stoch_d_name, current_stoch_d);
-            }
+            if (success) logger->log_indicator_value(stoch_k_name, current_stoch_k);  logger->log_indicator_value(stoch_d_name, current_stoch_d);
         }
         
         // Initialize RSI
@@ -364,9 +368,7 @@ private:
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
-            if (success) {
-                logger->log_indicator_value(rsi_name, current_rsi);
-            }
+            if (success) logger->log_indicator_value(rsi_name, current_rsi);
         }
         
         // Initialize ATRLOG
@@ -382,37 +384,54 @@ private:
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
+            if (success) logger->log_indicator_value(atrlog_name, current_atrlog);
+        }
+        
+        // Initialize SuperTrend Filter
+        if (config.use_supertrend_filter) {
+            logger->log_general("Initialisation du Supertrend Filter (période ATR: " + 
+                logger->fast_int_to_string(config.supertrend_atr_period) + 
+                ", multiplicateur: " + logger->fast_double_to_string(config.supertrend_multiplier) + ")");
+            
+            auto supertrend_values = supertrend_filter_calculator->initialize_with_history(candles);
+            current_supertrend_filter = supertrend_values.first;
+            current_supertrend_filter_direction = supertrend_values.second;
+            bool success = (current_supertrend_filter > 0.0);
+            all_required_initialized = all_required_initialized && success;
+
+            logger->log_general("Initialisation du Supertrend Filter: " + 
+                            std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
+                            success ? LogLevel::INFO : LogLevel::ERROR);
+
             if (success) {
-                logger->log_indicator_value(atrlog_name, current_atrlog);
+                logger->log_indicator_value(supertrend_filter_name, current_supertrend_filter);
+                std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
+                                             (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+                logger->log_filter_detail(supertrend_filter_name, "Direction: " + trend_direction);
             }
         }
         
-        // Initialize Supertrend
-        if (config.use_supertrend_filter || base_config.use_supertrend_for_tp) {
-            // Use appropriate parameters based on the purpose
-            int atr_period = config.use_supertrend_filter ? config.supertrend_atr_period : base_config.tp_supertrend_atr_period;
-            double multiplier = config.use_supertrend_filter ? config.supertrend_multiplier : base_config.tp_supertrend_multiplier;
+        // Initialize SuperTrend TP
+        if (base_config.use_supertrend_for_tp) {
+            logger->log_general("Initialisation du Supertrend TP (période ATR: " + 
+                logger->fast_int_to_string(base_config.tp_supertrend_atr_period) + 
+                ", multiplicateur: " + logger->fast_double_to_string(base_config.tp_supertrend_multiplier) + ")");
             
-            logger->log_general("Initialisation du Supertrend (période ATR: " + 
-                logger->fast_int_to_string(atr_period) + 
-                ", multiplicateur: " + logger->fast_double_to_string(multiplier) + 
-                ", usage: " + (config.use_supertrend_filter ? "Filter" : "TP") + ")");
-            
-            auto supertrend_values = supertrend_calculator->initialize_with_history(candles);
+            auto supertrend_values = supertrend_tp_calculator->initialize_with_history(candles);
             current_supertrend = supertrend_values.first;
             current_supertrend_direction = supertrend_values.second;
             bool success = (current_supertrend > 0.0);
             all_required_initialized = all_required_initialized && success;
 
-            logger->log_general("Initialisation du Supertrend: " + 
+            logger->log_general("Initialisation du Supertrend TP: " + 
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
             if (success) {
-                logger->log_indicator_value(supertrend_name, current_supertrend);
+                logger->log_indicator_value(supertrend_tp_name, current_supertrend);
                 std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
                                              (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-                logger->log_filter_detail(supertrend_name, "Direction: " + trend_direction);
+                logger->log_filter_detail(supertrend_tp_name, "Direction: " + trend_direction);
             }
         }
         
@@ -436,9 +455,10 @@ private:
         bool need_stoch = config.use_stoch_filter && !stochastic_calculator->initialized();
         bool need_rsi = config.use_rsi_filter && !rsi_calculator->initialized();
         bool need_atrlog = (base_config.use_atr_for_sl || base_config.use_atr_for_tp) && !atrlog_calculator->initialized();
-        bool need_supertrend = (config.use_supertrend_filter || base_config.use_supertrend_for_tp) && !supertrend_calculator->initialized();
+        bool need_supertrend_filter = config.use_supertrend_filter && !supertrend_filter_calculator->initialized();
+        bool need_supertrend_tp = base_config.use_supertrend_for_tp && !supertrend_tp_calculator->initialized();
         
-        if (need_ema_short || need_ema_long || need_stoch || need_rsi || need_atrlog || need_supertrend) {            
+        if (need_ema_short || need_ema_long || need_stoch || need_rsi || need_atrlog || need_supertrend_filter || need_supertrend_tp) {            
             // Try to initialize indicators if they're not initialized
             return initialize_indicators();
         }
@@ -483,16 +503,28 @@ private:
             logger->log_indicator_value(atrlog_name, current_atrlog);
         }
         
-        // Update Supertrend si nécessaire
-        if (config.use_supertrend_filter || base_config.use_supertrend_for_tp) {
-            auto supertrend_values = supertrend_calculator->update(candle_manager.get_latest_candle());
+        // Update SuperTrend Filter si nécessaire
+        if (config.use_supertrend_filter) {
+            auto supertrend_values = supertrend_filter_calculator->update(candle_manager.get_latest_candle());
+            current_supertrend_filter = supertrend_values.first;
+            current_supertrend_filter_direction = supertrend_values.second;
+            logger->log_indicator_value(supertrend_filter_name, current_supertrend_filter);
+            
+            std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
+                                         (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
+            logger->log_filter_detail(supertrend_filter_name, "Direction: " + trend_direction);
+        }
+        
+        // Update SuperTrend TP si nécessaire
+        if (base_config.use_supertrend_for_tp) {
+            auto supertrend_values = supertrend_tp_calculator->update(candle_manager.get_latest_candle());
             current_supertrend = supertrend_values.first;
             current_supertrend_direction = supertrend_values.second;
-            logger->log_indicator_value(supertrend_name, current_supertrend);
+            logger->log_indicator_value(supertrend_tp_name, current_supertrend);
             
             std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
                                          (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-            logger->log_filter_detail(supertrend_name, "Direction: " + trend_direction);
+            logger->log_filter_detail(supertrend_tp_name, "Direction: " + trend_direction);
         }
         
         return true;
@@ -582,29 +614,23 @@ public:
         rsi_calculator = std::make_unique<RSI>(config.rsi_period);
         atrlog_calculator = std::make_unique<ATRLOG>(base_cfg.atr_period);
         
-        // Create SuperTrend calculator with appropriate parameters
+        // Create separate SuperTrend calculators for filter and TP functionality
         if (config.use_supertrend_filter) {
-            supertrend_calculator = std::make_unique<SUPERTREND>(
+            supertrend_filter_calculator = std::make_unique<SUPERTREND>(
                 config.supertrend_atr_period,
                 config.supertrend_multiplier
             );
-            supertrend_name = "SUPERTREND_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
-                             logger->fast_double_to_string(config.supertrend_multiplier);
-        } else if (base_cfg.use_supertrend_for_tp) {
-            supertrend_calculator = std::make_unique<SUPERTREND>(
+            supertrend_filter_name = "SUPERTREND_FILTER_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
+                                   logger->fast_double_to_string(config.supertrend_multiplier);
+        }
+        
+        if (base_cfg.use_supertrend_for_tp) {
+            supertrend_tp_calculator = std::make_unique<SUPERTREND>(
                 base_cfg.tp_supertrend_atr_period,
                 base_cfg.tp_supertrend_multiplier
             );
-            supertrend_name = "SUPERTREND_TP_" + logger->fast_int_to_string(base_cfg.tp_supertrend_atr_period) + "_" +
-                             logger->fast_double_to_string(base_cfg.tp_supertrend_multiplier);
-        } else {
-            // Create a default one in case it's needed later
-            supertrend_calculator = std::make_unique<SUPERTREND>(
-                config.supertrend_atr_period,
-                config.supertrend_multiplier
-            );
-            supertrend_name = "SUPERTREND_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
-                             logger->fast_double_to_string(config.supertrend_multiplier);
+            supertrend_tp_name = "SUPERTREND_TP_" + logger->fast_int_to_string(base_cfg.tp_supertrend_atr_period) + "_" +
+                               logger->fast_double_to_string(base_cfg.tp_supertrend_multiplier);
         }
         
         // Initialize indicator names
