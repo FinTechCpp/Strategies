@@ -16,6 +16,7 @@ struct BuyHeikinGreenConfig {
     int rsi_threshold;
     int supertrend_atr_period;
     double supertrend_multiplier;
+    int previous_ha_candle_red_filter_n;
     
     bool use_ema_short_filter = false;
     bool use_ema_long_filter = false;
@@ -41,6 +42,7 @@ struct BuyHeikinGreenConfig {
            << "    ATR Period: " << config.supertrend_atr_period << "\n"
            << "    Multiplier: " << config.supertrend_multiplier << "\n"
            << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
+           << "  Previous HA Candle Red Filter N: " << config.previous_ha_candle_red_filter_n << "\n"     
            << "}";
         return os;
     }
@@ -194,39 +196,36 @@ private:
         return result;
     }
     
-    bool previous_ha_candle_red_filter() {
-        try {
-            // Utiliser CandleManager pour obtenir l'information Heikin Ashi
-            if (candle_manager.size() < 3) {
-                logger->log_filter_result("Bougie HA précédente", false);
-                logger->log_filter_detail("Bougie HA précédente", "Pas assez d'historique (min 3 bougies)");
-                return false;
-            }
-            
-            // Récupérer les bougies HA
-            auto ha_candles = candle_manager.get_last_heikin_ashi_candles(2);
-            if (ha_candles.size() < 2) {
-                logger->log_filter_result("Bougie HA précédente", false);
-                logger->log_filter_detail("Bougie HA précédente", "Pas assez de bougies HA");
-                return false;
-            }
-            
-            // La bougie précédente est à l'index 0 (l'avant-dernière)
-            const BasicCandle& prev_ha = ha_candles[0];
-            bool is_red = prev_ha.close < prev_ha.open;
-            
-            logger->log_filter_result("Bougie HA précédente", is_red);
-            logger->log_filter_detail("Bougie HA précédente", 
-                                  "Bougie précédente " + std::string(is_red ? "ROUGE" : "VERTE") + 
-                                  " (open=" + logger->fast_double_to_string(prev_ha.open) + 
-                                  ", close=" + logger->fast_double_to_string(prev_ha.close) + ")");
-            
-            return is_red;
-        } catch (const std::exception& e) {
+    bool previous_ha_candle_red_filter(int n_previous_candles) {
+    
+        // Utiliser CandleManager pour obtenir l'information Heikin Ashi
+        if (candle_manager.size() < n_previous_candles + 2) {
             logger->log_filter_result("Bougie HA précédente", false);
-            logger->log_filter_detail("Bougie HA précédente", "Erreur: " + std::string(e.what()));
+            logger->log_filter_detail("Bougie HA précédente", "Pas assez d'historique (min " + std::to_string(n_previous_candles + 2) + " bougies)");
             return false;
         }
+        
+        // Récupérer les bougies HA
+        auto ha_candles = candle_manager.get_last_heikin_ashi_candles(n_previous_candles + 1);
+        if (ha_candles.size() < n_previous_candles + 1) {
+            logger->log_filter_result("Bougie HA précédente", false);
+            logger->log_filter_detail("Bougie HA précédente", "Pas assez de bougies HA");
+            return false;
+        }
+
+        for (size_t i = 0; i < n_previous_candles; ++i) {
+            const BasicCandle& ha_candle = ha_candles[i];
+            if (ha_candle.close >= ha_candle.open) {
+                logger->log_filter_result("Bougie HA précédente", false);
+                logger->log_filter_detail("Bougie HA précédente", 
+                                        "Bougie HA " + std::to_string(i + 1) + " VERTE (open=" + 
+                                        logger->fast_double_to_string(ha_candle.open) + 
+                                        ", close=" + logger->fast_double_to_string(ha_candle.close) + ")");
+                return false;
+            }
+        }
+        
+        return true;
     }
     
     bool supertrend_filter() {
@@ -634,7 +633,7 @@ public:
             active_filters.push_back([this]() { return this->rsi_inf_threshold_filter(); });
         }
         if (config.use_previous_ha_candle_red_filter) {
-            active_filters.push_back([this]() { return this->previous_ha_candle_red_filter(); });
+            active_filters.push_back([this]() { return this->previous_ha_candle_red_filter(config.previous_ha_candle_red_filter_n); });
         }
         if (config.use_supertrend_filter) {
             active_filters.push_back([this]() { return this->supertrend_filter(); });
