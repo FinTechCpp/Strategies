@@ -135,9 +135,8 @@ public:
 
     // Get the last N Heikin-Ashi candles
     std::vector<BasicCandle> get_last_heikin_ashi_candles(size_t n) const {
-        if (ha_buffer.empty()) {
+        if (ha_buffer.empty()) 
             return {};
-        }
         
         size_t count = std::min(n, ha_buffer.size());
         

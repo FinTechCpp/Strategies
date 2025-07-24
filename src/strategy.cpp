@@ -1,7 +1,5 @@
 #include "strategy.h"
 
-
-
 // Utilitary function to parse ISO 8601 date strings
 DateTime parse_iso_datetime(const std::string& iso_date) {
     DateTime result;
@@ -89,6 +87,21 @@ bool Strategy::is_daily_max_profit_reached() {
     return daily_pnl >= max_profit_amount;
 }
 
+// Check if daily max drawdown has been reached
+bool Strategy::is_daily_drawdown_reached() {
+    if (!base_config.use_daily_max_drawdown) 
+        return false;  // If the limit is not enabled, drawdown limit never reached
+    
+    // Calculate the daily drawdown limit
+    double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
+
+    // Calculate current drawdown: difference between max PnL and current PnL
+    double current_drawdown = daily_max_pnl - daily_pnl;
+
+    // Check if the current drawdown has reached the limit
+    return current_drawdown >= max_drawdown_amount;
+}
+
 bool Strategy::is_new_trading_day() {
     if (!candle_manager.get_latest_candle().date.is_valid() || !current_trading_day.is_valid()) {
         return true;
@@ -100,14 +113,15 @@ bool Strategy::is_new_trading_day() {
 }
     
 void Strategy::update_daily_pnl_tracking() {
-    if (!base_config.use_daily_max_loss && !base_config.use_daily_max_profit) {
+    if (!base_config.use_daily_max_loss && !base_config.use_daily_max_profit && !base_config.use_daily_max_drawdown) 
         return;
-    }
+    
 
     // If it's a new day, reset the counter and reactivate trading
     if (is_new_trading_day()) {
         current_trading_day = candle_manager.get_latest_candle().date;
         daily_pnl = 0.0;
+        daily_max_pnl = 0.0;  // Reset daily max PnL for new day
 
         if (base_config.use_daily_max_loss) {
             // Calculate the maximum allowed loss amount for this day
@@ -126,13 +140,28 @@ void Strategy::update_daily_pnl_tracking() {
                               " - Profit max autorisé: " + logger->fast_double_to_string(max_profit_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         }
+
+        if (base_config.use_daily_max_drawdown) {
+            // Calculate the maximum allowed drawdown amount for this day
+            double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
+            
+            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+                              " - Drawdown max autorisé: " + logger->fast_double_to_string(max_drawdown_amount) + 
+                              " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)", LogLevel::INFO);
+        }
     }
     
     if (last_trade_pnl != 0.0) {
         daily_pnl += last_trade_pnl;
         
+        // Update daily maximum PnL if current PnL is higher
+        if (daily_pnl > daily_max_pnl) 
+            daily_max_pnl = daily_pnl;
+        
+        
         logger->log_general("P&L du trade: " + logger->fast_double_to_string(last_trade_pnl) + 
-                          " - P&L journalier cumulé: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
+                          " - P&L journalier cumulé: " + logger->fast_double_to_string(daily_pnl) + 
+                          " - P&L max journalier: " + logger->fast_double_to_string(daily_max_pnl), LogLevel::INFO);
 
         last_trade_pnl = 0.0;
     }
@@ -441,6 +470,22 @@ void Strategy::execute() {
         return;
     }
 
+    // Check if daily max drawdown has been reached
+    if (is_daily_drawdown_reached()) {
+        logger->log_execution_step("Drawdown max journalier atteint", false);
+        double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
+        double current_drawdown = daily_max_pnl - daily_pnl;
+        logger->log_general("Drawdown maximum journalier atteint: " + 
+                          logger->fast_double_to_string(current_drawdown) + 
+                          " >= " + logger->fast_double_to_string(max_drawdown_amount) + 
+                          " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)" +
+                          " - PnL max: " + logger->fast_double_to_string(daily_max_pnl) +
+                          " - PnL actuel: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
+        
+        signal = generate_liquidation_signal();
+        return;
+    }
+
     // Time check
     if (!check_time()) {
         logger->log_execution_step("Vérification horaires", false);
@@ -467,7 +512,6 @@ void Strategy::execute() {
         signal = std::move(st_exit_signal);
         return;
     }
-
     
     before();
     

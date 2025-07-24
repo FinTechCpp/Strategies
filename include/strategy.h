@@ -68,6 +68,7 @@ protected:
     // Suivi des pertes journalières
     DateTime current_trading_day;
     double daily_pnl = 0.0;
+    double daily_max_pnl = 0.0;  // Track the highest PnL reached during the day
     bool trading_suspended_for_day = false;
     
     // Cache pour le dernier trade
@@ -98,6 +99,7 @@ private:
     double calculate_trade_risk(bool is_long);
     bool is_trade_risk_acceptable(double risk);
     bool is_daily_max_profit_reached();
+    bool is_daily_drawdown_reached();
     bool is_new_trading_day();
     void update_daily_pnl_tracking();
 
