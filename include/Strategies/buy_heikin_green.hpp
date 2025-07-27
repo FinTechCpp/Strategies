@@ -84,11 +84,8 @@ private:
     double d_previous = 0.0;
     double k_previous_2 = 0.0;
     double k_previous_3 = 0.0;
-    
-    // Filter-specific SuperTrend values (separate from base class TP SuperTrend)
     double current_supertrend_filter = 0.0;
     int current_supertrend_filter_direction = 0;
-
     
     // Filters
     std::vector<std::function<bool()>> active_filters;
@@ -557,8 +554,8 @@ private:
     }
 
     void go_long() override {
-        logger->log_general("Préparation d'un signal LONG");
-    
+        logger->log_general("Préparation d'un signal LONG", LogLevel::INFO);
+
         // Calcul du Stop Loss
         stop_loss_distance = PositionManager::calculateStopLoss(
             base_config, 
