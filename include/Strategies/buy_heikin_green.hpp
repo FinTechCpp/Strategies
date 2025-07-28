@@ -1,5 +1,7 @@
 #pragma once
+
 #include "strategy.h"
+#include "Filters.h"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -89,170 +91,6 @@ private:
     
     // Filters
     std::vector<std::function<bool()>> active_filters;
-    
-    bool ema_short_filter() {
-        if (current_ema_short == 0.0) {
-            logger->log_filter_result("EMA Court", false);
-            logger->log_filter_detail("EMA Court", "Valeur EMA non calculée (0.0)");
-            return false;
-        }
-        bool result = price() > current_ema_short;
-        logger->log_filter_result("EMA Court", result);
-        logger->log_filter_comparison("EMA Court", price(), current_ema_short, 
-                                    result ? ">" : "<=", result);
-
-        return result;
-    }
-    
-    bool ema_long_filter() {
-        if (current_ema_long == 0.0) {
-            logger->log_filter_result("EMA Long", false);
-            logger->log_filter_detail("EMA Long", "Valeur EMA non calculée (0.0)");
-            return false;
-        }
-        bool result = price() > current_ema_long;
-        logger->log_filter_result("EMA Long", result);
-        logger->log_filter_comparison("EMA Long", price(), current_ema_long, 
-                                    result ? ">" : "<=", result);
-        return result;
-    }
-    
-    bool stoch_inf_threshold_filter() {
-        if (current_stoch_k == 0.0) {
-            logger->log_filter_result("Stochastique", false);
-            logger->log_filter_detail("Stochastique", "Valeur K non calculée (0.0)");
-            return false;
-        }
-        int threshold = config.stoch_threshold;
-        bool current_below = current_stoch_k < threshold;
-        bool previous_below = k_previous > 0.0 && k_previous < threshold;
-        bool before_previous_below = k_previous_2 > 0.0 && k_previous_2 < threshold;
-        bool before_before_previous_below = k_previous_3 > 0.0 && k_previous_3 < threshold;
-        bool result = current_below || previous_below || before_previous_below || before_before_previous_below;
-        
-        logger->log_filter_result("Stochastique", result);
-
-        if (current_below) {
-            logger->log_filter_comparison("Stochastique K", current_stoch_k, threshold, "<", true);
-        } 
-        else if (previous_below) {
-            logger->log_filter_comparison("Stochastique K précédent", k_previous, threshold, "<", true);
-        } 
-        else if (before_previous_below) {
-            logger->log_filter_comparison("Stochastique K précédent-2", k_previous_2, threshold, "<", true);
-        } 
-        else if (before_before_previous_below) {
-            logger->log_filter_comparison("Stochastique K précédent-3", k_previous_3, threshold, "<", true);
-        } 
-        else {
-            logger->log_filter_detail("Stochastique", 
-                "K actuel: " + logger->fast_double_to_string(current_stoch_k) + 
-                ", K-1: " + logger->fast_double_to_string(k_previous) + 
-                ", K-2: " + logger->fast_double_to_string(k_previous_2) + 
-                ", K-3: " + logger->fast_double_to_string(k_previous_3) + 
-                " - Tous au-dessus du seuil " + std::to_string(threshold));
-        }
-        
-        return result;
-    }
-    
-    bool rsi_inf_threshold_filter() {
-        if (current_rsi == 0.0) {
-            logger->log_filter_result("RSI", false);
-            logger->log_filter_detail("RSI", "Valeur RSI non calculée (0.0)");
-            return false;
-        }
-    
-        int threshold = config.rsi_threshold;
-        
-        // Vérifier les trois dernières valeurs
-        bool current_below = current_rsi < threshold;
-        bool prev_below = previous_rsi > 0.0 && previous_rsi < threshold;
-        bool prev2_below = previous_2_rsi > 0.0 && previous_2_rsi < threshold;
-        
-        bool result = current_below || prev_below || prev2_below;
-        
-        // Journalisation détaillée
-        logger->log_filter_result("RSI", result);
-        
-        if (current_below) {
-            logger->log_filter_comparison("RSI actuel", current_rsi, threshold, "<", true);
-        } 
-        else if (prev_below) {
-            logger->log_filter_comparison("RSI précédent", previous_rsi, threshold, "<", true);
-        } 
-        else if (prev2_below) {
-            logger->log_filter_comparison("RSI antérieur", previous_2_rsi, threshold, "<", true);
-        } 
-        else {
-            logger->log_filter_detail("RSI", 
-                                "Actuel: " + logger->fast_double_to_string(current_rsi) + 
-                                ", Précédent: " + logger->fast_double_to_string(previous_rsi) + 
-                                ", Antérieur: " + logger->fast_double_to_string(previous_2_rsi) + 
-                                " - Tous au-dessus du seuil " + logger->fast_int_to_string(threshold));
-        }
-        
-        // Mettre à jour les valeurs historiques
-        previous_2_rsi = previous_rsi;
-        previous_rsi = current_rsi;
-        
-        return result;
-    }
-    
-    bool previous_ha_candle_red_filter(int n_previous_candles) {
-    
-        // Utiliser CandleManager pour obtenir l'information Heikin Ashi
-        if (candle_manager.size() < n_previous_candles + 2) {
-            logger->log_filter_result("Bougie HA précédente", false);
-            logger->log_filter_detail("Bougie HA précédente", "Pas assez d'historique (min " + std::to_string(n_previous_candles + 2) + " bougies)");
-            return false;
-        }
-        
-        // Récupérer les bougies HA
-        auto ha_candles = candle_manager.get_last_heikin_ashi_candles(n_previous_candles + 1);
-        if (ha_candles.size() < n_previous_candles + 1) {
-            logger->log_filter_result("Bougie HA précédente", false);
-            logger->log_filter_detail("Bougie HA précédente", "Pas assez de bougies HA");
-            return false;
-        }
-
-        for (size_t i = 0; i < n_previous_candles; ++i) {
-            const BasicCandle& ha_candle = ha_candles[i];
-            if (ha_candle.close >= ha_candle.open) {
-                logger->log_filter_result("Bougie HA précédente", false);
-                logger->log_filter_detail("Bougie HA précédente", 
-                                        "Bougie HA " + std::to_string(i + 1) + " VERTE (open=" + 
-                                        logger->fast_double_to_string(ha_candle.open) + 
-                                        ", close=" + logger->fast_double_to_string(ha_candle.close) + ")");
-                return false;
-            }
-        }
-        
-        return true;
-    }
-    
-    bool supertrend_filter() {
-        if (current_supertrend_filter == 0.0) {
-            logger->log_filter_result("Supertrend Filter", false);
-            logger->log_filter_detail("Supertrend Filter", "Valeur Supertrend non calculée (0.0)");
-            return false;
-        }
-        
-        // Filter is true if price is above Supertrend band (uptrend)
-        bool result = price() > current_supertrend_filter;
-        
-        logger->log_filter_result("Supertrend Filter", result);
-        logger->log_filter_comparison("Supertrend Filter", price(), current_supertrend_filter, 
-                                    result ? ">" : "<=", result);
-        
-        // Additional logging for trend direction
-        std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
-                                     (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-        logger->log_filter_detail("Supertrend Filter", "Direction: " + trend_direction + 
-                                ", Supertrend: " + logger->fast_double_to_string(current_supertrend_filter));
-
-        return result;
-    }
     
     bool initialize_indicators() {
         // Déterminer la période maximale nécessaire en fonction des indicateurs activés
@@ -644,22 +482,42 @@ public:
 
         // Setup active filters
         if (config.use_ema_short_filter) {
-            active_filters.push_back([this]() { return this->ema_short_filter(); });
+            active_filters.push_back([this]() {
+                return Filters::priceSupEMA(price(), current_ema_short, ema_short_name, logger.get());
+            });
         }
         if (config.use_ema_long_filter) {
-            active_filters.push_back([this]() { return this->ema_long_filter(); });
+            active_filters.push_back([this]() {
+                return Filters::priceSupEMA(price(), current_ema_long, ema_long_name, logger.get());
+            });
         }
         if (config.use_stoch_filter) {
-            active_filters.push_back([this]() { return this->stoch_inf_threshold_filter(); });
+            active_filters.push_back([this]() {
+                return Filters::stochInfThreshold(current_stoch_k, k_previous, k_previous_2, k_previous_3, 
+                                                config.stoch_threshold, "Stochastique", logger.get());
+            });
         }
+
         if (config.use_rsi_filter) {
-            active_filters.push_back([this]() { return this->rsi_inf_threshold_filter(); });
+            active_filters.push_back([this]() {
+                return Filters::rsiInfThreshold(current_rsi, previous_rsi, previous_2_rsi, 
+                                            config.rsi_threshold, rsi_name, logger.get());
+            });
         }
+
         if (config.use_previous_ha_candle_red_filter) {
-            active_filters.push_back([this]() { return this->previous_ha_candle_red_filter(config.previous_ha_candle_red_filter_n); });
+            active_filters.push_back([this]() {
+                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 
+                                                "Bougie HA précédente", logger.get());
+            });
         }
+
         if (config.use_supertrend_filter) {
-            active_filters.push_back([this]() { return this->supertrend_filter(); });
+            active_filters.push_back([this]() {
+                return Filters::priceSupSupertrend(price(), current_supertrend_filter, 
+                                                current_supertrend_filter_direction, 
+                                                "Supertrend Filter", logger.get());
+            });
         }
     }
 };
