@@ -161,6 +161,11 @@ struct StrategyBaseConfig {
     int rl_lookback_periods; // Number of historical candles to include in features
     double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
     double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
+
+    // New parameter for nth Heikin-Ashi take profit
+    bool use_nth_heikin_ashi_tp;
+    int nth_heikin_ashi_count; // Number of opposite Heikin-Ashi candles to wait for
+
     // Risk management
     bool use_risk_based_sizing;
     double risk_percentage;
@@ -242,6 +247,10 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Use SuperTrend for TP: " << (config.use_supertrend_for_tp ? "Yes" : "No") << "\n";
     os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
     os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n";
+
+    // Nth Heikin-Ashi parameters for TP
+    os << "  Use nth Heikin-Ashi for TP: " << (config.use_nth_heikin_ashi_tp ? "Yes" : "No") << "\n";
+    os << "  Nth Heikin-Ashi count: " << config.nth_heikin_ashi_count << "\n";
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";

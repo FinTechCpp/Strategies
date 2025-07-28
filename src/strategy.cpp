@@ -303,6 +303,52 @@ std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     return nullptr;
 }
 
+std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
+    // Check if nth Heikin-Ashi TP is enabled and we have an open position
+    if (!base_config.use_nth_heikin_ashi_tp || position_info.entry_price <= 0.0) {
+        return nullptr;
+    }
+
+    // Get the latest Heikin-Ashi candle
+    if (candle_manager.size() == 0) return nullptr;
+
+    // Check if the current Heikin-Ashi candle is opposite to the trade direction
+    bool is_opposite_candle = false;
+
+    if (is_position_long) // For long positions, we look for red Heikin-Ashi candles
+        is_opposite_candle = candle_manager.is_latest_heikin_ashi_red();
+    else // For short positions, we look for green Heikin-Ashi candles
+        is_opposite_candle = candle_manager.is_latest_heikin_ashi_green();
+
+    // If this is an opposite candle, increment the counter
+    if (is_opposite_candle) {
+        opposite_heikin_ashi_count++;
+        
+        std::string candle_color = is_position_long ? "red" : "green";
+        logger->log_general("Opposite Heikin-Ashi candle detected (" + 
+                           candle_color + 
+                           "). Count: " + std::to_string(opposite_heikin_ashi_count) + 
+                           "/" + std::to_string(base_config.nth_heikin_ashi_count), 
+                           LogLevel::INFO);
+
+        // Check if we've reached the target count
+        if (opposite_heikin_ashi_count >= base_config.nth_heikin_ashi_count) {
+            logger->log_general("Nth Heikin-Ashi exit triggered: " + 
+                               std::to_string(base_config.nth_heikin_ashi_count) + 
+                               " opposite candles reached", LogLevel::INFO);
+
+            // Reset the counter and position tracking
+            opposite_heikin_ashi_count = 0;
+            is_position_long = false;
+
+            // Generate liquidation signal
+            return generate_liquidation_signal();
+        }
+    }
+
+    return nullptr;
+}
+
 std::unique_ptr<Signal> Strategy::generate_buy_signal() {
     auto sig = std::make_unique<Signal>();
     sig->action = "BUY";
@@ -383,6 +429,14 @@ void Strategy::execute_long() {
                           std::to_string(current_supertrend_direction) + 
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
     }
+
+    if (base_config.use_nth_heikin_ashi_tp) {
+        // Initialize nth Heikin-Ashi TP tracking for long position
+        opposite_heikin_ashi_count = 0;
+        is_position_long = true;
+        logger->log_general("Nth Heikin-Ashi TP activé pour position LONG: cherche " + 
+                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies rouges", LogLevel::DEBUG);
+    }
             
     signal = generate_buy_signal();
 }
@@ -430,6 +484,14 @@ void Strategy::execute_short() {
         logger->log_general("SuperTrend TP activé: direction initiale=" + 
                           std::to_string(current_supertrend_direction) + 
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
+    }
+
+    if (base_config.use_nth_heikin_ashi_tp) {
+        // Initialize nth Heikin-Ashi TP tracking for short position
+        opposite_heikin_ashi_count = 0;
+        is_position_long = false;
+        logger->log_general("Nth Heikin-Ashi TP activé pour position SHORT: cherche " + 
+                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies vertes", LogLevel::DEBUG);
     }
     
     signal = generate_sell_signal();
@@ -510,6 +572,14 @@ void Strategy::execute() {
     if (st_exit_signal) {
         logger->log_general("Signal de sortie SuperTrend généré");
         signal = std::move(st_exit_signal);
+        return;
+    }
+
+    // Check for nth Heikin-Ashi exit signal if position is open
+    auto ha_exit_signal = check_nth_heikin_ashi_exit();
+    if (ha_exit_signal) {
+        logger->log_general("Signal de sortie nth Heikin-Ashi généré");
+        signal = std::move(ha_exit_signal);
         return;
     }
     

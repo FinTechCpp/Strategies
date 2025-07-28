@@ -167,6 +167,15 @@ public:
         
         return is_candle_green(ha_buffer.back());
     }
+
+    // Check if the latest Heikin-Ashi candle is red
+    bool is_latest_heikin_ashi_red() const {
+        if (ha_buffer.empty()) {
+            return false;
+        }
+        
+        return !is_candle_green(ha_buffer.back());
+    }
     
     // Remove all candles and Heikin-Ashi candles
     void clear() {
