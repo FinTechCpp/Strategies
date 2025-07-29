@@ -3,201 +3,115 @@
 
 // Filtre pour prix > EMA
 bool Filters::priceSupEMA(double price, double ema_value, const std::string& name, ILogger* logger) {
-    if (ema_value == 0.0) {
-        logger->log_filter_result(name, false);
-        logger->log_filter_detail(name, "Valeur EMA non calculée (0.0)");
-        return false;
-    }
-    
-    bool result = price > ema_value;
-    logger->log_filter_result(name, result);
-    logger->log_filter_comparison(name, price, ema_value, 
-                                result ? ">" : "<=", result);
-    return result;
+    return priceCompareEMA(price, ema_value, name, logger, true);
 }
 
 // Filtre pour prix < EMA
 bool Filters::priceInfEMA(double price, double ema_value, const std::string& name, ILogger* logger) {
+    return priceCompareEMA(price, ema_value, name, logger, false);
+}
+
+bool Filters::priceCompareEMA(double price, double ema_value, const std::string& name, ILogger* logger, bool checkSuperior) {
     if (ema_value == 0.0) {
         logger->log_filter_result(name, false);
         logger->log_filter_detail(name, "Valeur EMA non calculée (0.0)");
         return false;
     }
     
-    bool result = price < ema_value;
+    bool result = checkSuperior ? (price > ema_value) : (price < ema_value);
     logger->log_filter_result(name, result);
-    logger->log_filter_comparison(name, price, ema_value, 
-                                result ? "<" : ">=", result);
+
+    // Choisir le bon opérateur de comparaison en fonction du résultat
+    std::string comparisonOp;
+    if (checkSuperior)
+        comparisonOp = result ? ">" : "<="; // Pour les tests supérieurs
+    else
+        comparisonOp = result ? "<" : ">="; // Pour les tests inférieurs
+    
+    logger->log_filter_comparison(name, price, ema_value, comparisonOp, result);
     return result;
 }
 
 // Filtre Stochastique sous un seuil (avec historique)
-bool Filters::stochInfThreshold(double current_k, double k_previous, 
-                            double k_previous_2, double k_previous_3, 
-                            int threshold, const std::string& name, 
-                            ILogger* logger) {
-    if (current_k == 0.0) {
-        logger->log_filter_result(name, false);
-        logger->log_filter_detail(name, "Valeur K non calculée (0.0)");
-        return false;
-    }
-    
-    bool current_below = current_k < threshold;
-    bool previous_below = k_previous > 0.0 && k_previous < threshold;
-    bool before_previous_below = k_previous_2 > 0.0 && k_previous_2 < threshold;
-    bool before_before_previous_below = k_previous_3 > 0.0 && k_previous_3 < threshold;
-    bool result = current_below || previous_below || before_previous_below || before_before_previous_below;
-    
-    logger->log_filter_result(name, result);
-
-    if (current_below) {
-        logger->log_filter_comparison(name + " K", current_k, threshold, "<", true);
-    } 
-    else if (previous_below) {
-        logger->log_filter_comparison(name + " K précédent", k_previous, threshold, "<", true);
-    } 
-    else if (before_previous_below) {
-        logger->log_filter_comparison(name + " K précédent-2", k_previous_2, threshold, "<", true);
-    } 
-    else if (before_before_previous_below) {
-        logger->log_filter_comparison(name + " K précédent-3", k_previous_3, threshold, "<", true);
-    } 
-    else {
-        logger->log_filter_detail(name, 
-            "K actuel: " + logger->fast_double_to_string(current_k) + 
-            ", K-1: " + logger->fast_double_to_string(k_previous) + 
-            ", K-2: " + logger->fast_double_to_string(k_previous_2) + 
-            ", K-3: " + logger->fast_double_to_string(k_previous_3) + 
-            " - Tous au-dessus du seuil " + std::to_string(threshold));
-    }
-    
-    return result;
+bool Filters::stochInfThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger) {
+    return stochCompareThreshold(kd_values, threshold, name, logger, false);
 }
 
-bool Filters::stochAboveThreshold(double current_k, double k_previous, double k_previous_2, double k_previous_3, int threshold, const std::string &name, ILogger *logger)
+bool Filters::stochAboveThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string &name, ILogger *logger)
 {
-    if (current_k == 0.0) {
+    return stochCompareThreshold(kd_values, threshold, name, logger, true);
+}
+
+bool Filters::stochCompareThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger, bool checkSuperior) {
+    if (kd_values.empty() || kd_values[0].first == 0.0) {
         logger->log_filter_result(name, false);
         logger->log_filter_detail(name, "Valeur K non calculée (0.0)");
         return false;
     }
 
-    bool current_above = current_k > threshold;
-    bool previous_above = k_previous > 0.0 && k_previous > threshold;
-    bool before_previous_above = k_previous_2 > 0.0 && k_previous_2 > threshold;
-    bool before_before_previous_above = k_previous_3 > 0.0 && k_previous_3 > threshold;
-    bool result = current_above || previous_above || before_previous_above || before_before_previous_above;
-
-    logger->log_filter_result(name, result);
-
-    if (current_above) {
-        logger->log_filter_comparison(name + " K", current_k, threshold, ">", true);
-    } 
-    else if (previous_above) {
-        logger->log_filter_comparison(name + " K précédent", k_previous, threshold, ">", true);
-    } 
-    else if (before_previous_above) {
-        logger->log_filter_comparison(name + " K précédent-2", k_previous_2, threshold, ">", true);
-    } 
-    else if (before_before_previous_above) {
-        logger->log_filter_comparison(name + " K précédent-3", k_previous_3, threshold, ">", true);
-    } 
-    else {
-        logger->log_filter_detail(name, 
-            "K actuel: " + logger->fast_double_to_string(current_k) + 
-            ", K-1: " + logger->fast_double_to_string(k_previous) + 
-            ", K-2: " + logger->fast_double_to_string(k_previous_2) + 
-            ", K-3: " + logger->fast_double_to_string(k_previous_3) + 
-            " - Tous au-dessus du seuil " + logger->fast_double_to_string(threshold));
+    // Vérifier chaque valeur dans l'historique
+    bool pass = false;
+    
+    for (size_t i = 0; i < kd_values.size(); ++i) {
+        bool result_check = checkSuperior ? (kd_values[i].first > threshold) : (kd_values[i].first < threshold);
+        if (kd_values[i].first > 0.0 && result_check) {
+            pass = true;
+            std::string period_name = (i == 0) ? "actuel" : 
+                                      (i == 1) ? "précédent" : "précédent-" + std::to_string(i);
+            logger->log_filter_comparison(name + " (K) " + period_name, kd_values[i].first, threshold, (checkSuperior ? ">" : "<"), true);
+            break;
+        }
     }
+    
+    logger->log_filter_result(name, pass);
 
-    return result;
+    if (!pass) {
+        std::string details = "Toutes les valeurs K sont" + std::string((checkSuperior ? " en dessous " : " au-dessus ")) + "du seuil " + std::to_string(threshold);
+        logger->log_filter_detail(name, details);
+    }
+    
+    return pass;
 }
 
 // Filtre RSI sous un seuil (avec mise à jour de l'historique)
-bool Filters::rsiInfThreshold(double current_rsi, double& previous_rsi, 
-                            double& previous_2_rsi, int threshold, 
-                            const std::string& name, ILogger* logger) {
-    if (current_rsi == 0.0) {
-        logger->log_filter_result(name, false);
-        logger->log_filter_detail(name, "Valeur RSI non calculée (0.0)");
-        return false;
-    }
-
-    // Vérifier les trois dernières valeurs
-    bool current_below = current_rsi < threshold;
-    bool prev_below = previous_rsi > 0.0 && previous_rsi < threshold;
-    bool prev2_below = previous_2_rsi > 0.0 && previous_2_rsi < threshold;
-    
-    bool result = current_below || prev_below || prev2_below;
-    
-    // Journalisation détaillée
-    logger->log_filter_result(name, result);
-    
-    if (current_below) {
-        logger->log_filter_comparison(name + " actuel", current_rsi, threshold, "<", true);
-    } 
-    else if (prev_below) {
-        logger->log_filter_comparison(name + " précédent", previous_rsi, threshold, "<", true);
-    } 
-    else if (prev2_below) {
-        logger->log_filter_comparison(name + " antérieur", previous_2_rsi, threshold, "<", true);
-    } 
-    else {
-        logger->log_filter_detail(name, 
-            "Actuel: " + logger->fast_double_to_string(current_rsi) + 
-            ", Précédent: " + logger->fast_double_to_string(previous_rsi) + 
-            ", Antérieur: " + logger->fast_double_to_string(previous_2_rsi) + 
-            " - Tous au-dessus du seuil " + logger->fast_int_to_string(threshold));
-    }
-    
-    // Mettre à jour les valeurs historiques
-    previous_2_rsi = previous_rsi;
-    previous_rsi = current_rsi;
-    
-    return result;
+bool Filters::rsiInfThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger) {
+    return rsiCompareThreshold(rsi_values, threshold, name, logger, false);
 }
 
-bool Filters::rsiAboveThreshold(double current_rsi, double &previous_rsi, double &previous_2_rsi, int threshold, const std::string &name, ILogger *logger)
-{
-    if (current_rsi == 0.0) {
+bool Filters::rsiAboveThreshold(const std::vector<double>& rsi_values, int threshold, const std::string &name, ILogger *logger) {
+    return rsiCompareThreshold(rsi_values, threshold, name, logger, true);
+}
+
+bool Filters::rsiCompareThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger, bool checkSuperior) {
+    if (rsi_values.empty() || rsi_values[0] == 0.0) {
         logger->log_filter_result(name, false);
         logger->log_filter_detail(name, "Valeur RSI non calculée (0.0)");
         return false;
     }
 
-    // Vérifier les trois dernières valeurs
-    bool current_above = current_rsi > threshold;
-    bool prev_above = previous_rsi > 0.0 && previous_rsi > threshold;
-    bool prev2_above = previous_2_rsi > 0.0 && previous_2_rsi > threshold;
+    // Vérifier chaque valeur dans l'historique
+    bool pass = false;
+    
+    for (size_t i = 0; i < rsi_values.size(); ++i) {
+        bool result_check = checkSuperior ? (rsi_values[i] > threshold) : (rsi_values[i] < threshold);
+        if (rsi_values[i] > 0.0 && result_check) {
+            pass = true;
+            std::string period_name = (i == 0) ? "actuel" : 
+                                      (i == 1) ? "précédent" : "antérieur-" + std::to_string(i - 1);
 
-    bool result = current_above || prev_above || prev2_above;
-
-    // Journalisation détaillée
-    logger->log_filter_result(name, result);
-
-    if (current_above) {
-        logger->log_filter_comparison(name + " actuel", current_rsi, threshold, ">", true);
-    } 
-    else if (prev_above) {
-        logger->log_filter_comparison(name + " précédent", previous_rsi, threshold, ">", true);
-    } 
-    else if (prev2_above) {
-        logger->log_filter_comparison(name + " antérieur", previous_2_rsi, threshold, ">", true);
-    } 
-    else {
-        logger->log_filter_detail(name, 
-            "Actuel: " + logger->fast_double_to_string(current_rsi) + 
-            ", Précédent: " + logger->fast_double_to_string(previous_rsi) + 
-            ", Antérieur: " + logger->fast_double_to_string(previous_2_rsi) + 
-            " - Tous en dessous du seuil " + logger->fast_int_to_string(threshold));
+            logger->log_filter_comparison(name + " " + period_name, rsi_values[i], threshold, (checkSuperior ? ">" : "<"), true);
+            break;
+        }
     }
-    
-    // Mettre à jour les valeurs historiques
-    previous_2_rsi = previous_rsi;
-    previous_rsi = current_rsi;
-    
-    return result;
+
+    logger->log_filter_result(name, pass);
+
+    if (!pass) {
+        std::string details = "Toutes les valeurs RSI sont" + std::string((checkSuperior ? " en dessous " : " au-dessus ")) + "du seuil " + std::to_string(threshold);
+        logger->log_filter_detail(name, details);
+    }
+
+    return pass;
 }
 
 // Filtre pour vérifier si n bougies Heikin-Ashi précédentes sont rouges

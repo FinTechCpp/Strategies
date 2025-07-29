@@ -583,8 +583,6 @@ void Strategy::execute() {
         return;
     }
     
-    before();
-    
     bool should_long_val = should_long();
     bool should_short_val = should_long_val ? false : should_short();
     
@@ -611,8 +609,6 @@ void Strategy::execute() {
     } else {
         execute_short();
     }
-    
-    after();
 }
 
 
@@ -650,7 +646,9 @@ Signal* Strategy::update_candle(const Candle& candle) {
     candle_manager.add_candle(candle.ohlc);
     
     // Execute strategy
+    before();
     execute();
+    after();
 
     logger->finalize_and_send_logs();
     

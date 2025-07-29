@@ -19,6 +19,10 @@ struct SellHeikinRedConfig {
     int supertrend_atr_period;
     double supertrend_multiplier;
     int previous_ha_candle_green_filter_n;
+
+    // TODO enlever les fallback
+    int rsi_history_periods = 3;
+    int stoch_history_periods = 4;
     
     bool use_ema_short_filter=false;
     bool use_ema_long_filter=false;
@@ -37,9 +41,11 @@ struct SellHeikinRedConfig {
            << "    Slow K: " << config.stoch_slowk << "\n"
            << "    Slow D: " << config.stoch_slowd << "\n"
            << "    Threshold: " << config.stoch_threshold << "\n"
+           << "    History Periods: " << config.stoch_history_periods << "\n"
            << "  RSI (Used: " << (config.use_rsi_filter ? "Yes" : "No") << "):\n"
            << "    Period: " << config.rsi_period << "\n"
            << "    Threshold: " << config.rsi_threshold << "\n"
+           << "    History Periods: " << config.rsi_history_periods << "\n"
            << "  Supertrend (Used: " << (config.use_supertrend_filter ? "Yes" : "No") << "):\n"
            << "    ATR Period: " << config.supertrend_atr_period << "\n"
            << "    Multiplier: " << config.supertrend_multiplier << "\n"
@@ -66,8 +72,7 @@ private:
     // Indicator names
     std::string ema_short_name;
     std::string ema_long_name;
-    std::string stoch_k_name;
-    std::string stoch_d_name;
+    std::string stoch_name;
     std::string rsi_name;
     std::string atrlog_name;
     std::string supertrend_filter_name;  // For filter SuperTrend
@@ -76,16 +81,18 @@ private:
     // Indicator values
     double current_ema_short = 0.0;
     double current_ema_long = 0.0;
-    double current_stoch_k = 0.0;
-    double current_stoch_d = 0.0;
-    double current_rsi = 0.0;
-    double previous_rsi = 0.0;
-    double previous_2_rsi = 0.0;
+    std::vector<std::pair<double, double>> stoch_kd_values;  // [0] = actuel, [1] = précédent, etc.
+    std::vector<double> rsi_values;      // [0] = actuel, [1] = précédent, etc.
+    // double current_stoch_k = 0.0;
+    // double current_stoch_d = 0.0;
+    // double current_rsi = 0.0;
+    // double previous_rsi = 0.0;
+    // double previous_2_rsi = 0.0;
     double current_atrlog = 0.0;
-    double k_previous = 0.0;
-    double d_previous = 0.0;
-    double k_previous_2 = 0.0;
-    double k_previous_3 = 0.0;
+    // double k_previous = 0.0;
+    // double d_previous = 0.0;
+    // double k_previous_2 = 0.0;
+    // double k_previous_3 = 0.0;
     double current_supertrend_filter = 0.0;
     int current_supertrend_filter_direction = 0;  
         
@@ -176,9 +183,8 @@ private:
             ", D: " + logger->fast_int_to_string(config.stoch_slowd) + ")");
 
             std::pair<double, double> stoch_values = stochastic_calculator->initialize_with_history(candles);
-            current_stoch_k = stoch_values.first;
-            current_stoch_d = stoch_values.second;
-            bool success = (current_stoch_k > 0.0 && current_stoch_d > 0.0);
+            stoch_kd_values[0] = stoch_values;
+            bool success = (stoch_kd_values[0].first > 0.0 && stoch_kd_values[0].second > 0.0);
             all_required_initialized = all_required_initialized && success;
 
             logger->log_general("Initialisation du Stochastique: " + 
@@ -186,8 +192,7 @@ private:
                         success ? LogLevel::INFO : LogLevel::ERROR);
 
             if (success) {
-                logger->log_indicator_value(stoch_k_name, current_stoch_k);
-                logger->log_indicator_value(stoch_d_name, current_stoch_d);
+                logger->log_indicator_value(stoch_name, stoch_kd_values[0]);
             }
         }
         
@@ -196,15 +201,15 @@ private:
             logger->log_general("Initialisation du RSI (période: " + 
                 logger->fast_int_to_string(config.rsi_period) + ")");
 
-            current_rsi = rsi_calculator->initialize_with_history(candles);
-            bool success = (current_rsi > 0.0);
+            rsi_values[0] = rsi_calculator->initialize_with_history(candles);
+            bool success = (rsi_values[0] > 0.0);
             all_required_initialized = all_required_initialized && success;
 
             logger->log_general("Initialisation du RSI: " + 
                             std::string(success ? "RÉUSSIE" : "ÉCHOUÉE"), 
                             success ? LogLevel::INFO : LogLevel::ERROR);
 
-            if (success) logger->log_indicator_value(rsi_name, current_rsi);
+            if (success) logger->log_indicator_value(rsi_name, rsi_values[0]);
         }
         
         // Initialize ATRLOG
@@ -312,25 +317,17 @@ private:
         }
         
         // Update Stochastic si nécessaire
-        if (config.use_stoch_filter) {
-            // Update previous values BEFORE updating current values
-            k_previous_3 = k_previous_2;
-            k_previous_2 = k_previous;
-            k_previous = current_stoch_k;
-            d_previous = current_stoch_d;
-            
+        if (config.use_stoch_filter) {            
             // Now update current values
-            auto stoch_values = stochastic_calculator->update(candle_manager.get_latest_candle());
-            current_stoch_k = stoch_values.first;
-            current_stoch_d = stoch_values.second;
-            logger->log_indicator_value(stoch_k_name, current_stoch_k);
-            logger->log_indicator_value(stoch_d_name, current_stoch_d);
+            std::pair<double, double> stoch_kd_value = stochastic_calculator->update(candle_manager.get_latest_candle());
+            stoch_kd_values[0] = stoch_kd_value;
+            logger->log_indicator_value(stoch_name, stoch_kd_value);
         }
         
         // Update RSI si nécessaire
         if (config.use_rsi_filter) {
-            current_rsi = rsi_calculator->update(candle_manager.get_latest_candle());
-            logger->log_indicator_value(rsi_name, current_rsi);
+            rsi_values[0] = rsi_calculator->update(candle_manager.get_latest_candle());
+            logger->log_indicator_value(rsi_name, rsi_values[0]);
         }
         
         // Update ATRLOG si nécessaire pour SL ou TP
@@ -439,6 +436,25 @@ private:
         return active_filters;
     }
 
+    void after() override {
+        // Effectuer le décalage des valeurs historiques après chaque mise à jour
+        
+        // Décaler les valeurs de stochastique
+        if (config.use_stoch_filter && !stoch_kd_values.empty() && stoch_kd_values[0].first > 0) {
+            // Décaler toutes les valeurs d'une position
+            for (int i = stoch_kd_values.size() - 1; i > 0; i--) {
+                stoch_kd_values[i] = stoch_kd_values[i-1];
+            }
+        }
+        
+        // Décaler les valeurs de RSI
+        if (config.use_rsi_filter && !rsi_values.empty() && rsi_values[0] > 0) {
+            // Décaler toutes les valeurs d'une position
+            for (int i = rsi_values.size() - 1; i > 0; i--) {
+                rsi_values[i] = rsi_values[i-1];
+            }
+        }
+    }
 
 public:
     SellHeikinRed(const StrategyBaseConfig& base_cfg, const SellHeikinRedConfig& shr_cfg) 
@@ -454,62 +470,55 @@ public:
         );
         rsi_calculator = std::make_unique<RSI>(config.rsi_period);
         atrlog_calculator = std::make_unique<ATRLOG>(base_cfg.atr_period);
+        supertrend_filter_calculator = std::make_unique<SUPERTREND>(
+            config.supertrend_atr_period,
+            config.supertrend_multiplier
+        );
+        supertrend_tp_calculator = std::make_unique<SUPERTREND>(
+            base_cfg.tp_supertrend_atr_period,
+            base_cfg.tp_supertrend_multiplier
+        );
+
+        // Initialisation des vecteurs avec la taille appropriée
+        stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
+        rsi_values.resize(config.rsi_history_periods, 0.0);
         
-        // Create separate SuperTrend calculators for filter and TP functionality
-        if (config.use_supertrend_filter) {
-            supertrend_filter_calculator = std::make_unique<SUPERTREND>(
-                config.supertrend_atr_period,
-                config.supertrend_multiplier
-            );
-            supertrend_filter_name = "SUPERTREND_FILTER_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
-                                   logger->fast_double_to_string(config.supertrend_multiplier);
-        }
-        
-        if (base_cfg.use_supertrend_for_tp) {
-            supertrend_tp_calculator = std::make_unique<SUPERTREND>(
-                base_cfg.tp_supertrend_atr_period,
-                base_cfg.tp_supertrend_multiplier
-            );
-            supertrend_tp_name = "SUPERTREND_TP_" + logger->fast_int_to_string(base_cfg.tp_supertrend_atr_period) + "_" +
-                               logger->fast_double_to_string(base_cfg.tp_supertrend_multiplier);
-        }
         
         // Initialize indicator names
         ema_short_name = "EMA_" + logger->fast_int_to_string(config.ema_short_period);
         ema_long_name = "EMA_" + logger->fast_int_to_string(config.ema_long_period);
-        stoch_k_name = "STOCH_K_" + logger->fast_int_to_string(config.stoch_fastk) + "_" +
-                      logger->fast_int_to_string(config.stoch_slowk) + "_" +
-                      logger->fast_int_to_string(config.stoch_slowd);
-        stoch_d_name = "STOCH_D_" + logger->fast_int_to_string(config.stoch_fastk) + "_" +
+        stoch_name = "STOCH_" + logger->fast_int_to_string(config.stoch_fastk) + "_" +
                       logger->fast_int_to_string(config.stoch_slowk) + "_" +
                       logger->fast_int_to_string(config.stoch_slowd);
         rsi_name = "RSI_" + logger->fast_int_to_string(config.rsi_period);
         atrlog_name = "ATRLOG_" + logger->fast_int_to_string(base_cfg.atr_period);
+        supertrend_filter_name = "SUPERTREND_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
+                            logger->fast_double_to_string(config.supertrend_multiplier);
+        supertrend_tp_name = "SUPERTREND_TP_" + logger->fast_int_to_string(base_cfg.tp_supertrend_atr_period) + "_" +
+                            logger->fast_double_to_string(base_cfg.tp_supertrend_multiplier);
 
         // Setup active filters
         if (config.use_ema_short_filter) {
             active_filters.push_back([this]() { 
-                return Filters::priceInfEMA(price(), current_ema_short, "EMA Court", logger.get());
+                return Filters::priceInfEMA(price(), current_ema_short, ema_short_name, logger.get());
             });
         }
         if (config.use_ema_long_filter) {
             active_filters.push_back([this]() { 
-                return Filters::priceInfEMA(price(), current_ema_long, "EMA Long", logger.get());
+                return Filters::priceInfEMA(price(), current_ema_long, ema_long_name, logger.get());
             });
         }
         if (config.use_stoch_filter) {
             active_filters.push_back([this]() {
-                return Filters::stochAboveThreshold(
-                    current_stoch_k, k_previous, k_previous_2, k_previous_3,
-                    config.stoch_threshold, "Stochastique", logger.get()
+                return Filters::stochAboveThreshold(stoch_kd_values,
+                    config.stoch_threshold, stoch_name, logger.get()
                 );
             });
         }
         if (config.use_rsi_filter) {
             active_filters.push_back([this]() {
-                return Filters::rsiAboveThreshold(
-                    current_rsi, previous_rsi, previous_2_rsi,
-                    config.rsi_threshold, "RSI", logger.get()
+                return Filters::rsiAboveThreshold(rsi_values,
+                    config.rsi_threshold, rsi_name, logger.get()
                 );
             });
         }
@@ -523,7 +532,7 @@ public:
             active_filters.push_back([this]() {
                 return Filters::priceInfSupertrend(
                     price(), current_supertrend_filter, current_supertrend_filter_direction,
-                    "Supertrend Filter", logger.get()
+                    supertrend_filter_name, logger.get()
                 );
             });
         }

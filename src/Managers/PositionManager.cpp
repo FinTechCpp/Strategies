@@ -89,5 +89,7 @@ double PositionManager::calculateTakeProfitWithRL(
             
         } catch (const std::exception& e) {
             if (logger) logger->log_general("Error during ML inference: " + std::string(e.what()), LogLevel::ERROR);
+
+            return config.min_take_profit_distance; // Fallback to minimum distance
         } 
     }
