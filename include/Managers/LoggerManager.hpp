@@ -45,9 +45,7 @@ public:
     virtual void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) = 0;
     
     // Logs de filtres
-    virtual void log_filter_result(const std::string& name, bool passed, int level = LogLevel::INFO) = 0;
-    virtual void log_filter_detail(const std::string& detail, int level = LogLevel::DEBUG) = 0;
-    // virtual void log_filter_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) = 0;
+    virtual void log_filter_result(const std::string& name, bool passed, const std::string& detail = "", int level = LogLevel::DEBUG) = 0;
     
     // Logs de signaux
     virtual void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) = 0;
@@ -232,22 +230,13 @@ public:
     }
     
     // Logs de filtres
-    void log_filter_result(const std::string& name, bool passed, int level = LogLevel::INFO) override {
+    void log_filter_result(const std::string& name, bool passed, const std::string& detail = "", int level = LogLevel::INFO) override {
         std::string status = passed ? "PASSÉ" : "REJETÉ";
         std::string msg = "Filtre " + name + ": " + status;
         add_log(LogCategory::FILTER, std::move(msg), level);
+        if (!detail.empty())
+            add_log(LogCategory::FILTER, indent(1) + detail, level);
     }
-    
-    void log_filter_detail(const std::string& detail, int level = LogLevel::DEBUG) override {
-        std::string msg = indent(1) + detail;
-        add_log(LogCategory::FILTER, std::move(msg), level);
-    }
-
-    // void log_filter_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) override {
-    //     std::string status = result ? "PASSÉ" : "REJETÉ";
-    //     std::string msg = indent(1) + "Filtre " + name + " " + status + ": " + fast_double_to_string(value) + " " + comparison_op + " " + fast_double_to_string(threshold);
-    //     add_log(LogCategory::FILTER, std::move(msg), level);
-    // }
     
     // Logs de signaux
     void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) override {
@@ -376,9 +365,7 @@ public:
     void log_indicator_value(const std::string&, double, int) override {}
     void log_indicator_value(const std::string&, std::pair<double, double>, int) override {}
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
-    void log_filter_result(const std::string&, bool, int) override {}
-    void log_filter_detail(const std::string&, int) override {}
-    // void log_filter_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
+    void log_filter_result(const std::string&, bool, const std::string&, int) override {}
     void log_signal(const std::string&, double, double, int) override {}
     void log_sl_tp(double, double, int) override {}
     void log_execution_step(const std::string&, bool, int) override {}

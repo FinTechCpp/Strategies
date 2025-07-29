@@ -468,9 +468,9 @@ public:
         rsi_name = "RSI_" + logger->fast_int_to_string(config.rsi_period);
         atrlog_name = "ATRLOG_" + logger->fast_int_to_string(base_cfg.atr_period);
         supertrend_filter_name = "SUPERTREND_FILTER_" + logger->fast_int_to_string(config.supertrend_atr_period) + "_" +
-                                logger->fast_double_to_string(config.supertrend_multiplier);
+                                logger->fast_int_to_string(int(config.supertrend_multiplier));
         supertrend_tp_name = "SUPERTREND_TP_" + logger->fast_int_to_string(base_cfg.tp_supertrend_atr_period) + "_" +
-                            logger->fast_double_to_string(base_cfg.tp_supertrend_multiplier);
+                            logger->fast_int_to_string(int(base_cfg.tp_supertrend_multiplier));
 
         // Setup active filters
         if (config.use_ema_short_filter) {
