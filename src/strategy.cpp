@@ -409,8 +409,8 @@ void Strategy::execute_long() {
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade LONG rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_detail("Limite de risque", 
-                              "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        logger->log_filter_result("Limite de risque", false);
+        logger->log_filter_detail("Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount), 
                               LogLevel::INFO);
@@ -465,8 +465,8 @@ void Strategy::execute_short() {
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_detail("Limite de risque", 
-                              "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        logger->log_filter_result("Limite de risque", false);
+        logger->log_filter_detail("Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount), 
                               LogLevel::INFO);

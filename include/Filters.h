@@ -29,7 +29,9 @@ public:
     static bool priceInfSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger);
 
 private:
-    static bool priceCompareEMA(double price, double ema_value, const std::string& name, ILogger* logger, bool checkSuperior);
-    static bool stochCompareThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger, bool checkSuperior);
-    static bool rsiCompareThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger, bool checkSuperior);
+    static bool priceCompareEMA(double price, double ema_value, const std::string& name, ILogger* logger, bool passIfSuperior);
+    static bool stochCompareThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
+    static bool rsiCompareThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
+    static bool priceCompareSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger, bool passIfSuperior);
+
 };

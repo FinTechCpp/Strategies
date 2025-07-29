@@ -239,9 +239,6 @@ private:
 
             if (success) {
                 logger->log_indicator_value(supertrend_filter_name, current_supertrend_filter);
-                std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
-                                             (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-                logger->log_filter_detail(supertrend_filter_name, "Direction: " + trend_direction);
             }
         }
         
@@ -263,9 +260,6 @@ private:
 
             if (success) {
                 logger->log_indicator_value(supertrend_tp_name, current_supertrend);
-                std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
-                                             (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-                logger->log_filter_detail(supertrend_tp_name, "Direction: " + trend_direction);
             }
         }
         
@@ -335,10 +329,6 @@ private:
             current_supertrend_filter = supertrend_values.first;
             current_supertrend_filter_direction = supertrend_values.second;
             logger->log_indicator_value(supertrend_filter_name, current_supertrend_filter);
-            
-            std::string trend_direction = (current_supertrend_filter_direction == 1) ? "UPTREND" : 
-                                         (current_supertrend_filter_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-            logger->log_filter_detail(supertrend_filter_name, "Direction: " + trend_direction);
         }
         
         // Update SuperTrend TP si nécessaire
@@ -347,10 +337,6 @@ private:
             current_supertrend = supertrend_values.first;
             current_supertrend_direction = supertrend_values.second;
             logger->log_indicator_value(supertrend_tp_name, current_supertrend);
-            
-            std::string trend_direction = (current_supertrend_direction == 1) ? "UPTREND" : 
-                                         (current_supertrend_direction == -1) ? "DOWNTREND" : "NEUTRAL";
-            logger->log_filter_detail(supertrend_tp_name, "Direction: " + trend_direction);
         }
         
         return true;
