@@ -33,5 +33,5 @@ private:
     static bool stochCompareThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
     static bool rsiCompareThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
     static bool priceCompareSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger, bool passIfSuperior);
-
+    static bool previousHACandles(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger, bool passIfGreen);
 };

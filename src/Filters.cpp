@@ -109,36 +109,15 @@ bool Filters::rsiCompareThreshold(const std::vector<double>& rsi_values, int thr
     return pass;
 }
 
-// Filtre pour vérifier si n bougies Heikin-Ashi précédentes sont rouges
 bool Filters::previousHACandlesRed(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger) {
-    // Vérifier s'il y a assez de bougies disponibles
-    if (candleManager.size() < n_previous_candles + 2) {
-        logger->log_filter_result(name, false, "Pas assez d'historique (min " + std::to_string(n_previous_candles + 2) + " bougies)");
-        return false;
-    }
-    
-    // Récupérer les bougies HA
-    auto ha_candles = candleManager.get_last_heikin_ashi_candles(n_previous_candles + 1);
-    if (ha_candles.size() < n_previous_candles + 1) {
-        logger->log_filter_result(name, false, "Pas assez de bougies HA");
-        return false;
-    }
-
-    // Vérifier si toutes les bougies dans la fenêtre sont rouges
-    for (size_t i = 0; i < n_previous_candles; ++i) {
-        const BasicCandle& ha_candle = ha_candles[i];
-        if (ha_candle.close >= ha_candle.open) {
-            logger->log_filter_result(name, false, "Bougie HA " + std::to_string(i + 1) + " VERTE (open=" + logger->fast_double_to_string(ha_candle.open) + ", close=" + logger->fast_double_to_string(ha_candle.close) + ")");
-            return false;
-        }
-    }
-
-    logger->log_filter_result(name, true, "Toutes les bougies HA précédentes (" + std::to_string(n_previous_candles) + ") sont ROUGES");
-    return true;
+    return previousHACandles(candleManager, n_previous_candles, name, logger, false);
 }
 
-bool Filters::previousHACandlesGreen(const CandleManager &candleManager, int n_previous_candles, const std::string &name, ILogger *logger)
-{
+bool Filters::previousHACandlesGreen(const CandleManager &candleManager, int n_previous_candles, const std::string &name, ILogger *logger) {
+    return previousHACandles(candleManager, n_previous_candles, name, logger, true);
+}
+
+bool Filters::previousHACandles(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger, bool passIfGreen) {
     // Vérifier s'il y a assez de bougies disponibles
     if (candleManager.size() < n_previous_candles + 2) {
         logger->log_filter_result(name, false, "Pas assez d'historique (min " + std::to_string(n_previous_candles + 2) + " bougies)");
@@ -146,22 +125,33 @@ bool Filters::previousHACandlesGreen(const CandleManager &candleManager, int n_p
     }
     
     // Récupérer les bougies HA
-    auto ha_candles = candleManager.get_last_heikin_ashi_candles(n_previous_candles + 1);
+    std::vector<BasicCandle> ha_candles = candleManager.get_last_heikin_ashi_candles(n_previous_candles + 1);
     if (ha_candles.size() < n_previous_candles + 1) {
         logger->log_filter_result(name, false, "Pas assez de bougies HA");
         return false;
     }
 
-    // Vérifier si toutes les bougies dans la fenêtre sont vertes
+    // Vérifier si toutes les bougies dans la fenêtre ont la couleur attendue
     for (size_t i = 0; i < n_previous_candles; ++i) {
         const BasicCandle& ha_candle = ha_candles[i];
-        if (ha_candle.close <= ha_candle.open) {
-            logger->log_filter_result(name, false, "Bougie HA " + std::to_string(i + 1) + " VERTE (open=" + logger->fast_double_to_string(ha_candle.open) + ", close=" + logger->fast_double_to_string(ha_candle.close) + ")");
+        
+        // Déterminer la couleur de la bougie
+        bool isGreen = ha_candle.close > ha_candle.open;
+        bool isEqual = ha_candle.close == ha_candle.open;
+        
+        // Si on cherche des vertes et qu'elle n'est pas verte
+        // Ou si on cherche des rouges et qu'elle n'est pas rouge
+        if ((passIfGreen && !isGreen) || (!passIfGreen && (isGreen || isEqual))) {
+            std::string expected_color = passIfGreen ? "VERTE" : "ROUGE";
+            std::string actual_color = isGreen ? "VERTE" : (isEqual ? "DOJI" : "ROUGE");
+            
+            logger->log_filter_result(name, false, "Bougie HA " + std::to_string(i + 1) + " " + actual_color + " (open=" + logger->fast_double_to_string(ha_candle.open) + ", close=" + logger->fast_double_to_string(ha_candle.close) + ")");
             return false;
         }
     }
 
-    logger->log_filter_result(name, true, "Toutes les bougies HA précédentes (" + std::to_string(n_previous_candles) + ") sont VERTES");
+    std::string color_name = passIfGreen ? "VERTES" : "ROUGES";
+    logger->log_filter_result(name, true, "Toutes les bougies HA précédentes (" + std::to_string(n_previous_candles) + ") sont " + color_name);
     return true;
 }
 
