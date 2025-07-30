@@ -18,9 +18,8 @@ public:
     bool requires_initialization() const { return !is_initialized; }
     bool initialized() const { return is_initialized; }
 
-    // Getters & setters pour le nom
+    // Getters pour le nom
     const std::string& get_name() const { return name; }
-    void set_name(const std::string& indicator_name) { name = indicator_name; }
     
     // Méthodes virtuelles pures pour les classes dérivées
     virtual ReturnType initialize_with_history(const std::vector<BasicCandle>& history) = 0;

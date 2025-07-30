@@ -33,7 +33,7 @@ private:
     
 public:
     SUPERTREND(int atr_period, double multiplier, const std::string& name = "")
-        : IncrementalIndicator<std::pair<double, int>>(name.empty() ? 
+        : IncrementalIndicator<std::pair<double, int>>(name.empty() ?
             "SUPERTREND_" + std::to_string(atr_period) + "_" + std::to_string(multiplier) : name),
           atr_period(atr_period), multiplier(multiplier) {
         atr_calculator = std::make_unique<ATR>(atr_period);
