@@ -86,9 +86,6 @@ private:
     double current_supertrend_filter = 0.0;
     int current_supertrend_filter_direction = 0;  
         
-    // Filters - inversés par rapport à BuyHeikinGreen
-    std::vector<std::function<bool()>> active_filters;
-        
     bool initialize_indicators() {
         // Déterminer la période maximale nécessaire en fonction des indicateurs activés
         int max_period = 0;
@@ -406,10 +403,6 @@ private:
         );
         
         sell_price = price();
-    }
-    
-    std::vector<std::function<bool()>> filters() override {
-        return active_filters;
     }
 
     void after() override {

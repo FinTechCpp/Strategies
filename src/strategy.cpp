@@ -494,7 +494,7 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    for (const auto& filter : filters())
+    for (const std::function<bool ()>& filter : active_filters)
         if (!filter())
             return false;  // Stop execution if any filter fails
     

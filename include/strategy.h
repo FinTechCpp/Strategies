@@ -48,6 +48,7 @@ protected:
     CandleManager candle_manager;
     std::unique_ptr<ILogger> logger;
     PositionInfo position_info;
+    std::vector<std::function<bool()>> active_filters;
 
     // Signal components
     double buy_quantity = 0.0;
@@ -92,9 +93,6 @@ protected:
     virtual void go_long() = 0;
     virtual void go_short() {
         throw std::runtime_error("Short not implemented");
-    }
-    virtual std::vector<std::function<bool()>> filters() {
-        return {};
     }
     
     double price() const;

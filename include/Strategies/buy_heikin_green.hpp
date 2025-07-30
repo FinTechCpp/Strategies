@@ -86,8 +86,6 @@ private:
     double current_supertrend_filter = 0.0;
     int current_supertrend_filter_direction = 0;
     
-    // Filters
-    std::vector<std::function<bool()>> active_filters;
     
     bool initialize_indicators() {
         // Déterminer la période maximale nécessaire en fonction des indicateurs activés
@@ -405,10 +403,6 @@ private:
     void go_short() override {
         throw std::runtime_error("BuyHeikinGreen strategy does not support short selling");
     }
-    
-    std::vector<std::function<bool()>> filters() override {
-        return active_filters;
-    }
 
     void after() override {
         // Effectuer le décalage des valeurs historiques après chaque mise à jour
@@ -437,21 +431,11 @@ public:
         // Initialize indicator calculators
         ema_short_calculator = std::make_unique<EMA>(config.ema_short_period);
         ema_long_calculator = std::make_unique<EMA>(config.ema_long_period);
-        stochastic_calculator = std::make_unique<STOCH>(
-            config.stoch_fastk,
-            config.stoch_slowk,
-            config.stoch_slowd
-        );
+        stochastic_calculator = std::make_unique<STOCH>(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd);
         rsi_calculator = std::make_unique<RSI>(config.rsi_period);
         atrlog_calculator = std::make_unique<ATRLOG>(base_cfg.atr_period);
-        supertrend_filter_calculator = std::make_unique<SUPERTREND>(
-            config.supertrend_atr_period,
-            config.supertrend_multiplier
-        );
-        supertrend_tp_calculator = std::make_unique<SUPERTREND>(
-            base_cfg.tp_supertrend_atr_period,
-            base_cfg.tp_supertrend_multiplier
-        );
+        supertrend_filter_calculator = std::make_unique<SUPERTREND>(config.supertrend_atr_period, config.supertrend_multiplier);
+        supertrend_tp_calculator = std::make_unique<SUPERTREND>(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier);
 
         // Initialisation des vecteurs avec la taille appropriée
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
