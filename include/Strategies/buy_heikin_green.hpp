@@ -20,9 +20,8 @@ struct BuyHeikinGreenConfig {
     double supertrend_multiplier;
     int previous_ha_candle_red_filter_n;
 
-    // TODO enlever les fallback
-    int rsi_history_periods = 3;
-    int stoch_history_periods = 4;
+    int rsi_history_periods;
+    int stoch_history_periods;
     
     bool use_ema_short_filter = false;
     bool use_ema_long_filter = false;

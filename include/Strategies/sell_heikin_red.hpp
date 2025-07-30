@@ -20,9 +20,8 @@ struct SellHeikinRedConfig {
     double supertrend_multiplier;
     int previous_ha_candle_green_filter_n;
 
-    // TODO enlever les fallback
-    int rsi_history_periods = 3;
-    int stoch_history_periods = 4;
+    int rsi_history_periods;
+    int stoch_history_periods;
     
     bool use_ema_short_filter=false;
     bool use_ema_long_filter=false;
@@ -83,16 +82,7 @@ private:
     double current_ema_long = 0.0;
     std::vector<std::pair<double, double>> stoch_kd_values;  // [0] = actuel, [1] = précédent, etc.
     std::vector<double> rsi_values;      // [0] = actuel, [1] = précédent, etc.
-    // double current_stoch_k = 0.0;
-    // double current_stoch_d = 0.0;
-    // double current_rsi = 0.0;
-    // double previous_rsi = 0.0;
-    // double previous_2_rsi = 0.0;
     double current_atrlog = 0.0;
-    // double k_previous = 0.0;
-    // double d_previous = 0.0;
-    // double k_previous_2 = 0.0;
-    // double k_previous_3 = 0.0;
     double current_supertrend_filter = 0.0;
     int current_supertrend_filter_direction = 0;  
         
