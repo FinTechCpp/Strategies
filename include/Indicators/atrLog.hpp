@@ -14,8 +14,8 @@ private:
     std::unique_ptr<ATR> atr_calculator;
     
 public:
-    ATRLOG(int period, const std::string& name = "")
-        : IncrementalIndicator<double>(name.empty() ? "ATRLOG_" + std::to_string(period) : name) {
+    ATRLOG(int period)
+        : IncrementalIndicator<double>("ATRLOG_" + std::to_string(period), period * 2) {
         atr_calculator = std::make_unique<ATR>(period);
     }
 

@@ -1,7 +1,9 @@
 #pragma once
+
 #include "common.h"
 #include "Managers/CandleManager.hpp"
 #include "Managers/PositionManager.hpp"
+#include "Managers/IndicatorManager.hpp"
 #include "LoggerFactory.h"
 #include <string>
 #include <vector>
@@ -49,6 +51,8 @@ protected:
     std::unique_ptr<ILogger> logger;
     PositionInfo position_info;
     std::vector<std::function<bool()>> active_filters;
+    std::unique_ptr<IndicatorManager> indicator_manager;
+
 
     // Signal components
     double buy_quantity = 0.0;
@@ -85,7 +89,6 @@ protected:
     bool is_position_long = false;       // Track whether current position is long or short
 
     // Core strategy methods to implement in derived classes
-    virtual bool update_indicators() { return true; };
     virtual void before() {}
     virtual void after() {}
     virtual bool should_long() = 0;
@@ -94,10 +97,12 @@ protected:
     virtual void go_short() {
         throw std::runtime_error("Short not implemented");
     }
+    virtual void updateLocalValues() {}
     
     double price() const;
 
 private:
+    bool update_indicators();
     double calculate_trade_risk(bool is_long);
     bool is_trade_risk_acceptable(double risk);
     bool is_daily_max_profit_reached();

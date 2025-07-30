@@ -41,7 +41,41 @@ int get_day_of_week(const DateTime& date) {
     // Convert from Sunday=0 to Sunday=6
     return (weekday == 0) ? 6 : weekday - 1;
 }
+
+bool Strategy::update_indicators()
+{
+    if (candle_manager.size() == 0) {
+        logger->log_general("candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
+        return false;
+    }
     
+    if (indicator_manager->needsInitialization()) {
+        // Obtenir automatiquement la période maximale nécessaire
+        int max_period = indicator_manager->getMaxRequiredPeriods();
+        
+        // Prendre en compte également la période pour le Stop Loss si nécessaire
+        if (base_config.use_minmax_for_sl) {
+            max_period = std::max(max_period, base_config.sl_minmax_periods);
+        }
+        
+        size_t available_candles = candle_manager.size();
+        
+        if (available_candles < static_cast<size_t>(max_period)) {
+            int remaining = max_period - static_cast<int>(available_candles);
+            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(available_candles) + 
+                              "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
+                              logger->fast_int_to_string(remaining) + " bougies)");
+            return false;
+        }
+        
+        auto candles = candle_manager.get_last_candles(candle_manager.size());
+        logger->log_general("Initialisation avec " + logger->fast_int_to_string(candles.size()) + " bougies");
+        return indicator_manager->initializeAll(candles, logger.get());
+    }
+    
+    // Mise à jour simple avec la dernière bougie
+    return indicator_manager->updateAll(candle_manager.get_latest_candle(), logger.get());
+}
 
 // Implementation of Strategy class methods
 // Calculate the potential risk of a trade in monetary value
@@ -505,15 +539,16 @@ void Strategy::execute() {
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
-    
+    bool indicators_ready = update_indicators();
+    before();
+
     // Update indicators
-    if (!update_indicators()) {
+    if (!indicators_ready) {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
-        // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
         reset();
         return;
     }
-
+    
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
@@ -611,7 +646,8 @@ void Strategy::execute() {
 Strategy::Strategy(const StrategyBaseConfig& config) 
     : base_config(config), 
     signal(std::make_unique<Signal>()),
-    logger(LoggerFactory::createLogger()) {
+    logger(LoggerFactory::createLogger()),
+    indicator_manager(std::make_unique<IndicatorManager>()) {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
 }
@@ -642,7 +678,6 @@ Signal* Strategy::update_candle(const Candle& candle) {
     candle_manager.add_candle(candle.ohlc);
     
     // Execute strategy
-    before();
     execute();
     after();
 

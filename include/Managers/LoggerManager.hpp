@@ -42,6 +42,7 @@ public:
     // Logs d'indicateurs
     virtual void log_indicator_value(const std::string& name, double value, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_value(const std::string& name, std::pair<double, double> values, int level = LogLevel::DEBUG) = 0;
+    virtual void log_indicator_value(const std::string& name, std::pair<double, int> values, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) = 0;
     
     // Logs de filtres
@@ -222,6 +223,11 @@ public:
         std::string msg = "Indicateur " + name + " = [" + fast_double_to_string(values.first) + ", " + fast_double_to_string(values.second) + "]";
         add_log(LogCategory::INDICATOR, std::move(msg), level);
     }
+
+    void log_indicator_value(const std::string& name, std::pair<double, int> values, int level = LogLevel::DEBUG) override {
+        std::string msg = "Indicateur " + name + " = [" + fast_double_to_string(values.first) + ", " + fast_int_to_string(values.second) + "]";
+        add_log(LogCategory::INDICATOR, std::move(msg), level);
+    }
     
     void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) override {
         std::string status = result ? "VALIDÉ" : "REJETÉ";
@@ -364,6 +370,7 @@ public:
     void log_general(std::string&&, int) override {}
     void log_indicator_value(const std::string&, double, int) override {}
     void log_indicator_value(const std::string&, std::pair<double, double>, int) override {}
+    void log_indicator_value(const std::string&, std::pair<double, int>, int) override {}
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
     void log_filter_result(const std::string&, bool, const std::string&, int) override {}
     void log_signal(const std::string&, double, double, int) override {}

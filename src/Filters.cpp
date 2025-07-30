@@ -156,16 +156,19 @@ bool Filters::previousHACandles(const CandleManager& candleManager, int n_previo
 }
 
 // Filtre SuperTrend pour vérifier si le prix est au-dessus de la bande SuperTrend
-bool Filters::priceSupSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger) {
-    return priceCompareSupertrend(price, supertrend_value, supertrend_direction, name, logger, true);
+bool Filters::priceSupSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger) {
+    return priceCompareSupertrend(price, supertrend_values, name, logger, true);
 }
 
 // Filtre SuperTrend pour vérifier si le prix est en dessous de la bande SuperTrend
-bool Filters::priceInfSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger) {
-    return priceCompareSupertrend(price, supertrend_value, supertrend_direction, name, logger, false);
+bool Filters::priceInfSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger) {
+    return priceCompareSupertrend(price, supertrend_values, name, logger, false);
 }
 
-bool Filters::priceCompareSupertrend(double price, double supertrend_value, int supertrend_direction, const std::string& name, ILogger* logger, bool passIfSuperior) {
+bool Filters::priceCompareSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger, bool passIfSuperior) {
+    double supertrend_value = supertrend_values.first;
+    int supertrend_direction = supertrend_values.second;
+
     if (supertrend_value == 0.0) {
         logger->log_filter_result(name, false, "Valeur Supertrend non calculée (0.0)");
         return false;
