@@ -119,6 +119,23 @@ struct Candle {
     const DateTime& date() const { return ohlc.date; }
 };
 
+enum class StopLossMethod {
+    Unset = -1,
+    Fixed = 0,
+    ATR = 1,
+    MinMax = 2
+};
+
+enum class TakeProfitMethod {
+    Unset = -1,
+    Fixed = 0,
+    ATR = 1,
+    SLRatio = 2,
+    SuperTrend = 3,
+    RL = 4,
+    NthHeikinAshi = 5
+};
+
 struct StrategyBaseConfig {
     LogLevel logLevel = LogLevel::DEBUG;
     bool enable_logging = true; // Enable or disable logging
@@ -126,13 +143,20 @@ struct StrategyBaseConfig {
     // Time settings
     Time trading_from;
     Time trading_to;
+    // DEPRECATED: Use trading_days_array instead
     std::vector<int> trading_days;
-    
+    int trading_days_array[7];
+
     // Fixed SL/TP values
     double take_profit_distance;
     double stop_loss_distance;
 
+    // SL/TP Methods
+    StopLossMethod sl_method = StopLossMethod::Unset;
+    TakeProfitMethod tp_method = TakeProfitMethod::Unset;
+
     // ATR parameters for SL and TP
+    // DEPRECATED : Use sl_method and tp_method
     bool use_atr_for_sl;     // Important: default value is false
     bool use_atr_for_tp;     // Important: default value is false
     int atr_period;
@@ -142,20 +166,24 @@ struct StrategyBaseConfig {
     double min_take_profit_distance;
 
     // New Min/Max parameters for SL
+    // DEPRECATED : Use sl_method
     bool use_minmax_for_sl;
     int sl_minmax_periods;
     double sl_minmax_delta;
 
     // New parameter for TP based on SL
+    // DEPRECATED : Use tp_method
     bool use_sl_ratio_for_tp;
     double tp_sl_ratio;
 
     // New parameter for TP based on SuperTrend
+    // DEPRECATED : Use tp_method
     bool use_supertrend_for_tp;
     int tp_supertrend_atr_period;
     double tp_supertrend_multiplier;
 
     // New parameters for TP based on ML/RL
+    // DEPRECATED : Use tp_method
     bool use_rl_for_tp;
     std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
     int rl_lookback_periods; // Number of historical candles to include in features
@@ -163,6 +191,7 @@ struct StrategyBaseConfig {
     double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
 
     // New parameter for nth Heikin-Ashi take profit
+    // DEPRECATED : Use tp_method
     bool use_nth_heikin_ashi_tp;
     int nth_heikin_ashi_count; // Number of opposite Heikin-Ashi candles to wait for
 
@@ -193,6 +222,45 @@ struct StrategyBaseConfig {
     double daily_max_drawdown_amount; // Calculated from cash and daily_max_drawdown_percentage
 };
 
+
+// Overload the << operator for StopLossMethod
+inline std::ostream& operator<<(std::ostream& os, const StopLossMethod& method) {
+    switch (method) {
+        case StopLossMethod::Unset:
+            return os << "Unset";
+        case StopLossMethod::Fixed:
+            return os << "Fixed";
+        case StopLossMethod::ATR:
+            return os << "ATR";
+        case StopLossMethod::MinMax:
+            return os << "MinMax";
+        default:
+            return os << "Unknown(" << static_cast<int>(method) << ")";
+    }
+}
+
+// Overload the << operator for StopLossMethod
+inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method) {
+    switch (method) {
+        case TakeProfitMethod::Unset:
+            return os << "Unset";
+        case TakeProfitMethod::Fixed:
+            return os << "Fixed";
+        case TakeProfitMethod::ATR:
+            return os << "ATR";
+        case TakeProfitMethod::SLRatio:
+            return os << "SLRatio";
+        case TakeProfitMethod::SuperTrend:
+            return os << "SuperTrend";
+        case TakeProfitMethod::RL:
+            return os << "RL";
+        case TakeProfitMethod::NthHeikinAshi:
+            return os << "NthHeikinAshi";
+        default:
+            return os << "Unknown(" << static_cast<int>(method) << ")";
+    }
+}
+
 // Overload of the stream operator for StrategyBaseConfig
 inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& config) {
     os << "StrategyBaseConfig {\n";
@@ -220,6 +288,9 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
         }
     }
     os << "\n";
+
+    os << "  Stop loss method: " << config.sl_method << "\n";
+    os << "  Take profit method: " << config.tp_method << "\n";
     
     // SL/TP values
     os << "  Take profit distance: " << config.take_profit_distance << "\n";
