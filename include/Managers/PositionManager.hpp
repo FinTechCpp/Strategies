@@ -21,10 +21,10 @@ public:
         const BasicCandle& basic_candle,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (config.use_atr_for_sl && current_atr > 0.0) {
+        if (config.sl_method == StopLossMethod::ATR && current_atr > 0.0) {
             return calculateStopLossWithATR(config, current_atr, logger);
         } 
-        else if (config.use_minmax_for_sl && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
+        else if (config.sl_method == StopLossMethod::MinMax && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
             return calculateStopLossWithMinMax(
                 config, current_price, candle_manager, basic_candle, is_long, logger);
         } 
@@ -44,18 +44,19 @@ public:
         const CandleManager& candle_manager,
         const std::unique_ptr<ILogger>& logger
     ) {
-        if (config.use_supertrend_for_tp) {
+        if (config.tp_method == TakeProfitMethod::SuperTrend) {
             // SuperTrend TP: no fixed TP at open, exit based on trend reversal
             if (logger) logger->log_general("Using SuperTrend for TP - no fixed distance", LogLevel::INFO);
             return 0.0;  // No fixed TP
-        } else if (config.use_rl_for_tp)
+        } else if (config.tp_method == TakeProfitMethod::RL) {
             // RL-based TP calculation
             return calculateTakeProfitWithRL(config, current_price, current_atr, 
                                             stop_loss_distance, candle_manager, logger);
-        else if (config.use_atr_for_tp && current_atr > 0.0)
+        } else if (config.tp_method == TakeProfitMethod::ATR && current_atr > 0.0) {
             return calculateTakeProfitWithATR(config, current_atr, logger);
-        else if (config.use_sl_ratio_for_tp && stop_loss_distance > 0.0)
+        } else if (config.tp_method == TakeProfitMethod::SLRatio && stop_loss_distance > 0.0) {
             return calculateTakeProfitWithSLRatio(config, stop_loss_distance, logger);
+        }
 
         // Use fixed value for TP
         if (logger) logger->log_general("Using fixed value for TP: " + 

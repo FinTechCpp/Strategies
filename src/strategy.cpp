@@ -38,6 +38,7 @@ int get_day_of_week(const DateTime& date) {
     std::time_t time = std::mktime(&timeinfo);
     std::tm* local_tm = std::localtime(&time);
     int weekday = local_tm->tm_wday;
+    return weekday;
     // Convert from Sunday=0 to Sunday=6
     return (weekday == 0) ? 6 : weekday - 1;
 }
@@ -54,7 +55,7 @@ bool Strategy::update_indicators()
         int max_period = indicator_manager->getMaxRequiredPeriods();
         
         // Prendre en compte également la période pour le Stop Loss si nécessaire
-        if (base_config.use_minmax_for_sl) {
+        if (base_config.sl_method == StopLossMethod::MinMax) {
             max_period = std::max(max_period, base_config.sl_minmax_periods);
         }
         
@@ -219,10 +220,7 @@ bool Strategy::check_time() {
         last_check_date = current_date;
 
         int weekday = get_day_of_week(current_date);
-        weekday_check = std::find(base_config.trading_days.begin(),
-                                  base_config.trading_days.end(),
-                                  weekday) != base_config.trading_days.end();
-
+        weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
             logger->log_time_check(false, "Jour non autorisé pour le trading: " +
                                  current_date.to_string(), LogLevel::INFO);
@@ -304,7 +302,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
 
 std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     // Check if SuperTrend is enabled and we have a pending open position
-    if(!base_config.use_supertrend_for_tp || position_info.entry_price <= 0.0) {
+    if(base_config.tp_method != TakeProfitMethod::SuperTrend || position_info.entry_price <= 0.0) {
         // Insufficient data to calculate SuperTrend exit
         return nullptr;
     }
@@ -339,7 +337,7 @@ std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
 
 std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
     // Check if nth Heikin-Ashi TP is enabled and we have an open position
-    if (!base_config.use_nth_heikin_ashi_tp || position_info.entry_price <= 0.0) {
+    if (base_config.tp_method != TakeProfitMethod::NthHeikinAshi || position_info.entry_price <= 0.0) {
         return nullptr;
     }
 
@@ -454,7 +452,7 @@ void Strategy::execute_long() {
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
     // Marquer qu'une position est maintenant ouverte
-    if (base_config.use_supertrend_for_tp) {
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
         logger->log_general("SuperTrend TP activé: direction initiale=" + 
@@ -462,7 +460,7 @@ void Strategy::execute_long() {
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
     }
 
-    if (base_config.use_nth_heikin_ashi_tp) {
+    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
         // Initialize nth Heikin-Ashi TP tracking for long position
         opposite_heikin_ashi_count = 0;
         is_position_long = true;
@@ -508,7 +506,7 @@ void Strategy::execute_short() {
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
     // Marquer qu'une position est maintenant ouverte
-    if (base_config.use_supertrend_for_tp) {
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
         logger->log_general("SuperTrend TP activé: direction initiale=" + 
@@ -516,7 +514,7 @@ void Strategy::execute_short() {
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
     }
 
-    if (base_config.use_nth_heikin_ashi_tp) {
+    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
         // Initialize nth Heikin-Ashi TP tracking for short position
         opposite_heikin_ashi_count = 0;
         is_position_long = false;

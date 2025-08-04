@@ -144,8 +144,8 @@ struct StrategyBaseConfig {
     Time trading_from;
     Time trading_to;
     // DEPRECATED: Use trading_days_array instead
-    std::vector<int> trading_days;
-    int trading_days_array[7];
+    // std::vector<int> trading_days;
+    bool trading_days_array[7]; // (0 = Monday, 6 = Sunday)
 
     // Fixed SL/TP values
     double take_profit_distance;
@@ -156,9 +156,7 @@ struct StrategyBaseConfig {
     TakeProfitMethod tp_method = TakeProfitMethod::Unset;
 
     // ATR parameters for SL and TP
-    // DEPRECATED : Use sl_method and tp_method
-    bool use_atr_for_sl;     // Important: default value is false
-    bool use_atr_for_tp;     // Important: default value is false
+    // bool use_atr_for_tp;     // Important: default value is false
     int atr_period;
     double stop_loss_atr_multiplier;
     double take_profit_atr_multiplier;
@@ -166,25 +164,23 @@ struct StrategyBaseConfig {
     double min_take_profit_distance;
 
     // New Min/Max parameters for SL
-    // DEPRECATED : Use sl_method
-    bool use_minmax_for_sl;
     int sl_minmax_periods;
     double sl_minmax_delta;
 
     // New parameter for TP based on SL
     // DEPRECATED : Use tp_method
-    bool use_sl_ratio_for_tp;
+    // bool use_sl_ratio_for_tp;
     double tp_sl_ratio;
 
     // New parameter for TP based on SuperTrend
     // DEPRECATED : Use tp_method
-    bool use_supertrend_for_tp;
+    // bool use_supertrend_for_tp;
     int tp_supertrend_atr_period;
     double tp_supertrend_multiplier;
 
     // New parameters for TP based on ML/RL
     // DEPRECATED : Use tp_method
-    bool use_rl_for_tp;
+    // bool use_rl_for_tp;
     std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
     int rl_lookback_periods; // Number of historical candles to include in features
     double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
@@ -192,7 +188,7 @@ struct StrategyBaseConfig {
 
     // New parameter for nth Heikin-Ashi take profit
     // DEPRECATED : Use tp_method
-    bool use_nth_heikin_ashi_tp;
+    // bool use_nth_heikin_ashi_tp;
     int nth_heikin_ashi_count; // Number of opposite Heikin-Ashi candles to wait for
 
     // Risk management
@@ -276,20 +272,17 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Trading hours: " << config.trading_from.hour << ":" << config.trading_from.minute 
        << " - " << config.trading_to.hour << ":" << config.trading_to.minute << "\n";
     
+    static const char* day_names[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
     os << "  Trading days: ";
-    for (size_t i = 0; i < config.trading_days.size(); ++i) {
-        if (i > 0) os << ", ";
-        switch(config.trading_days[i]) {
-            case 0: os << "Monday"; break;
-            case 1: os << "Tuesday"; break;
-            case 2: os << "Wednesday"; break;
-            case 3: os << "Thursday"; break;
-            case 4: os << "Friday"; break;
-            case 5: os << "Saturday"; break;
-            case 6: os << "Sunday"; break;
-            default: os << "Unknown"; break;
+    bool first = true;
+    for (size_t i = 0; i < 7; ++i) {
+        if (config.trading_days_array[i]) {
+            if (!first) os << ", ";
+            os << day_names[i];
+            first = false;
         }
     }
+    if (first) os << "None";
     os << "\n";
 
     os << "  Stop loss method: " << config.sl_method << "\n";
@@ -300,8 +293,6 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Stop loss distance: " << config.stop_loss_distance << "\n";
     
     // ATR parameters
-    os << "  Use ATR for SL: " << (config.use_atr_for_sl ? "Yes" : "No") << "\n";
-    os << "  Use ATR for TP: " << (config.use_atr_for_tp ? "Yes" : "No") << "\n";
     os << "  ATR period: " << config.atr_period << "\n";
     os << "  SL ATR multiplier: " << config.stop_loss_atr_multiplier << "\n";
     os << "  TP ATR multiplier: " << config.take_profit_atr_multiplier << "\n";
@@ -309,21 +300,17 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     os << "  Min TP distance: " << config.min_take_profit_distance << "\n";
     
     // Min/Max parameters
-    os << "  Use Min/Max for SL: " << (config.use_minmax_for_sl ? "Yes" : "No") << "\n";
     os << "  SL Min/Max periods: " << config.sl_minmax_periods << "\n";
     os << "  SL Min/Max delta: " << config.sl_minmax_delta << "\n";
     
     // SL ratio for TP
-    os << "  Use SL ratio for TP: " << (config.use_sl_ratio_for_tp ? "Yes" : "No") << "\n";
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
 
     // SuperTrend parameters for TP
-    os << "  Use SuperTrend for TP: " << (config.use_supertrend_for_tp ? "Yes" : "No") << "\n";
     os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
     os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n";
 
     // Nth Heikin-Ashi parameters for TP
-    os << "  Use nth Heikin-Ashi for TP: " << (config.use_nth_heikin_ashi_tp ? "Yes" : "No") << "\n";
     os << "  Nth Heikin-Ashi count: " << config.nth_heikin_ashi_count << "\n";
     
     // Risk management

@@ -105,7 +105,7 @@ private:
         }
         
         // Vérifier si on a besoin de Min/Max mais qu'on n'a pas assez d'historique
-        if (base_config.use_minmax_for_sl && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
+        if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
             logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
             return false;
         }
@@ -223,14 +223,14 @@ private:
         
         if (config.use_rsi_filter)
             indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
-        
-        if (base_config.use_atr_for_sl || base_config.use_atr_for_tp)
+
+        if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
             indicator_manager->registerIndicator<ATRLOG, double>(atrlog_calculator);
 
         if (config.use_supertrend_filter)
             indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_filter_calculator);
         
-        if (base_config.use_supertrend_for_tp)
+        if (base_config.tp_method == TakeProfitMethod::SuperTrend)
             indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_tp_calculator);
     }
 
