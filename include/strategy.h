@@ -87,7 +87,6 @@ protected:
     // Nth Heikin-Ashi TP tracking
     int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
     bool is_position_long = false;       // Track whether current position is long or short
-
     // Core strategy methods to implement in derived classes
     virtual void before() {}
     virtual void after() {}

@@ -143,8 +143,6 @@ struct StrategyBaseConfig {
     // Time settings
     Time trading_from;
     Time trading_to;
-    // DEPRECATED: Use trading_days_array instead
-    // std::vector<int> trading_days;
     bool trading_days_array[7]; // (0 = Monday, 6 = Sunday)
 
     // Fixed SL/TP values
@@ -156,7 +154,6 @@ struct StrategyBaseConfig {
     TakeProfitMethod tp_method = TakeProfitMethod::Unset;
 
     // ATR parameters for SL and TP
-    // bool use_atr_for_tp;     // Important: default value is false
     int atr_period;
     double stop_loss_atr_multiplier;
     double take_profit_atr_multiplier;
@@ -168,27 +165,19 @@ struct StrategyBaseConfig {
     double sl_minmax_delta;
 
     // New parameter for TP based on SL
-    // DEPRECATED : Use tp_method
-    // bool use_sl_ratio_for_tp;
     double tp_sl_ratio;
 
     // New parameter for TP based on SuperTrend
-    // DEPRECATED : Use tp_method
-    // bool use_supertrend_for_tp;
     int tp_supertrend_atr_period;
     double tp_supertrend_multiplier;
 
     // New parameters for TP based on ML/RL
-    // DEPRECATED : Use tp_method
-    // bool use_rl_for_tp;
     std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
     int rl_lookback_periods; // Number of historical candles to include in features
     double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
     double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
 
     // New parameter for nth Heikin-Ashi take profit
-    // DEPRECATED : Use tp_method
-    // bool use_nth_heikin_ashi_tp;
     int nth_heikin_ashi_count; // Number of opposite Heikin-Ashi candles to wait for
 
     // Risk management
@@ -206,19 +195,19 @@ struct StrategyBaseConfig {
     bool use_daily_max_loss;
     double daily_max_loss_percentage;
     // DEPRECATED ! a supprimer c'est redondant
-    double daily_max_loss_amount; // Calculated from cash and daily_max_loss_percentage
+    // double daily_max_loss_amount; // Calculated from cash and daily_max_loss_percentage
 
     // Daily maximum profit
     bool use_daily_max_profit;
     double daily_max_profit_percentage;
     // DEPRECATED ! a supprimer c'est redondant
-    double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
+    // double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
 
     // Daily maximum drawdown
     bool use_daily_max_drawdown;
     double daily_max_drawdown_percentage;
     // DEPRECATED ! a supprimer c'est redondant
-    double daily_max_drawdown_amount; // Calculated from cash and daily_max_drawdown_percentage
+    // double daily_max_drawdown_amount; // Calculated from cash and daily_max_drawdown_percentage
 };
 
 
@@ -327,17 +316,17 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     // Daily maximum loss
     os << "  Use daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No") << "\n";
     os << "  Daily max loss %: " << config.daily_max_loss_percentage << "%\n";
-    os << "  Daily max loss amount: " << config.daily_max_loss_amount << "\n";
+    // os << "  Daily max loss amount: " << config.daily_max_loss_amount << "\n";
     
     // Daily maximum profit
     os << "  Use daily max profit: " << (config.use_daily_max_profit ? "Yes" : "No") << "\n";
     os << "  Daily max profit %: " << config.daily_max_profit_percentage << "%\n";
-    os << "  Daily max profit amount: " << config.daily_max_profit_amount << "\n";
+    // os << "  Daily max profit amount: " << config.daily_max_profit_amount << "\n";
     
     // Daily maximum drawdown
     os << "  Use daily max drawdown: " << (config.use_daily_max_drawdown ? "Yes" : "No") << "\n";
     os << "  Daily max drawdown %: " << config.daily_max_drawdown_percentage << "%\n";
-    os << "  Daily max drawdown amount: " << config.daily_max_drawdown_amount << "\n";
+    // os << "  Daily max drawdown amount: " << config.daily_max_drawdown_amount << "\n";
     
     os << "}";
     return os;

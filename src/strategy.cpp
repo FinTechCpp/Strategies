@@ -649,10 +649,6 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
 
-    // il faut stocker ces données dans des attribut privé car on doit les enlever de la config
-    base_config.daily_max_loss_amount = config.cash * (config.daily_max_loss_percentage / 100.0);
-    base_config.daily_max_profit_amount = config.cash * (config.daily_max_profit_percentage / 100.0);
-    base_config.daily_max_drawdown_amount = config.cash * (config.daily_max_drawdown_percentage / 100.0);
 }
 
 // Main update method
