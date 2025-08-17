@@ -15,8 +15,8 @@ private:
     std::deque<double> true_range_history;
     
 public:
-    ATRC(int period, const std::string& name = "ATRC")
-        : IncrementalIndicator<double>(name), period(period) {}
+    ATRC(int period)
+        : IncrementalIndicator<double>("ATRC_" + std::to_string(period), period * 2), period(period) {}
     double initialize_with_history(const std::vector<BasicCandle>& history) override;
     double update(const BasicCandle& candle) override;
     double get_value() const override;

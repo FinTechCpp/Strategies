@@ -1,7 +1,9 @@
 #pragma once
+
 #include "common.h"
 #include "Managers/CandleManager.hpp"
 #include "Managers/PositionManager.hpp"
+#include "Managers/IndicatorManager.hpp"
 #include "LoggerFactory.h"
 #include <string>
 #include <vector>
@@ -48,6 +50,9 @@ protected:
     CandleManager candle_manager;
     std::unique_ptr<ILogger> logger;
     PositionInfo position_info;
+    std::vector<std::function<bool()>> active_filters;
+    std::unique_ptr<IndicatorManager> indicator_manager;
+
 
     // Signal components
     double buy_quantity = 0.0;
@@ -79,8 +84,10 @@ protected:
     double current_supertrend = 0.0;
     int current_supertrend_direction = 0;
 
+    // Nth Heikin-Ashi TP tracking
+    int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
+    bool is_position_long = false;       // Track whether current position is long or short
     // Core strategy methods to implement in derived classes
-    virtual bool update_indicators() { return true; };
     virtual void before() {}
     virtual void after() {}
     virtual bool should_long() = 0;
@@ -89,13 +96,12 @@ protected:
     virtual void go_short() {
         throw std::runtime_error("Short not implemented");
     }
-    virtual std::vector<std::function<bool()>> filters() {
-        return {};
-    }
+    virtual void updateLocalValues() {}
     
     double price() const;
 
 private:
+    bool update_indicators();
     double calculate_trade_risk(bool is_long);
     bool is_trade_risk_acceptable(double risk);
     bool is_daily_max_profit_reached();
@@ -108,6 +114,7 @@ private:
     
     std::unique_ptr<Signal> check_break_even();
     std::unique_ptr<Signal> check_supertrend_exit();
+    std::unique_ptr<Signal> check_nth_heikin_ashi_exit();
     std::unique_ptr<Signal> generate_buy_signal();
     std::unique_ptr<Signal> generate_sell_signal();
     std::unique_ptr<Signal> generate_liquidation_signal();

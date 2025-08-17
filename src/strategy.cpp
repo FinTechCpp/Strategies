@@ -41,7 +41,41 @@ int get_day_of_week(const DateTime& date) {
     // Convert from Sunday=0 to Sunday=6
     return (weekday == 0) ? 6 : weekday - 1;
 }
+
+bool Strategy::update_indicators()
+{
+    if (candle_manager.size() == 0) {
+        logger->log_general("candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
+        return false;
+    }
     
+    if (indicator_manager->needsInitialization()) {
+        // Obtenir automatiquement la période maximale nécessaire
+        int max_period = indicator_manager->getMaxRequiredPeriods();
+        
+        // Prendre en compte également la période pour le Stop Loss si nécessaire
+        if (base_config.sl_method == StopLossMethod::MinMax) {
+            max_period = std::max(max_period, base_config.sl_minmax_periods);
+        }
+        
+        size_t available_candles = candle_manager.size();
+        
+        if (available_candles < static_cast<size_t>(max_period)) {
+            int remaining = max_period - static_cast<int>(available_candles);
+            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(available_candles) + 
+                              "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
+                              logger->fast_int_to_string(remaining) + " bougies)");
+            return false;
+        }
+        
+        auto candles = candle_manager.get_last_candles(candle_manager.size());
+        logger->log_general("Initialisation avec " + logger->fast_int_to_string(candles.size()) + " bougies");
+        return indicator_manager->initializeAll(candles, logger.get());
+    }
+    
+    // Mise à jour simple avec la dernière bougie
+    return indicator_manager->updateAll(candle_manager.get_latest_candle(), logger.get());
+}
 
 // Implementation of Strategy class methods
 // Calculate the potential risk of a trade in monetary value
@@ -185,10 +219,7 @@ bool Strategy::check_time() {
         last_check_date = current_date;
 
         int weekday = get_day_of_week(current_date);
-        weekday_check = std::find(base_config.trading_days.begin(),
-                                  base_config.trading_days.end(),
-                                  weekday) != base_config.trading_days.end();
-
+        weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
             logger->log_time_check(false, "Jour non autorisé pour le trading: " +
                                  current_date.to_string(), LogLevel::INFO);
@@ -270,7 +301,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
 
 std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     // Check if SuperTrend is enabled and we have a pending open position
-    if(!base_config.use_supertrend_for_tp || position_info.entry_price <= 0.0) {
+    if(base_config.tp_method != TakeProfitMethod::SuperTrend || position_info.entry_price <= 0.0) {
         // Insufficient data to calculate SuperTrend exit
         return nullptr;
     }
@@ -300,6 +331,52 @@ std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     previous_supertrend_direction = current_supertrend_direction;
 
     // Si aucune inversion, ne rien faire
+    return nullptr;
+}
+
+std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
+    // Check if nth Heikin-Ashi TP is enabled and we have an open position
+    if (base_config.tp_method != TakeProfitMethod::NthHeikinAshi || position_info.entry_price <= 0.0) {
+        return nullptr;
+    }
+
+    // Get the latest Heikin-Ashi candle
+    if (candle_manager.size() == 0) return nullptr;
+
+    // Check if the current Heikin-Ashi candle is opposite to the trade direction
+    bool is_opposite_candle = false;
+
+    if (is_position_long) // For long positions, we look for red Heikin-Ashi candles
+        is_opposite_candle = candle_manager.is_latest_heikin_ashi_red();
+    else // For short positions, we look for green Heikin-Ashi candles
+        is_opposite_candle = candle_manager.is_latest_heikin_ashi_green();
+
+    // If this is an opposite candle, increment the counter
+    if (is_opposite_candle) {
+        opposite_heikin_ashi_count++;
+        
+        std::string candle_color = is_position_long ? "red" : "green";
+        logger->log_general("Opposite Heikin-Ashi candle detected (" + 
+                           candle_color + 
+                           "). Count: " + std::to_string(opposite_heikin_ashi_count) + 
+                           "/" + std::to_string(base_config.nth_heikin_ashi_count), 
+                           LogLevel::INFO);
+
+        // Check if we've reached the target count
+        if (opposite_heikin_ashi_count >= base_config.nth_heikin_ashi_count) {
+            logger->log_general("Nth Heikin-Ashi exit triggered: " + 
+                               std::to_string(base_config.nth_heikin_ashi_count) + 
+                               " opposite candles reached", LogLevel::INFO);
+
+            // Reset the counter and position tracking
+            opposite_heikin_ashi_count = 0;
+            is_position_long = false;
+
+            // Generate liquidation signal
+            return generate_liquidation_signal();
+        }
+    }
+
     return nullptr;
 }
 
@@ -363,11 +440,9 @@ void Strategy::execute_long() {
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade LONG rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_detail("Limite de risque", 
-                              "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
-                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount), 
-                              LogLevel::INFO);
+                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
         reset();
         return;
     }
@@ -376,12 +451,20 @@ void Strategy::execute_long() {
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
     // Marquer qu'une position est maintenant ouverte
-    if (base_config.use_supertrend_for_tp) {
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
         logger->log_general("SuperTrend TP activé: direction initiale=" + 
                           std::to_string(current_supertrend_direction) + 
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
+    }
+
+    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
+        // Initialize nth Heikin-Ashi TP tracking for long position
+        opposite_heikin_ashi_count = 0;
+        is_position_long = true;
+        logger->log_general("Nth Heikin-Ashi TP activé pour position LONG: cherche " + 
+                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies rouges", LogLevel::DEBUG);
     }
             
     signal = generate_buy_signal();
@@ -411,11 +494,9 @@ void Strategy::execute_short() {
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
         logger->log_general("Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_detail("Limite de risque", 
-                              "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
-                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount), 
-                              LogLevel::INFO);
+                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
         reset();
         return;
     }
@@ -424,19 +505,27 @@ void Strategy::execute_short() {
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
     // Marquer qu'une position est maintenant ouverte
-    if (base_config.use_supertrend_for_tp) {
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
         logger->log_general("SuperTrend TP activé: direction initiale=" + 
                           std::to_string(current_supertrend_direction) + 
                           ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
     }
+
+    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
+        // Initialize nth Heikin-Ashi TP tracking for short position
+        opposite_heikin_ashi_count = 0;
+        is_position_long = false;
+        logger->log_general("Nth Heikin-Ashi TP activé pour position SHORT: cherche " + 
+                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies vertes", LogLevel::DEBUG);
+    }
     
     signal = generate_sell_signal();
 }
 
 bool Strategy::execute_filters() {
-    for (const auto& filter : filters())
+    for (const std::function<bool ()>& filter : active_filters)
         if (!filter())
             return false;  // Stop execution if any filter fails
     
@@ -447,15 +536,16 @@ void Strategy::execute() {
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
-    
+    bool indicators_ready = update_indicators();
+    before();
+
     // Update indicators
-    if (!update_indicators()) {
+    if (!indicators_ready) {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
-        // logger->log_general("Indicateurs non initialisés - Arrêt de l'exécution");
         reset();
         return;
     }
-
+    
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
@@ -512,8 +602,14 @@ void Strategy::execute() {
         signal = std::move(st_exit_signal);
         return;
     }
-    
-    before();
+
+    // Check for nth Heikin-Ashi exit signal if position is open
+    auto ha_exit_signal = check_nth_heikin_ashi_exit();
+    if (ha_exit_signal) {
+        logger->log_general("Signal de sortie nth Heikin-Ashi généré");
+        signal = std::move(ha_exit_signal);
+        return;
+    }
     
     bool should_long_val = should_long();
     bool should_short_val = should_long_val ? false : should_short();
@@ -541,17 +637,17 @@ void Strategy::execute() {
     } else {
         execute_short();
     }
-    
-    after();
 }
 
 
 Strategy::Strategy(const StrategyBaseConfig& config) 
     : base_config(config), 
     signal(std::make_unique<Signal>()),
-    logger(LoggerFactory::createLogger()) {
+    logger(LoggerFactory::createLogger()),
+    indicator_manager(std::make_unique<IndicatorManager>()) {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
+
 }
 
 // Main update method
@@ -581,6 +677,7 @@ Signal* Strategy::update_candle(const Candle& candle) {
     
     // Execute strategy
     execute();
+    after();
 
     logger->finalize_and_send_logs();
     

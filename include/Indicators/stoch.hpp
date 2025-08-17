@@ -24,10 +24,8 @@ private:
     double current_d = 0.0;
     
 public:
-    STOCH(int fastk, int slowk, int slowd, const std::string& name = "")
-    : IncrementalIndicator<std::pair<double, double>>(
-        name.empty() ? "STOCH_" + std::to_string(fastk) + "_" + 
-                    std::to_string(slowk) + "_" + std::to_string(slowd) : name),
+    STOCH(int fastk, int slowk, int slowd)
+    : IncrementalIndicator<std::pair<double, double>>("STOCH_" + std::to_string(fastk) + "_" + std::to_string(slowk) + "_" + std::to_string(slowd), fastk + slowk + slowd + 1),
     fastk_period(fastk), slowk_period(slowk), slowd_period(slowd) {}
 
     std::pair<double, double> initialize_with_history(const std::vector<BasicCandle>& history) override;

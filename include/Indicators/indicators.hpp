@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Indicators/IncrementalIndicator.hpp"
 #include "Indicators/ema.hpp"
 #include "Indicators/stoch.hpp"
 #include "Indicators/rsi.hpp"

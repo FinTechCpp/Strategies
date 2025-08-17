@@ -20,8 +20,8 @@ private:
     bool first_avg_calculated = false;
     
 public:
-    RSI(int period, const std::string& name = "")
-    : IncrementalIndicator<double>(name.empty() ? "RSI_" + std::to_string(period) : name),
+    RSI(int period)
+    : IncrementalIndicator<double>("RSI_" + std::to_string(period), period),
     period(period) {}
 
     double initialize_with_history(const std::vector<BasicCandle>& history) override;

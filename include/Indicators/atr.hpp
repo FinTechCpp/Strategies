@@ -16,8 +16,8 @@ private:
     std::deque<double> true_range_history;
     
 public:
-    ATR(int period, const std::string& name = "ATR")
-        : IncrementalIndicator<double>(name), period(period) {}
+    ATR(int period)
+        : IncrementalIndicator<double>("ATR_" + std::to_string(period), period * 2), period(period) {}
     virtual double initialize_with_history(const std::vector<BasicCandle>& history) override;
     virtual double update(const BasicCandle& candle) override;
     virtual double get_value() const override;

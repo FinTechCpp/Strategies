@@ -10,17 +10,18 @@ class IncrementalIndicator {
 protected:
     bool is_initialized = false;
     std::string name;
+    int required_periods = 0;  // Nombre de périodes nécessaires pour l'initialisation
     
 public:
-    IncrementalIndicator(const std::string& name) : name(name) {}
+    IncrementalIndicator(const std::string& name, int required_periods = 0) : name(name), required_periods(required_periods) {}
     virtual ~IncrementalIndicator() = default;
 
     bool requires_initialization() const { return !is_initialized; }
     bool initialized() const { return is_initialized; }
 
-    // Getters & setters pour le nom
+    // Getters pour le nom
     const std::string& get_name() const { return name; }
-    void set_name(const std::string& indicator_name) { name = indicator_name; }
+    int get_required_periods() const { return required_periods; }
     
     // Méthodes virtuelles pures pour les classes dérivées
     virtual ReturnType initialize_with_history(const std::vector<BasicCandle>& history) = 0;
