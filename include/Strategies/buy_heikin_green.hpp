@@ -23,12 +23,18 @@ struct BuyHeikinGreenConfig {
     int rsi_history_periods;
     int stoch_history_periods;
     
+    // ATR filter parameters
+    int atr_filter_period;
+    double atr_threshold;
+    int atr_history_periods;
+    
     bool use_ema_short_filter = false;
     bool use_ema_long_filter = false;
     bool use_stoch_filter = false;
     bool use_rsi_filter = false;
     bool use_previous_ha_candle_red_filter = false;
     bool use_supertrend_filter = false;
+    bool use_atr_filter = false;
 
     // Overload the << operator for easy printing
     friend std::ostream& operator<<(std::ostream& os, const BuyHeikinGreenConfig& config) {
@@ -48,6 +54,10 @@ struct BuyHeikinGreenConfig {
            << "  Supertrend (Used: " << (config.use_supertrend_filter ? "Yes" : "No") << "):\n"
            << "    ATR Period: " << config.supertrend_atr_period << "\n"
            << "    Multiplier: " << config.supertrend_multiplier << "\n"
+           << "  ATR Filter (Used: " << (config.use_atr_filter ? "Yes" : "No") << "):\n"
+           << "    Period: " << config.atr_filter_period << "\n"
+           << "    Threshold: " << config.atr_threshold << "\n"
+           << "    History Periods: " << config.atr_history_periods << "\n"
            << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
            << "  Previous HA Candle Red Filter N: " << config.previous_ha_candle_red_filter_n << "\n"     
            << "}";
@@ -65,15 +75,17 @@ private:
     std::shared_ptr<STOCH> stochastic_calculator;
     std::shared_ptr<RSI> rsi_calculator;
     std::shared_ptr<ATRLOG> atrlog_calculator;
+    std::shared_ptr<ATRLOG> atrlog_filter_calculator;  // For ATR filter functionality
     std::shared_ptr<SUPERTREND> supertrend_filter_calculator;  // For filter functionality
     std::shared_ptr<SUPERTREND> supertrend_tp_calculator;      // For TP functionality
     
     // Indicator values
     std::vector<std::pair<double, double>> stoch_kd_values;
     std::vector<double> rsi_values;
+    std::vector<double> atr_values;
 
     void before() override {        
-        // Obtenir la dernière bougie HA pour journalisation
+        // Get latest candle for logging
         BasicCandle ha_current = candle_manager.get_latest_heikin_ashi();
         bool is_green = candle_manager.is_candle_green(ha_current);
         
@@ -88,6 +100,10 @@ private:
         if (config.use_rsi_filter && !rsi_values.empty()) {
             rsi_values[0] = rsi_calculator->get_value();
         }
+        
+        if (config.use_atr_filter && !atr_values.empty()) {
+            atr_values[0] = atrlog_filter_calculator->get_value();
+        }
     }
     
     bool should_long() override {
@@ -95,8 +111,8 @@ private:
             logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
             return false;
         }
-        
-        // Vérifier si on a besoin de Min/Max mais qu'on n'a pas assez d'historique
+
+        // Check if we need Min/Max but don't have enough history
         if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
             logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
             return false;
@@ -109,7 +125,7 @@ private:
     void go_long() override {
         logger->log_general("Préparation d'un signal LONG", LogLevel::INFO);
 
-        // Calcul du Stop Loss
+        // Calculate Stop Loss
         stop_loss_distance = PositionManager::calculateStopLoss(
             base_config, 
             price(), 
@@ -119,8 +135,8 @@ private:
             candle_manager.get_latest_candle(), 
             logger
         );
-        
-        // Calcul du Take Profit
+
+        // Calculate Take Profit
         take_profit_distance = PositionManager::calculateTakeProfit(
             base_config,
             price(),
@@ -130,7 +146,7 @@ private:
             logger
         );
 
-        // Calcul de la taille de position
+        // Calculate position size
         buy_quantity = PositionManager::calculatePositionSize(
             base_config,
             price(),
@@ -146,21 +162,29 @@ private:
     }
 
     void after() override {
-        // Effectuer le décalage des valeurs historiques après chaque mise à jour
-        
-        // Décaler les valeurs de stochastique
+        // Perform historical value shifting after each update
+
+        // Shift stochastic values
         if (config.use_stoch_filter && !stoch_kd_values.empty() && stoch_kd_values[0].first > 0) {
-            // Décaler toutes les valeurs d'une position
+            // Shift all values by one position
             for (int i = stoch_kd_values.size() - 1; i > 0; i--) {
                 stoch_kd_values[i] = stoch_kd_values[i-1];
             }
         }
-        
-        // Décaler les valeurs de RSI
+
+        // Shift RSI values
         if (config.use_rsi_filter && !rsi_values.empty() && rsi_values[0] > 0) {
-            // Décaler toutes les valeurs d'une position
+            // Shift all values by one position
             for (int i = rsi_values.size() - 1; i > 0; i--) {
                 rsi_values[i] = rsi_values[i-1];
+            }
+        }
+
+        // Shift ATR values
+        if (config.use_atr_filter && !atr_values.empty() && atr_values[0] > 0) {
+            // Shift all values by one position
+            for (int i = atr_values.size() - 1; i > 0; i--) {
+                atr_values[i] = atr_values[i-1];
             }
         }
     }
@@ -182,6 +206,11 @@ private:
             active_filters.push_back([this]() {
                 return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, rsi_calculator->get_name(), logger.get());
             });
+        if (config.use_atr_filter)
+            active_filters.push_back([this]() {
+                if (!atrlog_filter_calculator) return false;
+                return Filters::atrAboveThreshold(atr_values, config.atr_threshold, atrlog_filter_calculator->get_name(), logger.get());
+            });
         if (config.use_previous_ha_candle_red_filter)
             active_filters.push_back([this]() {
                 return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, "Bougie HA précédente", logger.get());
@@ -193,7 +222,7 @@ private:
     }
 
     void registerIndicators() {
-        // Enregistrer les indicateurs actifs uniquement
+        // Register only active indicators
         if (config.use_ema_short_filter)
             indicator_manager->registerIndicator<EMA, double>(ema_short_calculator);
         
@@ -205,6 +234,9 @@ private:
         
         if (config.use_rsi_filter)
             indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
+        
+        if (config.use_atr_filter)
+            indicator_manager->registerIndicator<ATRLOG, double>(atrlog_filter_calculator);
 
         if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
             indicator_manager->registerIndicator<ATRLOG, double>(atrlog_calculator);
@@ -226,12 +258,14 @@ public:
         stochastic_calculator = std::make_shared<STOCH>(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd);
         rsi_calculator = std::make_shared<RSI>(config.rsi_period);
         atrlog_calculator = std::make_shared<ATRLOG>(base_cfg.atr_period);
+        atrlog_filter_calculator = std::make_shared<ATRLOG>(config.atr_filter_period);
         supertrend_filter_calculator = std::make_shared<SUPERTREND>(config.supertrend_atr_period, config.supertrend_multiplier);
         supertrend_tp_calculator = std::make_shared<SUPERTREND>(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier);
 
-        // Initialisation des vecteurs avec la taille appropriée
+        // Initialize vectors with appropriate sizes
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
         rsi_values.resize(config.rsi_history_periods, 0.0);
+        atr_values.resize(config.atr_history_periods, 0.0);
 
         registerFilters();
         registerIndicators();
