@@ -153,6 +153,7 @@ bool Filters::previousHACandles(const CandleManager& candleManager, int n_previo
     std::string color_name = passIfGreen ? "VERTES" : "ROUGES";
     logger->log_filter_result(name, true, "Toutes les bougies HA précédentes (" + std::to_string(n_previous_candles) + ") sont " + color_name);
     return true;
+}
 
 // SuperTrend filter to check if the price is above the SuperTrend band
 bool Filters::priceSupSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger) {
