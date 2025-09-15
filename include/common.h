@@ -194,20 +194,14 @@ struct StrategyBaseConfig {
     // Daily maximum loss
     bool use_daily_max_loss;
     double daily_max_loss_percentage;
-    // DEPRECATED ! a supprimer c'est redondant
-    // double daily_max_loss_amount; // Calculated from cash and daily_max_loss_percentage
 
     // Daily maximum profit
     bool use_daily_max_profit;
     double daily_max_profit_percentage;
-    // DEPRECATED ! a supprimer c'est redondant
-    // double daily_max_profit_amount; // Calculated from cash and daily_max_profit_percentage
 
     // Daily maximum drawdown
     bool use_daily_max_drawdown;
     double daily_max_drawdown_percentage;
-    // DEPRECATED ! a supprimer c'est redondant
-    // double daily_max_drawdown_amount; // Calculated from cash and daily_max_drawdown_percentage
 };
 
 
