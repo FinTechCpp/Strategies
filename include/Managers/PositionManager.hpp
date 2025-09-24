@@ -26,7 +26,7 @@ public:
         } 
         else if (config.sl_method == StopLossMethod::MinMax && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
             return calculateStopLossWithMinMax(
-                config, current_price, candle_manager, basic_candle, is_long, logger);
+                config, current_price, current_atr, candle_manager, basic_candle, is_long, logger);
         } 
         else {
             // Use fixed value for SL
@@ -109,6 +109,7 @@ private:
     static double calculateStopLossWithMinMax(
         const StrategyBaseConfig& config,
         double current_price,
+        double current_atr,
         const CandleManager& candle_manager,
         const BasicCandle& basic_candle,
         bool is_long,
@@ -116,6 +117,20 @@ private:
     ) {
         if (logger) logger->log_general("Using Min/Max to calculate SL " + 
             std::string(is_long ? "(LONG)" : "(SHORT)"), LogLevel::INFO);
+        
+        // Calculate delta using coefficient and ATR
+        double delta = config.sl_minmax_delta_coef_atr * current_atr;
+        
+        if (current_atr <= 0.0) {
+            if (logger) logger->log_general("Invalid ATR (" + std::to_string(current_atr) + 
+                ") for delta calculation - ATR must be calculated properly", LogLevel::ERROR);
+            // Return fixed SL distance as fallback
+            return config.stop_loss_distance;
+        } else {
+            if (logger) logger->log_general("Delta calculated: " + std::to_string(delta) + 
+                " (coef=" + std::to_string(config.sl_minmax_delta_coef_atr) + 
+                " * ATR=" + std::to_string(current_atr) + ")", LogLevel::INFO);
+        }
         
         int n_periods = std::min(static_cast<int>(candle_manager.size()), config.sl_minmax_periods);
         auto recent_candles = candle_manager.get_last_candles(n_periods);
@@ -130,7 +145,7 @@ private:
             if (logger) logger->log_general("Minimum price found: " + std::to_string(min_price), LogLevel::INFO);
 
             // SL = minimum - delta (for LONG, the SL is below the minimum)
-            double sl_price = min_price - config.sl_minmax_delta;
+            double sl_price = min_price - delta;
             double stop_loss_distance = current_price - sl_price;
 
             stop_loss_distance = std::max(stop_loss_distance, config.min_stop_loss_distance);
@@ -143,7 +158,7 @@ private:
 
             if (logger) logger->log_general("SL Min/Max calculated: " + std::to_string(stop_loss_distance) + 
                 " (min=" + std::to_string(min_price) + 
-                ", delta=" + std::to_string(config.sl_minmax_delta) + 
+                ", delta=" + std::to_string(delta) + 
                 ", SL price=" + std::to_string(sl_price) + 
                 ", Min SL=" + std::to_string(config.min_stop_loss_distance) + ")", LogLevel::INFO);
                 
@@ -159,7 +174,7 @@ private:
         if (logger) logger->log_general("Maximum price found: " + std::to_string(max_price), LogLevel::INFO);
 
         // SL = maximum + delta (for SHORT, the SL is above the maximum)
-        double sl_price = max_price + config.sl_minmax_delta;
+        double sl_price = max_price + delta;
         double stop_loss_distance = sl_price - current_price;
 
         stop_loss_distance = std::max(stop_loss_distance, config.min_stop_loss_distance);
@@ -172,7 +187,7 @@ private:
 
         if (logger) logger->log_general("SL Min/Max calculated: " + std::to_string(stop_loss_distance) + 
             " (max=" + std::to_string(max_price) + 
-            ", delta=" + std::to_string(config.sl_minmax_delta) + 
+            ", delta=" + std::to_string(delta) + 
             ", SL price=" + std::to_string(sl_price) + 
             ", Min SL=" + std::to_string(config.min_stop_loss_distance) + ")", LogLevel::INFO);
             

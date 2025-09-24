@@ -93,17 +93,12 @@ private:
                         ", Close=" + logger->fast_double_to_string(ha_current.close) + 
                         ", Green=" + std::string(is_green ? "Oui" : "Non"));
 
-        if (config.use_stoch_filter && !stoch_kd_values.empty()) {
-            stoch_kd_values[0] = stochastic_calculator->get_value();
-        }
+        if (config.use_stoch_filter && !stoch_kd_values.empty()) stoch_kd_values[0] = stochastic_calculator->get_value();
+
+        if (config.use_rsi_filter && !rsi_values.empty()) rsi_values[0] = rsi_calculator->get_value();
+
+        if (config.use_atr_filter && !atr_values.empty()) atr_values[0] = atrlog_filter_calculator->get_value();
         
-        if (config.use_rsi_filter && !rsi_values.empty()) {
-            rsi_values[0] = rsi_calculator->get_value();
-        }
-        
-        if (config.use_atr_filter && !atr_values.empty()) {
-            atr_values[0] = atrlog_filter_calculator->get_value();
-        }
     }
     
     // TODO : Il faut supprimer cette méthode et tout traiter comme des filtres
@@ -241,7 +236,7 @@ private:
         if (config.use_atr_filter)
             indicator_manager->registerIndicator<ATRLOG, double>(atrlog_filter_calculator);
 
-        if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
+        if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax)
             indicator_manager->registerIndicator<ATRLOG, double>(atrlog_calculator);
 
         if (config.use_supertrend_filter)

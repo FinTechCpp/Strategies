@@ -162,7 +162,7 @@ struct StrategyBaseConfig {
 
     // New Min/Max parameters for SL
     int sl_minmax_periods;
-    double sl_minmax_delta;
+    double sl_minmax_delta_coef_atr;
 
     // New parameter for TP based on SL
     double tp_sl_ratio;
@@ -284,7 +284,7 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& conf
     
     // Min/Max parameters
     os << "  SL Min/Max periods: " << config.sl_minmax_periods << "\n";
-    os << "  SL Min/Max delta: " << config.sl_minmax_delta << "\n";
+    os << "  SL Min/Max delta coef ATR: " << config.sl_minmax_delta_coef_atr << "\n";
     
     // SL ratio for TP
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
