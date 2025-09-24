@@ -109,24 +109,36 @@ bool Filters::rsiCompareThreshold(const std::vector<double>& rsi_values, int thr
     return pass;
 }
 
-bool Filters::previousHACandlesRed(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger) {
-    return previousHACandles(candleManager, n_previous_candles, name, logger, false);
+bool Filters::previousHACandlesRed(const CandleManager& candleManager, size_t n_previous_candles, size_t offset, const std::string& name, ILogger* logger) {
+    return previousHACandles(candleManager, n_previous_candles, offset, name, logger, false);
 }
 
-bool Filters::previousHACandlesGreen(const CandleManager &candleManager, int n_previous_candles, const std::string &name, ILogger *logger) {
-    return previousHACandles(candleManager, n_previous_candles, name, logger, true);
+bool Filters::previousHACandlesGreen(const CandleManager &candleManager, size_t n_previous_candles, size_t offset, const std::string &name, ILogger *logger) {
+    return previousHACandles(candleManager, n_previous_candles, offset, name, logger, true);
 }
 
-bool Filters::previousHACandles(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger, bool passIfGreen) {
+bool Filters::previousHACandles(const CandleManager& candleManager, size_t n_previous_candles, size_t offset, const std::string& name, ILogger* logger, bool passIfGreen) {
+/*
+Role de n_previous_candle et offset:
+- n_previous_candles : nombre de bougies HA à vérifier
+- offset : décalage pour commencer la vérification
+
+Si n_previous_candles = 3 et offset = 4 :
+1110000
+      |- dernière bougie (la plus récente)
+   ||||- offset 4 : bougie à NE PAS vérifier
+|||   - n_previous_candles 3 : nombre de bougies à vérifier
+*/
+
     // Check if there are enough candles available
-    if (candleManager.size() < n_previous_candles + 2) {
-        logger->log_filter_result(name, false, "Pas assez d'historique (min " + std::to_string(n_previous_candles + 2) + " bougies)");
+    if (candleManager.size() < n_previous_candles + offset + 1) {
+        logger->log_filter_result(name, false, "Pas assez d'historique (min " + std::to_string(n_previous_candles + offset + 1) + " bougies)");
         return false;
     }
     
     // Get HA candles
-    std::vector<BasicCandle> ha_candles = candleManager.get_last_heikin_ashi_candles(n_previous_candles + 1);
-    if (ha_candles.size() < n_previous_candles + 1) {
+    std::vector<BasicCandle> ha_candles = candleManager.get_last_heikin_ashi_candles(n_previous_candles + offset);
+    if (ha_candles.size() < n_previous_candles + offset) {
         logger->log_filter_result(name, false, "Pas assez de bougies HA");
         return false;
     }

@@ -106,6 +106,7 @@ private:
         }
     }
     
+    // TODO : Il faut supprimer cette méthode et tout traiter comme des filtres
     bool should_long() override {
         if (candle_manager.size() < 3) {
             logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
@@ -190,6 +191,8 @@ private:
     }
 
     void registerFilters() {
+        active_filters.clear();
+
         if (config.use_ema_short_filter)
             active_filters.push_back([this]() {
                 return Filters::priceSupEMA(price(), ema_short_calculator->get_value(), ema_short_calculator->get_name(), logger.get());
@@ -213,7 +216,7 @@ private:
             });
         if (config.use_previous_ha_candle_red_filter)
             active_filters.push_back([this]() {
-                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, "Bougie HA précédente", logger.get());
+                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
             });
         if (config.use_supertrend_filter)
             active_filters.push_back([this]() {

@@ -21,8 +21,8 @@ public:
     static bool rsiAboveThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger);
 
     // Filter to check if n previous Heikin-Ashi candles are red
-    static bool previousHACandlesRed(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger);
-    static bool previousHACandlesGreen(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger);
+    static bool previousHACandlesRed(const CandleManager& candleManager, size_t n_previous_candles, size_t offset, const std::string& name, ILogger* logger);
+    static bool previousHACandlesGreen(const CandleManager& candleManager, size_t n_previous_candles, size_t offset, const std::string& name, ILogger* logger);
 
     // SuperTrend filter to check if the price is above the SuperTrend band
     static bool priceSupSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger);
@@ -36,6 +36,6 @@ private:
     static bool stochCompareThreshold(const std::vector<std::pair<double, double>>& kd_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
     static bool rsiCompareThreshold(const std::vector<double>& rsi_values, int threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
     static bool priceCompareSupertrend(double price, std::pair<double, int> supertrend_values, const std::string& name, ILogger* logger, bool passIfSuperior);
-    static bool previousHACandles(const CandleManager& candleManager, int n_previous_candles, const std::string& name, ILogger* logger, bool passIfGreen);
+    static bool previousHACandles(const CandleManager& candleManager, size_t n_previous_candles, size_t offset, const std::string& name, ILogger* logger, bool passIfGreen);
     static bool atrCompareThreshold(const std::vector<double>& atr_values, double threshold, const std::string& name, ILogger* logger, bool passIfSuperior);
 };

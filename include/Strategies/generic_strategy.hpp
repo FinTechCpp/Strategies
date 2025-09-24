@@ -7,7 +7,10 @@
 #include <memory>
 #include <functional>
 
-struct SellHeikinRedConfig {
+struct GenericStrategyConfig {
+    std::string name; // à mettre dans StrategyBaseConfig
+    std::optional<bool> go_direction = std::nullopt;  // true <=> LONG, false <=> SHORT
+
     int ema_short_period;
     int ema_long_period;
     int stoch_fastk;
@@ -18,27 +21,28 @@ struct SellHeikinRedConfig {
     int rsi_threshold;
     int supertrend_atr_period;
     double supertrend_multiplier;
-    int previous_ha_candle_green_filter_n;
+    int previous_ha_candle_red_filter_n;
 
     int rsi_history_periods;
     int stoch_history_periods;
-
+    
     // ATR filter parameters
     int atr_filter_period;
     double atr_threshold;
     int atr_history_periods;
-
-    bool use_ema_short_filter=false;
-    bool use_ema_long_filter=false;
-    bool use_stoch_filter=false;
-    bool use_rsi_filter=false;
-    bool use_supertrend_filter=false;
-    bool use_previous_ha_candle_green_filter=false;
-    bool use_atr_filter=false;
+    
+    bool use_ema_short_filter = false;
+    bool use_ema_long_filter = false;
+    bool use_stoch_filter = false;
+    bool use_rsi_filter = false;
+    bool use_previous_ha_candle_red_filter = false;
+    bool use_supertrend_filter = false;
+    bool use_atr_filter = false;
 
     // Overload the << operator for easy printing
-    friend std::ostream& operator<<(std::ostream& os, const SellHeikinRedConfig& config) {
-        os << "SellHeikinRedConfig {\n"
+    friend std::ostream& operator<<(std::ostream& os, const GenericStrategyConfig& config) {
+        os << "GenericStrategyConfig {\n"
+           << "  Go Direction: " << (config.go_direction == std::nullopt ? "Not Set" : (config.go_direction.value() ? "LONG" : "SHORT")) << "\n"
            << "  EMA Short Period: " << config.ema_short_period << " (Used: " << (config.use_ema_short_filter ? "Yes" : "No") << ")\n"
            << "  EMA Long Period: " << config.ema_long_period << " (Used: " << (config.use_ema_long_filter ? "Yes" : "No") << ")\n"
            << "  Stochastic (Used: " << (config.use_stoch_filter ? "Yes" : "No") << "):\n"
@@ -58,43 +62,41 @@ struct SellHeikinRedConfig {
            << "    Period: " << config.atr_filter_period << "\n"
            << "    Threshold: " << config.atr_threshold << "\n"
            << "    History Periods: " << config.atr_history_periods << "\n"
-           << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_green_filter ? "Yes" : "No") << "\n"
-           << "  Previous HA Candle Red Filter N: " << config.previous_ha_candle_green_filter_n << "\n"
+           << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
+           << "  Previous HA Candle Red Filter N: " << config.previous_ha_candle_red_filter_n << "\n"     
            << "}";
         return os;
     }
 };
 
-class SellHeikinRed : public Strategy {
+class GenericStrategy : public Strategy {
 private:
-    SellHeikinRedConfig config;
+    GenericStrategyConfig config;
     
     // Indicator calculators
     std::shared_ptr<EMA> ema_short_calculator;
     std::shared_ptr<EMA> ema_long_calculator;
     std::shared_ptr<STOCH> stochastic_calculator;
+    std::shared_ptr<RSI> rsi_calculator;
     std::shared_ptr<ATRLOG> atrlog_calculator;
     std::shared_ptr<ATRLOG> atrlog_filter_calculator;  // For ATR filter functionality
-    std::shared_ptr<RSI> rsi_calculator;
-    std::shared_ptr<SUPERTREND> supertrend_filter_calculator;
-    std::shared_ptr<SUPERTREND> supertrend_tp_calculator;  // For TP functionality
-
+    std::shared_ptr<SUPERTREND> supertrend_filter_calculator;  // For filter functionality
+    std::shared_ptr<SUPERTREND> supertrend_tp_calculator;      // For TP functionality
+    
     // Indicator values
-    std::vector<std::pair<double, double>> stoch_kd_values;  // [0] = current, [1] = previous, etc.
-    std::vector<double> rsi_values;      // [0] = current, [1] = previous, etc.
-    std::vector<double> atr_values;      // [0] = current, [1] = previous, etc. (for ATR filter if needed)
+    std::vector<std::pair<double, double>> stoch_kd_values;
+    std::vector<double> rsi_values;
+    std::vector<double> atr_values;
 
-    void before() override {
-
-        // Get latest HA candle for logging
+    void before() override {        
+        // Get latest candle for logging
         BasicCandle ha_current = candle_manager.get_latest_heikin_ashi();
         bool is_green = candle_manager.is_candle_green(ha_current);
         
-        logger->log_general("Bougie HA courante calculée: Open=" + std::to_string(ha_current.open) + 
-                        ", Close=" + std::to_string(ha_current.close) + 
-                        ", " + (is_green ? "VERTE" : "ROUGE"), LogLevel::INFO);
+        logger->log_general("Bougie HA courante calculée: Open=" + logger->fast_double_to_string(ha_current.open) + 
+                        ", Close=" + logger->fast_double_to_string(ha_current.close) + 
+                        ", Green=" + std::string(is_green ? "Oui" : "Non"));
 
-        // Update current historical values
         if (config.use_stoch_filter && !stoch_kd_values.empty()) {
             stoch_kd_values[0] = stochastic_calculator->get_value();
         }
@@ -102,48 +104,30 @@ private:
         if (config.use_rsi_filter && !rsi_values.empty()) {
             rsi_values[0] = rsi_calculator->get_value();
         }
+        
         if (config.use_atr_filter && !atr_values.empty()) {
             atr_values[0] = atrlog_filter_calculator->get_value();
         }
     }
     
     bool should_long() override {
-        logger->log_general("Cette stratégie ne prend pas de positions longues", LogLevel::WARNING);
-        return false;  // This strategy does not support long positions
+        return true;
     }
-    
-    bool should_short() override {  
-        if (candle_manager.size() < 3) {
-            logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
-            return false;
-        }
 
-        // Check if we need Min/Max but don't have enough history
-        if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
-            logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
-            return false;
-        }
-        return !candle_manager.is_latest_heikin_ashi_green();
-    }
-    
-    void go_long() override {
-        throw std::runtime_error("SellHeikinRed strategy does not support long positions");
-    }
-    
-    void go_short() override {
-        logger->log_general("Préparation d'un signal SHORT", LogLevel::INFO);
-    
+    void go() override {
+        logger->log_general("Préparation d'un signal d'entrée", LogLevel::INFO);
+
         // Calculate Stop Loss
         stop_loss_distance = PositionManager::calculateStopLoss(
             base_config, 
             price(), 
             atrlog_calculator->get_value(), 
-            false,  // is_long = false (SHORT)
+            config.go_direction.value(),  // is_long = true 
             candle_manager, 
             candle_manager.get_latest_candle(), 
             logger
         );
-        
+
         // Calculate Take Profit
         take_profit_distance = PositionManager::calculateTakeProfit(
             base_config,
@@ -155,14 +139,21 @@ private:
         );
 
         // Calculate position size
-        sell_quantity = PositionManager::calculatePositionSize(
+        double quantity = PositionManager::calculatePositionSize(
             base_config,
             price(),
             stop_loss_distance,
             logger
         );
         
-        sell_price = price();
+        if (config.go_direction.value()) { // true => LONG
+            buy_quantity = quantity;
+            buy_price = price();
+        }
+        else {
+            sell_quantity = quantity;
+            sell_price = price();
+        }
     }
 
     void after() override {
@@ -184,7 +175,8 @@ private:
             }
         }
 
-        if(config.use_atr_filter && !atr_values.empty() && atr_values[0] > 0) {
+        // Shift ATR values
+        if (config.use_atr_filter && !atr_values.empty() && atr_values[0] > 0) {
             // Shift all values by one position
             for (int i = atr_values.size() - 1; i > 0; i--) {
                 atr_values[i] = atr_values[i-1];
@@ -195,53 +187,66 @@ private:
     void registerFilters() {
         active_filters.clear();
         
-        if (config.use_ema_short_filter) {
-            active_filters.push_back([this]() { 
-                return Filters::priceInfEMA(price(), ema_short_calculator->get_value(), 
-                                           ema_short_calculator->get_name(), logger.get());
-            });
-        }
-        
-        if (config.use_ema_long_filter) {
-            active_filters.push_back([this]() { 
-                return Filters::priceInfEMA(price(), ema_long_calculator->get_value(), ema_long_calculator->get_name(), logger.get());
-            });
-        }
-        
-        if (config.use_stoch_filter) {
-            active_filters.push_back([this]() {
-                return Filters::stochAboveThreshold(stoch_kd_values, config.stoch_threshold, stochastic_calculator->get_name(), logger.get());
-            });
-        }
-        
-        if (config.use_rsi_filter) {
-            active_filters.push_back([this]() {
-                return Filters::rsiAboveThreshold(rsi_values, config.rsi_threshold, rsi_calculator->get_name(), logger.get());
-            });
-        }
+        // il faut ajouter un filtre sur le nombre minimum de bougies a avoir dans le candle manager avant de commencer a trader
+        active_filters.push_back([this]() {
+            if (candle_manager.size() < 3) {
+                logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
+                return false;
+            }
 
-        if(config.use_atr_filter) {
+            if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
+                logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
+                return false;
+            }
+
+            return true;
+        });
+
+
+        // Nouveau filtre pour vérifier si la bougie HA précédente est rouge ou verte qui remplace la condition dans should_long et should_short
+        if (config.go_direction.value()) // true => LONG
+            active_filters.push_back([this]() {
+                return Filters::previousHACandlesGreen(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
+            });
+        else // false => SHORT
+            active_filters.push_back([this]() {
+                return Filters::previousHACandlesRed(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
+            });
+
+
+        if (config.use_ema_short_filter)
+            active_filters.push_back([this]() {
+                return Filters::priceSupEMA(price(), ema_short_calculator->get_value(), ema_short_calculator->get_name(), logger.get());
+            });
+        if (config.use_ema_long_filter)
+            active_filters.push_back([this]() {
+                return Filters::priceSupEMA(price(), ema_long_calculator->get_value(), ema_long_calculator->get_name(), logger.get());
+            });
+        if (config.use_stoch_filter)
+            active_filters.push_back([this]() {
+                return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, stochastic_calculator->get_name(), logger.get());
+            });
+        if (config.use_rsi_filter)
+            active_filters.push_back([this]() {
+                return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, rsi_calculator->get_name(), logger.get());
+            });
+        if (config.use_atr_filter)
             active_filters.push_back([this]() {
                 if (!atrlog_filter_calculator) return false;
                 return Filters::atrAboveThreshold(atr_values, config.atr_threshold, atrlog_filter_calculator->get_name(), logger.get());
             });
-        }
-
-        if (config.use_previous_ha_candle_green_filter) {
+        if (config.use_previous_ha_candle_red_filter)
             active_filters.push_back([this]() {
-                return Filters::previousHACandlesGreen(candle_manager, config.previous_ha_candle_green_filter_n, 1, "Bougie HA précédente", logger.get());
+                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
             });
-        }
-
-        if (config.use_supertrend_filter) {
+        if (config.use_supertrend_filter)
             active_filters.push_back([this]() {
-                return Filters::priceInfSupertrend(price(), supertrend_filter_calculator->get_value(), supertrend_filter_calculator->get_name(), logger.get());
+                return Filters::priceSupSupertrend(price(), supertrend_filter_calculator->get_value(), supertrend_filter_calculator->get_name(), logger.get());
             });
-        }
     }
-    
+
     void registerIndicators() {
-        // Register active indicators only
+        // Register only active indicators
         if (config.use_ema_short_filter)
             indicator_manager->registerIndicator<EMA, double>(ema_short_calculator);
         
@@ -254,7 +259,7 @@ private:
         if (config.use_rsi_filter)
             indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
         
-        if(config.use_atr_filter)
+        if (config.use_atr_filter)
             indicator_manager->registerIndicator<ATRLOG, double>(atrlog_filter_calculator);
 
         if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
@@ -268,8 +273,13 @@ private:
     }
 
 public:
-    SellHeikinRed(const StrategyBaseConfig& base_cfg, const SellHeikinRedConfig& shr_cfg) 
-        : Strategy(base_cfg), config(shr_cfg) {
+    GenericStrategy(const StrategyBaseConfig& base_cfg, const GenericStrategyConfig& generic_cfg) 
+        : Strategy(base_cfg), config(generic_cfg) {
+
+        if (!config.go_direction.has_value()) {
+            logger->log_general("La direction (go_direction) n'est pas définie dans la configuration.", LogLevel::ERROR);
+            throw std::invalid_argument("Direction (go_direction) must be specified in GenericStrategyConfig");
+        }
         
         // Initialize indicator calculators
         ema_short_calculator = std::make_shared<EMA>(config.ema_short_period);
@@ -281,10 +291,11 @@ public:
         supertrend_filter_calculator = std::make_shared<SUPERTREND>(config.supertrend_atr_period, config.supertrend_multiplier);
         supertrend_tp_calculator = std::make_shared<SUPERTREND>(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier);
 
-        // Initialize vectors with appropriate size
+        // Initialize vectors with appropriate sizes
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
         rsi_values.resize(config.rsi_history_periods, 0.0);
         atr_values.resize(config.atr_history_periods, 0.0);
+
         registerFilters();
         registerIndicators();
     }

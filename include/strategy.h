@@ -90,11 +90,22 @@ protected:
     // Core strategy methods to implement in derived classes
     virtual void before() {}
     virtual void after() {}
-    virtual bool should_long() = 0;
-    virtual bool should_short() { return false; }
-    virtual void go_long() = 0;
+    virtual bool should_long() { 
+        logger->log_general("should_long not implemented, defaulting to false", LogLevel::WARNING);
+        return false; }
+    virtual bool should_short() { 
+        logger->log_general("should_short not implemented, defaulting to false", LogLevel::WARNING);
+        return false; }
+    virtual void go() { } // a mettre virtual pure
+    // a supprimer 
+    virtual void go_long() {
+        logger->log_general("go_long deprecated, use go() instead", LogLevel::WARNING);
+        go();
+    }
+    // a supprimer
     virtual void go_short() {
-        throw std::runtime_error("Short not implemented");
+        logger->log_general("go_short deprecated, use go() instead", LogLevel::WARNING);
+        go();
     }
     virtual void updateLocalValues() {}
     
