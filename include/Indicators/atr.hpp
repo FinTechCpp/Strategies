@@ -11,13 +11,15 @@
 class ATR : public IncrementalIndicator<double> {
 private:
     int period;
+    bool useLog = false;
     double current_atr = 0.0;
     double previous_close = 0.0;
     std::deque<double> true_range_history;
     
 public:
-    ATR(int period)
-        : IncrementalIndicator<double>("ATR_" + std::to_string(period), period * 2), period(period) {}
+    ATR(ATRParams params)
+        : IncrementalIndicator<double>("ATR" + std::string(params.useLog ? "LOG" : "") + "_" + std::to_string(params.period), params.period * 2), 
+        period(params.period), useLog(params.useLog) {}
     virtual double initialize_with_history(const std::vector<BasicCandle>& history) override;
     virtual double update(const BasicCandle& candle) override;
     virtual double get_value() const override;
@@ -62,6 +64,10 @@ inline double ATR::initialize_with_history(const std::vector<BasicCandle>& histo
     current_atr = sum / period;
     previous_close = close_history.back();
     is_initialized = true;
+
+    if (useLog)
+        return std::log(1.0 + current_atr);
+
     return current_atr;
 }
 
@@ -89,6 +95,10 @@ inline double ATR::update(const BasicCandle& candle)
             }
             current_atr = sum / period;
             is_initialized = true;
+
+            if (useLog)
+                current_atr = std::log(1.0 + current_atr);
+
             return current_atr;
         }
         
@@ -105,10 +115,16 @@ inline double ATR::update(const BasicCandle& candle)
     // Update ATR using Wilder's smoothing method
     current_atr = ((current_atr * (period - 1)) + tr) / period;
     previous_close = candle.close;
+
+    if (useLog)
+        return std::log(1.0 + current_atr);
     
     return current_atr;
 }
 
 inline double ATR::get_value() const {
+    if (useLog)
+        return std::log(1.0 + current_atr);
+
     return current_atr;
 }

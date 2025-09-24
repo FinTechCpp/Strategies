@@ -1,4 +1,5 @@
 #pragma once
+
 #include "common.h"
 #include "CandleManager.hpp"
 #include "Managers/LoggerManager.hpp"

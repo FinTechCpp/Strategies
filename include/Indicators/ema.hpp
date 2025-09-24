@@ -16,7 +16,7 @@ private:
     std::deque<double> close_history;  // Buffer pour accumulation des valeurs
     
 public:
-    EMA(int period) : IncrementalIndicator<double>("EMA_" + std::to_string(period), period), period(period) {
+    EMA(EMAParams params) : IncrementalIndicator<double>("EMA_" + std::to_string(params.period), params.period), period(params.period) {
         multiplier = 2.0 / (period + 1.0);
     }
 

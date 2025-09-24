@@ -16,7 +16,6 @@
 #include <iostream>
 #include <sstream>
 #include "Indicators/indicators.hpp"
-#include "Indicators/supertrend.hpp"
 
 // Fonction utilitaire pour parser une chaîne de date ISO
 DateTime parse_iso_datetime(const std::string& iso_date);

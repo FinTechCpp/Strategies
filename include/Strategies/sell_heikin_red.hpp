@@ -73,8 +73,8 @@ private:
     std::shared_ptr<EMA> ema_short_calculator;
     std::shared_ptr<EMA> ema_long_calculator;
     std::shared_ptr<STOCH> stochastic_calculator;
-    std::shared_ptr<ATRLOG> atrlog_calculator;
-    std::shared_ptr<ATRLOG> atrlog_filter_calculator;  // For ATR filter functionality
+    std::shared_ptr<ATR> atrlog_calculator;
+    std::shared_ptr<ATR> atrlog_filter_calculator;  // For ATR filter functionality
     std::shared_ptr<RSI> rsi_calculator;
     std::shared_ptr<SUPERTREND> supertrend_filter_calculator;
     std::shared_ptr<SUPERTREND> supertrend_tp_calculator;  // For TP functionality
@@ -242,29 +242,29 @@ private:
     
     void registerIndicators() {
         // Register active indicators only
-        if (config.use_ema_short_filter)
-            indicator_manager->registerIndicator<EMA, double>(ema_short_calculator);
+        // if (config.use_ema_short_filter)
+        //     indicator_manager->registerIndicator<EMA, double>(ema_short_calculator);
         
-        if (config.use_ema_long_filter)
-            indicator_manager->registerIndicator<EMA, double>(ema_long_calculator);
+        // if (config.use_ema_long_filter)
+        //     indicator_manager->registerIndicator<EMA, double>(ema_long_calculator);
         
-        if (config.use_stoch_filter)
-            indicator_manager->registerIndicator<STOCH, std::pair<double, double>>(stochastic_calculator);
+        // if (config.use_stoch_filter)
+        //     indicator_manager->registerIndicator<STOCH, std::pair<double, double>>(stochastic_calculator);
         
-        if (config.use_rsi_filter)
-            indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
+        // if (config.use_rsi_filter)
+        //     indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
         
-        if(config.use_atr_filter)
-            indicator_manager->registerIndicator<ATRLOG, double>(atrlog_filter_calculator);
+        // if(config.use_atr_filter)
+        //     indicator_manager->registerIndicator<ATR, double>(atrlog_filter_calculator);
 
-        if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
-            indicator_manager->registerIndicator<ATRLOG, double>(atrlog_calculator);
+        // if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
+        //     indicator_manager->registerIndicator<ATR, double>(atrlog_calculator);
 
-        if (config.use_supertrend_filter)
-            indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_filter_calculator);
-        
-        if (base_config.tp_method == TakeProfitMethod::SuperTrend)
-            indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_tp_calculator);
+        // if (config.use_supertrend_filter)
+        //     indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_filter_calculator);
+
+        // if (base_config.tp_method == TakeProfitMethod::SuperTrend)
+        //     indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_tp_calculator);
     }
 
 public:
@@ -272,14 +272,14 @@ public:
         : Strategy(base_cfg), config(shr_cfg) {
         
         // Initialize indicator calculators
-        ema_short_calculator = std::make_shared<EMA>(config.ema_short_period);
-        ema_long_calculator = std::make_shared<EMA>(config.ema_long_period);
-        stochastic_calculator = std::make_shared<STOCH>(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd);
-        rsi_calculator = std::make_shared<RSI>(config.rsi_period);
-        atrlog_calculator = std::make_shared<ATRLOG>(base_cfg.atr_period);
-        atrlog_filter_calculator = std::make_shared<ATRLOG>(config.atr_filter_period);
-        supertrend_filter_calculator = std::make_shared<SUPERTREND>(config.supertrend_atr_period, config.supertrend_multiplier);
-        supertrend_tp_calculator = std::make_shared<SUPERTREND>(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier);
+        ema_short_calculator = std::make_shared<EMA>(EMAParams(config.ema_short_period));
+        ema_long_calculator = std::make_shared<EMA>(EMAParams(config.ema_long_period));
+        stochastic_calculator = std::make_shared<STOCH>(StochasticParams(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd));
+        rsi_calculator = std::make_shared<RSI>(RSIParams(config.rsi_period));
+        atrlog_calculator = std::make_shared<ATR>(ATRParams(base_cfg.atr_period));
+        atrlog_filter_calculator = std::make_shared<ATR>(ATRParams(config.atr_filter_period));
+        supertrend_filter_calculator = std::make_shared<SUPERTREND>(SuperTrendParams(config.supertrend_atr_period, config.supertrend_multiplier));
+        supertrend_tp_calculator = std::make_shared<SUPERTREND>(SuperTrendParams(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier));
 
         // Initialize vectors with appropriate size
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});

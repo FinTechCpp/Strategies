@@ -11,6 +11,10 @@ struct GenericStrategyConfig {
     std::string name; // à mettre dans StrategyBaseConfig
     std::optional<bool> go_direction = std::nullopt;  // true <=> LONG, false <=> SHORT
 
+    // List of filters to apply (in order)
+    // c'est pas mal mais il faut encore travailler la structure de description des filtres
+    std::vector<GenericFilter> filters;
+
     int ema_short_period;
     int ema_long_period;
     int stoch_fastk;
@@ -72,16 +76,15 @@ struct GenericStrategyConfig {
 class GenericStrategy : public Strategy {
 private:
     GenericStrategyConfig config;
-    
-    // Indicator calculators
-    std::shared_ptr<EMA> ema_short_calculator;
-    std::shared_ptr<EMA> ema_long_calculator;
-    std::shared_ptr<STOCH> stochastic_calculator;
-    std::shared_ptr<RSI> rsi_calculator;
-    std::shared_ptr<ATRLOG> atrlog_calculator;
-    std::shared_ptr<ATRLOG> atrlog_filter_calculator;  // For ATR filter functionality
-    std::shared_ptr<SUPERTREND> supertrend_filter_calculator;  // For filter functionality
-    std::shared_ptr<SUPERTREND> supertrend_tp_calculator;      // For TP functionality
+
+    EMAParams ema_short_params;
+    EMAParams ema_long_params;
+    StochasticParams stoch_params;
+    RSIParams rsi_params;
+    ATRParams atrlog_params;
+    ATRParams atrlog_filter_params;
+    SuperTrendParams supertrend_filter_params;
+    SuperTrendParams supertrend_tp_params;
     
     // Indicator values
     std::vector<std::pair<double, double>> stoch_kd_values;
@@ -98,15 +101,15 @@ private:
                         ", Green=" + std::string(is_green ? "Oui" : "Non"));
 
         if (config.use_stoch_filter && !stoch_kd_values.empty()) {
-            stoch_kd_values[0] = stochastic_calculator->get_value();
+            stoch_kd_values[0] = indicator_manager->getStochasticValue(stoch_params);
         }
         
         if (config.use_rsi_filter && !rsi_values.empty()) {
-            rsi_values[0] = rsi_calculator->get_value();
+            rsi_values[0] = indicator_manager->getRSIValue(rsi_params);
         }
         
         if (config.use_atr_filter && !atr_values.empty()) {
-            atr_values[0] = atrlog_filter_calculator->get_value();
+            atr_values[0] = indicator_manager->getATRValue(atrlog_filter_params);
         }
     }
     
@@ -121,7 +124,7 @@ private:
         stop_loss_distance = PositionManager::calculateStopLoss(
             base_config, 
             price(), 
-            atrlog_calculator->get_value(), 
+            indicator_manager->getATRValue(atrlog_params), 
             config.go_direction.value(),  // is_long = true 
             candle_manager, 
             candle_manager.get_latest_candle(), 
@@ -132,7 +135,7 @@ private:
         take_profit_distance = PositionManager::calculateTakeProfit(
             base_config,
             price(),
-            atrlog_calculator->get_value(),
+            indicator_manager->getATRValue(atrlog_params),
             stop_loss_distance,
             candle_manager,
             logger
@@ -216,24 +219,23 @@ private:
 
         if (config.use_ema_short_filter)
             active_filters.push_back([this]() {
-                return Filters::priceSupEMA(price(), ema_short_calculator->get_value(), ema_short_calculator->get_name(), logger.get());
+                return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_short_params), "EMA Short", logger.get());
             });
         if (config.use_ema_long_filter)
             active_filters.push_back([this]() {
-                return Filters::priceSupEMA(price(), ema_long_calculator->get_value(), ema_long_calculator->get_name(), logger.get());
+                return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_long_params), "EMA Long", logger.get());
             });
         if (config.use_stoch_filter)
             active_filters.push_back([this]() {
-                return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, stochastic_calculator->get_name(), logger.get());
+                return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, "Stoch", logger.get());
             });
         if (config.use_rsi_filter)
             active_filters.push_back([this]() {
-                return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, rsi_calculator->get_name(), logger.get());
+                return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, "RSI", logger.get());
             });
         if (config.use_atr_filter)
             active_filters.push_back([this]() {
-                if (!atrlog_filter_calculator) return false;
-                return Filters::atrAboveThreshold(atr_values, config.atr_threshold, atrlog_filter_calculator->get_name(), logger.get());
+                return Filters::atrAboveThreshold(atr_values, config.atr_threshold, "ATR", logger.get());
             });
         if (config.use_previous_ha_candle_red_filter)
             active_filters.push_back([this]() {
@@ -241,55 +243,54 @@ private:
             });
         if (config.use_supertrend_filter)
             active_filters.push_back([this]() {
-                return Filters::priceSupSupertrend(price(), supertrend_filter_calculator->get_value(), supertrend_filter_calculator->get_name(), logger.get());
+                return Filters::priceSupSupertrend(price(), indicator_manager->getSuperTrendValue(supertrend_filter_params), "Supertrend", logger.get());
             });
     }
 
     void registerIndicators() {
         // Register only active indicators
         if (config.use_ema_short_filter)
-            indicator_manager->registerIndicator<EMA, double>(ema_short_calculator);
+            indicator_manager->registerEMA(ema_short_params);
         
         if (config.use_ema_long_filter)
-            indicator_manager->registerIndicator<EMA, double>(ema_long_calculator);
-        
+            indicator_manager->registerEMA(ema_long_params);
+
         if (config.use_stoch_filter)
-            indicator_manager->registerIndicator<STOCH, std::pair<double, double>>(stochastic_calculator);
-        
+            indicator_manager->registerStochastic(stoch_params);
+
         if (config.use_rsi_filter)
-            indicator_manager->registerIndicator<RSI, double>(rsi_calculator);
-        
+            indicator_manager->registerRSI(rsi_params);
+
         if (config.use_atr_filter)
-            indicator_manager->registerIndicator<ATRLOG, double>(atrlog_filter_calculator);
+            indicator_manager->registerATR(atrlog_filter_params);
 
         if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
-            indicator_manager->registerIndicator<ATRLOG, double>(atrlog_calculator);
+            indicator_manager->registerATR(atrlog_params);
 
         if (config.use_supertrend_filter)
-            indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_filter_calculator);
-        
+            indicator_manager->registerSuperTrend(supertrend_filter_params);
+
         if (base_config.tp_method == TakeProfitMethod::SuperTrend)
-            indicator_manager->registerIndicator<SUPERTREND, std::pair<double, int>>(supertrend_tp_calculator);
+            indicator_manager->registerSuperTrend(supertrend_tp_params);
     }
 
 public:
     GenericStrategy(const StrategyBaseConfig& base_cfg, const GenericStrategyConfig& generic_cfg) 
-        : Strategy(base_cfg), config(generic_cfg) {
+        : Strategy(base_cfg), config(generic_cfg),
+          ema_short_params(config.ema_short_period),
+          ema_long_params(config.ema_long_period),
+          stoch_params(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd),
+          rsi_params(config.rsi_period),
+          atrlog_params(base_cfg.atr_period, true),
+          atrlog_filter_params(config.atr_filter_period, true),
+          supertrend_filter_params(config.supertrend_atr_period, config.supertrend_multiplier),
+          supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier) {
+
 
         if (!config.go_direction.has_value()) {
             logger->log_general("La direction (go_direction) n'est pas définie dans la configuration.", LogLevel::ERROR);
             throw std::invalid_argument("Direction (go_direction) must be specified in GenericStrategyConfig");
         }
-        
-        // Initialize indicator calculators
-        ema_short_calculator = std::make_shared<EMA>(config.ema_short_period);
-        ema_long_calculator = std::make_shared<EMA>(config.ema_long_period);
-        stochastic_calculator = std::make_shared<STOCH>(config.stoch_fastk, config.stoch_slowk, config.stoch_slowd);
-        rsi_calculator = std::make_shared<RSI>(config.rsi_period);
-        atrlog_calculator = std::make_shared<ATRLOG>(base_cfg.atr_period);
-        atrlog_filter_calculator = std::make_shared<ATRLOG>(config.atr_filter_period);
-        supertrend_filter_calculator = std::make_shared<SUPERTREND>(config.supertrend_atr_period, config.supertrend_multiplier);
-        supertrend_tp_calculator = std::make_shared<SUPERTREND>(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier);
 
         // Initialize vectors with appropriate sizes
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});

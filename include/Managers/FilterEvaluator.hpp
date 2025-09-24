@@ -1,0 +1,256 @@
+#pragma once
+
+#include "Managers/CandleManager.hpp"
+#include "Managers/IndicatorManager.hpp"
+#include "Managers/LoggerManager.hpp"
+// #include "Strategies/generic_strategy.hpp"
+
+#include <memory>
+#include <functional>
+
+class FilterEvaluator {
+private:
+    CandleManager* m_candleManager;
+    IndicatorManager* m_indicatorManager;
+    ILogger* m_logger;
+
+    // Extraire une valeur unique à partir d'un IndicatorValue
+    double extractSingleValue(const IndicatorValue& value, bool isSecondary = false) {
+        if (std::holds_alternative<double>(value)) {
+            return std::get<double>(value);
+        } else if (std::holds_alternative<std::pair<double, double>>(value)) {
+            const auto& pair = std::get<std::pair<double, double>>(value);
+            return isSecondary ? pair.second : pair.first;
+        } else if (std::holds_alternative<std::pair<double, int>>(value)) {
+            const auto& pair = std::get<std::pair<double, int>>(value);
+            return isSecondary ? static_cast<double>(pair.second) : pair.first;
+        }
+        return 0.0;
+    }
+
+public:
+    FilterEvaluator(CandleManager* candleManager, IndicatorManager* indicatorManager, ILogger* logger = nullptr)
+        : m_candleManager(candleManager), m_indicatorManager(indicatorManager), m_logger(logger) {}
+
+    // Obtenir la valeur d'une source
+    double getSourceValue(const ValueSource& source, int additionalOffset = 0) {
+        int offset = source.historicalOffset + additionalOffset;
+
+        switch (source.category) {
+            case ValueCategory::PRICE: {
+                // Récupérer la bougie correspondante
+                if (m_candleManager->size() <= offset) {
+                    if (m_logger) m_logger->log_general("Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
+                    return 0.0;
+                }
+
+                std::vector<BasicCandle> candles = m_candleManager->get_last_candles(offset + 1);
+                BasicCandle candle = candles[0];
+
+                // Extraire la valeur de prix selon le type
+                switch (source.priceType) {
+                    case PriceType::CLOSE: return candle.close;
+                    case PriceType::OPEN: return candle.open;
+                    case PriceType::HIGH: return candle.high;
+                    case PriceType::LOW: return candle.low;
+                    case PriceType::TYPICAL: return (candle.high + candle.low + candle.close) / 3.0;
+                    case PriceType::MEDIAN: return (candle.high + candle.low) / 2.0;
+                }
+                break;
+            }
+            
+            case ValueCategory::CONSTANT: {
+                return source.constantValue;
+            }
+            
+            case ValueCategory::INDICATOR: {
+                // Utiliser directement les objets de paramètres pour accéder aux indicateurs
+                switch (source.indicatorType) {
+                    case IndicatorType::EMA:
+                        return extractSingleValue(m_indicatorManager->getEMAValue(source.emaParams, offset));
+                        
+                    case IndicatorType::RSI:
+                        return extractSingleValue(m_indicatorManager->getRSIValue(source.rsiParams, offset));
+                        
+                    case IndicatorType::STOCHASTIC_K:
+                        // Pour Stochastic K, on veut la première valeur de la paire
+                        return extractSingleValue(m_indicatorManager->getStochasticValue(source.stochParams, offset), false);
+                        
+                    case IndicatorType::STOCHASTIC_D:
+                        // Pour Stochastic D, on veut la deuxième valeur de la paire
+                        return extractSingleValue(m_indicatorManager->getStochasticValue(source.stochParams, offset), true);
+                        
+                    case IndicatorType::ATR:
+                        return extractSingleValue(m_indicatorManager->getATRValue(source.atrParams, offset));
+                        
+                    case IndicatorType::SUPERTREND_VALUE:
+                        // Pour SuperTrend Value, on veut la première valeur de la paire
+                        return extractSingleValue(m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset), false);
+                        
+                    case IndicatorType::SUPERTREND_DIRECTION:
+                        // Pour SuperTrend Direction, on veut la deuxième valeur de la paire
+                        return extractSingleValue(m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset), true);
+                        
+                    default:
+                        if (m_logger) m_logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
+                        return 0.0;
+                }
+            }
+            
+            case ValueCategory::CANDLE_PROPERTY: {
+                if (m_candleManager->size() <= offset) {
+                    if (m_logger) m_logger->log_general("Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
+                    return 0.0;
+                }
+                
+                const BasicCandle& candle = m_candleManager->get_candle_at(offset);
+                
+                switch (source.candlePropertyType) {
+                    case CandlePropertyType::IS_GREEN:
+                        return candle.close > candle.open ? 1.0 : 0.0;
+                        
+                    case CandlePropertyType::IS_RED:
+                        return candle.close < candle.open ? 1.0 : 0.0;
+                        
+                    case CandlePropertyType::BODY_SIZE:
+                        return std::abs(candle.close - candle.open);
+                        
+                    case CandlePropertyType::UPPER_SHADOW_SIZE:
+                        return candle.high - std::max(candle.open, candle.close);
+                        
+                    case CandlePropertyType::LOWER_SHADOW_SIZE:
+                        return std::min(candle.open, candle.close) - candle.low;
+                        
+                    case CandlePropertyType::RANGE:
+                        return candle.high - candle.low;
+                }
+                break;
+            }
+        }
+        
+        return 0.0;
+    }
+
+    // Comparer deux valeurs selon l'opérateur spécifié
+    bool compareValues(double left, double right, ComparisonOperator op) {
+        switch (op) {
+            case ComparisonOperator::GREATER_THAN:
+                return left > right;
+                
+            case ComparisonOperator::LESS_THAN:
+                return left < right;
+                
+            case ComparisonOperator::GREATER_OR_EQUAL:
+                return left >= right;
+                
+            case ComparisonOperator::LESS_OR_EQUAL:
+                return left <= right;
+                
+            case ComparisonOperator::EQUAL:
+                // Comparaison à epsilon près pour les flottants
+                return std::abs(left - right) < 0.00001;
+                
+            case ComparisonOperator::NOT_EQUAL:
+                return std::abs(left - right) >= 0.00001;
+                
+            // Il faut interpreter les croisements en faisant une duplication du filtre avec un offset de 1 et en liant les deux filtre par une condition de ET. ainsi par exmeple un croisement stochastique a la hausse sera vrai si le stochastique K est superieur au stochastique D sur la bougie courante ET que le stochastique K est inferieur ou egal au stochastique D sur la bougie precedente. Cela est en realité deux filtres : 
+            // - Stochastique K > Stochastique D (temporal logic = CURRENT)
+            // - Stochastique K <= Stochastique D (temporal logic = CURRENT, historical offset = 1)
+            // et la condition entre les deux est un ET logique
+            case ComparisonOperator::CROSSES_ABOVE: {
+                // Vérifier si left a croisé right vers le haut
+                double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                return left > right && prevLeft <= prevRight;
+            }
+                
+            case ComparisonOperator::CROSSES_BELOW: {
+                // Vérifier si left a croisé right vers le bas
+                double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                return left < right && prevLeft >= prevRight;
+            }
+        }
+        return false;
+    }
+
+    // Évaluer une condition de filtre à un offset donné
+    bool evaluateCondition(const GenericFilter& filter, int offset = 0) {
+        double leftValue = getSourceValue(filter.leftValue, offset);
+        double rightValue = getSourceValue(filter.rightValue, offset);
+        
+        bool result = compareValues(leftValue, rightValue, filter.op);
+        
+        if (m_logger) {
+            m_logger->log_general(
+                "Évaluation filtre [T-" + std::to_string(offset) + "]: " + 
+                filter.leftValue.getDescription() + " (" + std::to_string(leftValue) + ") " +
+                getOperatorString(filter.op) + " " +
+                filter.rightValue.getDescription() + " (" + std::to_string(rightValue) + ") = " +
+                (result ? "VRAI" : "FAUX"),
+                LogLevel::DEBUG
+            );
+        }
+        
+        return result;
+    }
+
+    // Évaluer un filtre complet avec sa logique temporelle
+    bool evaluate(const GenericFilter& filter) {
+        if (!filter.enabled) return true;
+        
+        switch (filter.temporalLogic) {
+            case TemporalLogic::CURRENT:
+                return evaluateCondition(filter, 0);
+                
+            case TemporalLogic::ANY_OF: {
+                for (int i = 0; i < filter.lookbackPeriods; ++i) {
+                    if (evaluateCondition(filter, i)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+                
+            case TemporalLogic::ALL_OF: {
+                for (int i = 0; i < filter.lookbackPeriods; ++i) {
+                    if (!evaluateCondition(filter, i)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }
+        
+        return false;
+    }
+
+    // Évaluer tous les filtres
+    bool evaluateAll(const std::vector<GenericFilter>& filters) {
+        for (const auto& filter : filters) {
+            if (!evaluate(filter)) {
+                if (m_logger) {
+                    m_logger->log_general("Filtre échoué: " + filter.description, LogLevel::INFO);
+                }
+                return false;
+            }
+        }
+        return true;
+    }
+
+private:
+    // Obtenir une représentation textuelle de l'opérateur
+    std::string getOperatorString(ComparisonOperator op) {
+        switch (op) {
+            case ComparisonOperator::GREATER_THAN: return ">";
+            case ComparisonOperator::LESS_THAN: return "<";
+            case ComparisonOperator::GREATER_OR_EQUAL: return ">=";
+            case ComparisonOperator::LESS_OR_EQUAL: return "<=";
+            case ComparisonOperator::EQUAL: return "=";
+            case ComparisonOperator::NOT_EQUAL: return "!=";
+            case ComparisonOperator::CROSSES_ABOVE: return "^";
+            case ComparisonOperator::CROSSES_BELOW: return "v";
+        }
+        return "?";
+    }
+};
