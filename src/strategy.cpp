@@ -525,13 +525,13 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    // for (const std::function<bool ()>& filter : active_filters)
-    //     if (!filter())
-    //         return false;  // Stop execution if any filter fails
+    for (const std::function<bool ()>& filter : active_filters)
+        if (!filter())
+            return false;  // Stop execution if any filter fails
     
-    // return true;  // All filters passed
+    return true;  // All filters passed
 
-    return filterEvaluator->evaluateAll(filters);
+    // return filterEvaluator->evaluateAll(filters);
 }
 
 void Strategy::execute() {
@@ -668,7 +668,7 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
-    filters(config.filters),
+    // filters(config.filters),
     filterEvaluator(std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get())) 
 {
     set_log_level(static_cast<int>(base_config.logLevel));

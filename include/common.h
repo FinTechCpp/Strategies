@@ -622,7 +622,7 @@ struct StrategyBaseConfig {
     bool enable_logging = true; // Enable or disable logging
 
     // Filters
-    std::vector<GenericFilter> filters;
+    // std::vector<GenericFilter> filters;
 
     // Time settings
     Time trading_from;

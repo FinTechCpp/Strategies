@@ -10,6 +10,7 @@
 struct GenericStrategyConfig {
     std::string name; // à mettre dans StrategyBaseConfig
     std::optional<bool> go_direction = std::nullopt;  // true <=> LONG, false <=> SHORT
+    std::vector<GenericFilter> filters;
     
     int ema_short_period;
     int ema_long_period;
@@ -85,7 +86,7 @@ private:
 
     // TODO a mettre dans la class mere
     // std::unique_ptr<FilterEvaluator> filterEvaluator;
-    // std::vector<GenericFilter> generic_filters;
+    std::vector<GenericFilter> filters;
     
     // Indicator values
     // std::vector<std::pair<double, double>> stoch_kd_values;
@@ -212,18 +213,18 @@ private:
         //     });
 
 
-        // active_filters.push_back([this]() {
-        //     return filterEvaluator->evaluateAll(generic_filters);
-        // });
+        active_filters.push_back([this]() {
+            return filterEvaluator->evaluateAll(filters);
+        });
 
         // if (config.use_ema_short_filter)
         //     active_filters.push_back([this]() {
         //         return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_short_params), "EMA Short", logger.get());
         //     });
-        if (config.use_ema_long_filter)
-            active_filters.push_back([this]() {
-                return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_long_params), "EMA Long", logger.get());
-            });
+        // if (config.use_ema_long_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_long_params), "EMA Long", logger.get());
+        //     });
         // if (config.use_stoch_filter)
         //     active_filters.push_back([this]() {
         //         return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, "Stoch", logger.get());

@@ -53,7 +53,7 @@ protected:
     std::unique_ptr<ILogger> logger;
     // Deprecated il faut utiliser filters
     std::vector<std::function<bool()>> active_filters;
-    std::vector<GenericFilter> filters;
+    // std::vector<GenericFilter> filters;
     std::unique_ptr<FilterEvaluator> filterEvaluator;
 
 
