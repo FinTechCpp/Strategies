@@ -97,14 +97,6 @@ private:
     std::vector<double> atr_values;
 
     void before() override {        
-        // Get latest candle for logging
-        BasicCandle ha_current = candle_manager.get_latest_heikin_ashi();
-        bool is_green = candle_manager.is_candle_green(ha_current);
-        
-        logger->log_general("Bougie HA courante calculée: Open=" + logger->fast_double_to_string(ha_current.open) + 
-                        ", Close=" + logger->fast_double_to_string(ha_current.close) + 
-                        ", Green=" + std::string(is_green ? "Oui" : "Non"));
-
         if (config.use_stoch_filter && !stoch_kd_values.empty()) {
             stoch_kd_values[0] = indicator_manager->getStochasticValue(stoch_params);
         }
@@ -118,10 +110,8 @@ private:
         }
     }
     
-    bool should_long() override {
-        return true;
-    }
-
+    // No should_long() or should_short() override - all logic handled by filters
+    
     void go() override {
         logger->log_general("Préparation d'un signal d'entrée", LogLevel::INFO);
 
@@ -210,19 +200,16 @@ private:
             return true;
         });
 
-
-        // Nouveau filtre pour vérifier si la bougie HA précédente est rouge ou verte qui remplace la condition dans should_long et should_short
-        if (config.go_direction.value()) // true => LONG
+         // Add user-defined generic filters to active_filters
+        if (!generic_filters.empty()) {
             active_filters.push_back([this]() {
-                return Filters::previousHACandlesGreen(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
+                bool result = filterEvaluator->evaluateAll(generic_filters);
+                logger->log_general(std::string("Generic filters result: ") + (result ? "PASS" : "FAIL"), LogLevel::INFO);
+                return result;
             });
-        else // false => SHORT
-            active_filters.push_back([this]() {
-                return Filters::previousHACandlesRed(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
-            });
-
-
-        filterEvaluator->evaluateAll(generic_filters);
+        } else {
+            logger->log_general("No generic filters configured", LogLevel::INFO);
+        }
 
         // if (config.use_ema_short_filter)
         //     active_filters.push_back([this]() {

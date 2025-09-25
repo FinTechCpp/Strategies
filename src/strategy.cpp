@@ -614,6 +614,26 @@ void Strategy::execute() {
     bool should_long_val = should_long();
     bool should_short_val = should_long_val ? false : should_short();
     
+    // If neither should_long nor should_short returned true, check if we should use filter-only logic
+    // This happens when a strategy (like GenericStrategy) doesn't override these methods and relies only on filters
+    if (!should_long_val && !should_short_val) {
+        // Try filter-only logic: if filters pass, we use the strategy's go_direction configuration
+        if (!execute_filters()) {
+            logger->log_execution_step("Filtres", false);
+            logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
+            reset();
+            return;
+        }
+        
+        logger->log_execution_step("Filtres", true);
+        logger->log_execution_step("Logique basée uniquement sur les filtres", true);
+        
+        // For filter-only strategies, we need to determine direction from strategy configuration
+        // This will be handled in the strategy's go() method
+        execute_long();  // The strategy's go() method will handle the actual direction
+        return;
+    }
+    
     if (should_long_val) {
         logger->log_execution_step("Conditions de long", true);
     } else if (should_short_val) {
