@@ -120,7 +120,7 @@ private:
             price(), 
             indicator_manager->getATRValue(atrlog_params), 
             config.go_direction.value(),  // is_long = true 
-            *candle_manager.get(), 
+            candle_manager.get(), 
             candle_manager->get_latest_candle(), 
             logger
         );
@@ -131,7 +131,7 @@ private:
             price(),
             indicator_manager->getATRValue(atrlog_params),
             stop_loss_distance,
-            *candle_manager.get(),
+            candle_manager.get(),
             logger
         );
 

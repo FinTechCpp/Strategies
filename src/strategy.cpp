@@ -668,8 +668,9 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
+    candle_manager(std::make_unique<CandleManager>()),
+    filterEvaluator(std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get()))
     // filters(config.filters),
-    filterEvaluator(std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get())) 
 {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);

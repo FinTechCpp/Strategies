@@ -18,14 +18,14 @@ public:
         double current_price,
         double current_atr,
         bool is_long,
-        const CandleManager& candle_manager,
+        CandleManager* candle_manager,
         const BasicCandle& basic_candle,
         const std::unique_ptr<ILogger>& logger
     ) {
         if (config.sl_method == StopLossMethod::ATR && current_atr > 0.0) {
             return calculateStopLossWithATR(config, current_atr, logger);
         } 
-        else if (config.sl_method == StopLossMethod::MinMax && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
+        else if (config.sl_method == StopLossMethod::MinMax && candle_manager->size() >= static_cast<size_t>(config.sl_minmax_periods)) {
             return calculateStopLossWithMinMax(
                 config, current_price, current_atr, candle_manager, basic_candle, is_long, logger);
         } 
@@ -42,7 +42,7 @@ public:
         double current_price,
         double current_atr,
         double stop_loss_distance,
-        const CandleManager& candle_manager,
+        CandleManager* candle_manager,
         const std::unique_ptr<ILogger>& logger
     ) {
         if (config.tp_method == TakeProfitMethod::SuperTrend) {
@@ -111,7 +111,7 @@ private:
         const StrategyBaseConfig& config,
         double current_price,
         double current_atr,
-        const CandleManager& candle_manager,
+        CandleManager* candle_manager,
         const BasicCandle& basic_candle,
         bool is_long,
         const std::unique_ptr<ILogger>& logger
@@ -133,8 +133,8 @@ private:
                 " * ATR=" + std::to_string(current_atr) + ")", LogLevel::INFO);
         }
         
-        int n_periods = std::min(static_cast<int>(candle_manager.size()), config.sl_minmax_periods);
-        auto recent_candles = candle_manager.get_last_candles(n_periods);
+        int n_periods = std::min(static_cast<int>(candle_manager->size()), config.sl_minmax_periods);
+        auto recent_candles = candle_manager->get_last_candles(n_periods);
         
         if (is_long) {
             // For LONG: find the minimum
@@ -253,7 +253,7 @@ private:
         double current_price,
         double current_atr,
         double stop_loss_distance,
-        const CandleManager& candle_manager,
+        CandleManager* candle_manager,
         const std::unique_ptr<ILogger>& logger
     );
 

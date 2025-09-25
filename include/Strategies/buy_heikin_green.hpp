@@ -127,7 +127,7 @@ private:
             price(), 
             atrlog_calculator->get_value(), 
             true,  // is_long = true 
-            *candle_manager.get(), 
+            candle_manager.get(), 
             candle_manager->get_latest_candle(), 
             logger
         );
@@ -138,7 +138,7 @@ private:
             price(),
             atrlog_calculator->get_value(),
             stop_loss_distance,
-            *candle_manager.get(),
+            candle_manager.get(),
             logger
         );
 
