@@ -60,7 +60,7 @@ private:
                     m_history.push_back(result);
                     
                     if (logger) {
-                        logValue(logger, result);
+                        logger->log_indicator_value(m_indicator->get_name(), result);
                     }
                 } else if (logger) {
                     logger->log_general("Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
@@ -90,7 +90,7 @@ private:
                     }
                     
                     if (logger) {
-                        logValue(logger, result);
+                        logger->log_indicator_value(m_indicator->get_name(), result);
                     }
                 } else if (logger) {
                     logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
@@ -166,19 +166,6 @@ private:
         
         bool isValidResult(const std::pair<double, int>& value) const {
             return true;
-        }
-        
-        // Journaliser la valeur
-        void logValue(ILogger* logger, double value) const {
-            logger->log_indicator_value(m_indicator->get_name(), value);
-        }
-        
-        void logValue(ILogger* logger, const std::pair<double, double>& value) const {
-            logger->log_indicator_value(m_indicator->get_name(), value);
-        }
-        
-        void logValue(ILogger* logger, const std::pair<double, int>& value) const {
-            logger->log_indicator_value(m_indicator->get_name(), value);
         }
     };
     

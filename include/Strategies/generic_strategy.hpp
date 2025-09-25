@@ -2,6 +2,7 @@
 
 #include "strategy.h"
 #include "Filters.h"
+#include "Managers/FilterEvaluator.hpp"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -85,6 +86,10 @@ private:
     ATRParams atrlog_filter_params;
     SuperTrendParams supertrend_filter_params;
     SuperTrendParams supertrend_tp_params;
+
+    // TODO a mettre dans la class mere
+    std::unique_ptr<FilterEvaluator> filterEvaluator;
+    std::vector<GenericFilter> generic_filters;
     
     // Indicator values
     std::vector<std::pair<double, double>> stoch_kd_values;
@@ -217,10 +222,12 @@ private:
             });
 
 
-        if (config.use_ema_short_filter)
-            active_filters.push_back([this]() {
-                return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_short_params), "EMA Short", logger.get());
-            });
+        filterEvaluator->evaluateAll(generic_filters);
+
+        // if (config.use_ema_short_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_short_params), "EMA Short", logger.get());
+        //     });
         if (config.use_ema_long_filter)
             active_filters.push_back([this]() {
                 return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_long_params), "EMA Long", logger.get());
@@ -284,13 +291,25 @@ public:
           atrlog_params(base_cfg.atr_period, true),
           atrlog_filter_params(config.atr_filter_period, true),
           supertrend_filter_params(config.supertrend_atr_period, config.supertrend_multiplier),
-          supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier) {
+          supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier),
+          generic_filters(config.filters) {
 
 
         if (!config.go_direction.has_value()) {
             logger->log_general("La direction (go_direction) n'est pas définie dans la configuration.", LogLevel::ERROR);
             throw std::invalid_argument("Direction (go_direction) must be specified in GenericStrategyConfig");
         }
+
+        // a tester
+        GenericFilter genFilter(
+            ValueSource::Price(PriceType::CLOSE), 
+            ComparisonOperator::GREATER_THAN, 
+            ValueSource::EMA(ema_short_params.period), 
+            TemporalLogic::CURRENT, 
+            1
+        );
+
+        filterEvaluator = std::make_unique<FilterEvaluator>(&candle_manager, indicator_manager.get(), logger.get());
 
         // Initialize vectors with appropriate sizes
         stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});

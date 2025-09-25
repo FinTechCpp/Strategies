@@ -1,4 +1,5 @@
 #pragma once
+
 #include <string>
 #include <sstream>
 #include <charconv>
@@ -192,6 +193,7 @@ struct ValueSource {
     {}
 
     // Constructeurs spécifiques pour chaque catégorie
+    // TODO remplacer les constructeur avec les structure de params
     
     // Pour le prix
     static ValueSource Price(PriceType type, int offset = 0) {

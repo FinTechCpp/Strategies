@@ -46,6 +46,7 @@ public:
 
 protected:
     StrategyBaseConfig base_config;
+    // TODO : mettre un unique ptr
     CandleManager candle_manager;
     std::unique_ptr<ILogger> logger;
     PositionInfo position_info;

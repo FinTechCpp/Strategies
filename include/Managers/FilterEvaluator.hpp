@@ -3,7 +3,6 @@
 #include "Managers/CandleManager.hpp"
 #include "Managers/IndicatorManager.hpp"
 #include "Managers/LoggerManager.hpp"
-// #include "Strategies/generic_strategy.hpp"
 
 #include <memory>
 #include <functional>
@@ -13,20 +12,6 @@ private:
     CandleManager* m_candleManager;
     IndicatorManager* m_indicatorManager;
     ILogger* m_logger;
-
-    // Extraire une valeur unique à partir d'un IndicatorValue
-    double extractSingleValue(const IndicatorValue& value, bool isSecondary = false) {
-        if (std::holds_alternative<double>(value)) {
-            return std::get<double>(value);
-        } else if (std::holds_alternative<std::pair<double, double>>(value)) {
-            const auto& pair = std::get<std::pair<double, double>>(value);
-            return isSecondary ? pair.second : pair.first;
-        } else if (std::holds_alternative<std::pair<double, int>>(value)) {
-            const auto& pair = std::get<std::pair<double, int>>(value);
-            return isSecondary ? static_cast<double>(pair.second) : pair.first;
-        }
-        return 0.0;
-    }
 
 public:
     FilterEvaluator(CandleManager* candleManager, IndicatorManager* indicatorManager, ILogger* logger = nullptr)
@@ -67,30 +52,30 @@ public:
                 // Utiliser directement les objets de paramètres pour accéder aux indicateurs
                 switch (source.indicatorType) {
                     case IndicatorType::EMA:
-                        return extractSingleValue(m_indicatorManager->getEMAValue(source.emaParams, offset));
+                        return m_indicatorManager->getEMAValue(source.emaParams, offset);
                         
                     case IndicatorType::RSI:
-                        return extractSingleValue(m_indicatorManager->getRSIValue(source.rsiParams, offset));
+                        return m_indicatorManager->getRSIValue(source.rsiParams, offset);
                         
                     case IndicatorType::STOCHASTIC_K:
                         // Pour Stochastic K, on veut la première valeur de la paire
-                        return extractSingleValue(m_indicatorManager->getStochasticValue(source.stochParams, offset), false);
+                        return m_indicatorManager->getStochasticValue(source.stochParams, offset).first;
                         
                     case IndicatorType::STOCHASTIC_D:
                         // Pour Stochastic D, on veut la deuxième valeur de la paire
-                        return extractSingleValue(m_indicatorManager->getStochasticValue(source.stochParams, offset), true);
+                        return m_indicatorManager->getStochasticValue(source.stochParams, offset).second;
                         
                     case IndicatorType::ATR:
-                        return extractSingleValue(m_indicatorManager->getATRValue(source.atrParams, offset));
-                        
+                        return m_indicatorManager->getATRValue(source.atrParams, offset);
+
                     case IndicatorType::SUPERTREND_VALUE:
                         // Pour SuperTrend Value, on veut la première valeur de la paire
-                        return extractSingleValue(m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset), false);
-                        
+                        return m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset).first;
+
                     case IndicatorType::SUPERTREND_DIRECTION:
                         // Pour SuperTrend Direction, on veut la deuxième valeur de la paire
-                        return extractSingleValue(m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset), true);
-                        
+                        return m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset).second;
+
                     default:
                         if (m_logger) m_logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;
@@ -103,9 +88,16 @@ public:
                     return 0.0;
                 }
                 
-                const BasicCandle& candle = m_candleManager->get_candle_at(offset);
+                const BasicCandle& candle = m_candleManager->get_last_candles(offset + 1)[0];
+                const BasicCandle& heikinAshiCandle = m_candleManager->get_last_heikin_ashi_candles(offset + 1)[0];
                 
                 switch (source.candlePropertyType) {
+                    case CandlePropertyType::HEIKIN_ASHI_IS_GREEN:
+                        return heikinAshiCandle.close > heikinAshiCandle.open ? 1.0 : 0.0;
+
+                    case CandlePropertyType::HEIKIN_ASHI_IS_RED:
+                        return heikinAshiCandle.close < heikinAshiCandle.open ? 1.0 : 0.0;
+
                     case CandlePropertyType::IS_GREEN:
                         return candle.close > candle.open ? 1.0 : 0.0;
                         
@@ -194,6 +186,8 @@ public:
         
         return result;
     }
+
+    // C'est private plus haut
 
     // Évaluer un filtre complet avec sa logique temporelle
     bool evaluate(const GenericFilter& filter) {
