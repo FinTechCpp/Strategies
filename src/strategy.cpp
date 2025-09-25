@@ -44,7 +44,7 @@ int get_day_of_week(const DateTime& date) {
 
 bool Strategy::update_indicators()
 {
-    if (candle_manager.size() == 0) {
+    if (candle_manager->size() == 0) {
         logger->log_general("candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
         return false;
     }
@@ -58,7 +58,7 @@ bool Strategy::update_indicators()
             max_period = std::max(max_period, base_config.sl_minmax_periods);
         }
         
-        size_t available_candles = candle_manager.size();
+        size_t available_candles = candle_manager->size();
         
         if (available_candles < static_cast<size_t>(max_period)) {
             int remaining = max_period - static_cast<int>(available_candles);
@@ -68,13 +68,13 @@ bool Strategy::update_indicators()
             return false;
         }
         
-        auto candles = candle_manager.get_last_candles(candle_manager.size());
+        auto candles = candle_manager->get_last_candles(candle_manager->size());
         logger->log_general("Initialisation avec " + logger->fast_int_to_string(candles.size()) + " bougies");
         return indicator_manager->initializeAll(candles, logger.get());
     }
     
     // Mise à jour simple avec la dernière bougie
-    return indicator_manager->updateAll(candle_manager.get_latest_candle(), logger.get());
+    return indicator_manager->updateAll(candle_manager->get_latest_candle(), logger.get());
 }
 
 // Implementation of Strategy class methods
@@ -137,13 +137,13 @@ bool Strategy::is_daily_drawdown_reached() {
 }
 
 bool Strategy::is_new_trading_day() {
-    if (!candle_manager.get_latest_candle().date.is_valid() || !current_trading_day.is_valid()) {
+    if (!candle_manager->get_latest_candle().date.is_valid() || !current_trading_day.is_valid()) {
         return true;
     }
     
-    return (candle_manager.get_latest_candle().date.year != current_trading_day.year ||
-            candle_manager.get_latest_candle().date.month != current_trading_day.month ||
-            candle_manager.get_latest_candle().date.day != current_trading_day.day);
+    return (candle_manager->get_latest_candle().date.year != current_trading_day.year ||
+            candle_manager->get_latest_candle().date.month != current_trading_day.month ||
+            candle_manager->get_latest_candle().date.day != current_trading_day.day);
 }
     
 void Strategy::update_daily_pnl_tracking() {
@@ -153,7 +153,7 @@ void Strategy::update_daily_pnl_tracking() {
 
     // If it's a new day, reset the counter and reactivate trading
     if (is_new_trading_day()) {
-        current_trading_day = candle_manager.get_latest_candle().date;
+        current_trading_day = candle_manager->get_latest_candle().date;
         daily_pnl = 0.0;
         daily_max_pnl = 0.0;  // Reset daily max PnL for new day
 
@@ -203,12 +203,12 @@ void Strategy::update_daily_pnl_tracking() {
 
 // Method to check if we are within trading hours
 bool Strategy::check_time() {
-    if (!candle_manager.get_latest_candle().date.is_valid()) {
+    if (!candle_manager->get_latest_candle().date.is_valid()) {
         logger->log_time_check(false, "Date de bougie invalide", LogLevel::WARNING);
         return false;
     }
 
-    const DateTime& current_date = candle_manager.get_latest_candle().date;
+    const DateTime& current_date = candle_manager->get_latest_candle().date;
     const Time& current_time = current_date.time;
 
     // Update the current trading day if it's a new day
@@ -260,7 +260,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     }
 
     // Get the latest candle
-    const BasicCandle& latest_candle = candle_manager.get_latest_candle();
+    const BasicCandle& latest_candle = candle_manager->get_latest_candle();
     if (!latest_candle.date.is_valid()) {
         return nullptr;  // No valid candle
     }
@@ -307,7 +307,7 @@ std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     }
 
     // Obtenir la bougie actuelle
-    const BasicCandle& latest_candle = candle_manager.get_latest_candle();
+    const BasicCandle& latest_candle = candle_manager->get_latest_candle();
     if (!latest_candle.date.is_valid()) 
         return nullptr;
 
@@ -341,15 +341,15 @@ std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
     }
 
     // Get the latest Heikin-Ashi candle
-    if (candle_manager.size() == 0) return nullptr;
+    if (candle_manager->size() == 0) return nullptr;
 
     // Check if the current Heikin-Ashi candle is opposite to the trade direction
     bool is_opposite_candle = false;
 
     if (is_position_long) // For long positions, we look for red Heikin-Ashi candles
-        is_opposite_candle = candle_manager.is_latest_heikin_ashi_red();
+        is_opposite_candle = candle_manager->is_latest_heikin_ashi_red();
     else // For short positions, we look for green Heikin-Ashi candles
-        is_opposite_candle = candle_manager.is_latest_heikin_ashi_green();
+        is_opposite_candle = candle_manager->is_latest_heikin_ashi_green();
 
     // If this is an opposite candle, increment the counter
     if (is_opposite_candle) {
@@ -525,11 +525,13 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    for (const std::function<bool ()>& filter : active_filters)
-        if (!filter())
-            return false;  // Stop execution if any filter fails
+    // for (const std::function<bool ()>& filter : active_filters)
+    //     if (!filter())
+    //         return false;  // Stop execution if any filter fails
     
-    return true;  // All filters passed
+    // return true;  // All filters passed
+
+    return filterEvaluator->evaluateAll(filters);
 }
 
 void Strategy::execute() {
@@ -614,6 +616,7 @@ void Strategy::execute() {
     bool should_long_val = should_long();
     bool should_short_val = should_long_val ? false : should_short();
     
+    // Methode hybride a supprimer dans le future
     // If neither should_long nor should_short returned true, check if we should use filter-only logic
     // This happens when a strategy (like GenericStrategy) doesn't override these methods and relies only on filters
     if (!should_long_val && !should_short_val) {
@@ -664,10 +667,12 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     : base_config(config), 
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
-    indicator_manager(std::make_unique<IndicatorManager>()) {
+    indicator_manager(std::make_unique<IndicatorManager>()),
+    filters(config.filters),
+    filterEvaluator(std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get())) 
+{
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
-
 }
 
 // Main update method
@@ -693,7 +698,7 @@ Signal* Strategy::update_candle(const Candle& candle) {
     }
 
     // Add to buffer for historical calculations
-    candle_manager.add_candle(candle.ohlc);
+    candle_manager->add_candle(candle.ohlc);
     
     // Execute strategy
     execute();
@@ -706,6 +711,6 @@ Signal* Strategy::update_candle(const Candle& candle) {
 
 // Properties
 double Strategy::price() const {
-    return candle_manager.get_latest_candle().close;
+    return candle_manager->get_latest_candle().close;
 }
 

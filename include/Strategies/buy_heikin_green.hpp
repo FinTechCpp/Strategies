@@ -86,8 +86,8 @@ private:
 
     void before() override {        
         // Get latest candle for logging
-        BasicCandle ha_current = candle_manager.get_latest_heikin_ashi();
-        bool is_green = candle_manager.is_candle_green(ha_current);
+        BasicCandle ha_current = candle_manager->get_latest_heikin_ashi();
+        bool is_green = candle_manager->is_candle_green(ha_current);
         
         logger->log_general("Bougie HA courante calculée: Open=" + logger->fast_double_to_string(ha_current.open) + 
                         ", Close=" + logger->fast_double_to_string(ha_current.close) + 
@@ -103,19 +103,19 @@ private:
     
     // TODO : Il faut supprimer cette méthode et tout traiter comme des filtres
     bool should_long() override {
-        if (candle_manager.size() < 3) {
+        if (candle_manager->size() < 3) {
             logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
             return false;
         }
 
         // Check if we need Min/Max but don't have enough history
-        if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
+        if (base_config.sl_method == StopLossMethod::MinMax && candle_manager->size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
             logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
             return false;
         }
     
         // Only check if current candle is green
-        return candle_manager.is_latest_heikin_ashi_green();
+        return candle_manager->is_latest_heikin_ashi_green();
     }
 
     void go_long() override {
@@ -127,8 +127,8 @@ private:
             price(), 
             atrlog_calculator->get_value(), 
             true,  // is_long = true 
-            candle_manager, 
-            candle_manager.get_latest_candle(), 
+            *candle_manager.get(), 
+            candle_manager->get_latest_candle(), 
             logger
         );
 
@@ -138,7 +138,7 @@ private:
             price(),
             atrlog_calculator->get_value(),
             stop_loss_distance,
-            candle_manager,
+            *candle_manager.get(),
             logger
         );
 
@@ -211,7 +211,7 @@ private:
             });
         if (config.use_previous_ha_candle_red_filter)
             active_filters.push_back([this]() {
-                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
+                return Filters::previousHACandlesRed(*candle_manager.get(), config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
             });
         if (config.use_supertrend_filter)
             active_filters.push_back([this]() {

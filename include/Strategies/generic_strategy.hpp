@@ -2,7 +2,6 @@
 
 #include "strategy.h"
 #include "Filters.h"
-#include "Managers/FilterEvaluator.hpp"
 #include <algorithm>
 #include <cmath>
 #include <memory>
@@ -11,11 +10,7 @@
 struct GenericStrategyConfig {
     std::string name; // à mettre dans StrategyBaseConfig
     std::optional<bool> go_direction = std::nullopt;  // true <=> LONG, false <=> SHORT
-
-    // List of filters to apply (in order)
-    // c'est pas mal mais il faut encore travailler la structure de description des filtres
-    std::vector<GenericFilter> filters;
-
+    
     int ema_short_period;
     int ema_long_period;
     int stoch_fastk;
@@ -78,6 +73,7 @@ class GenericStrategy : public Strategy {
 private:
     GenericStrategyConfig config;
 
+    // Deprecated
     EMAParams ema_short_params;
     EMAParams ema_long_params;
     StochasticParams stoch_params;
@@ -88,26 +84,28 @@ private:
     SuperTrendParams supertrend_tp_params;
 
     // TODO a mettre dans la class mere
-    std::unique_ptr<FilterEvaluator> filterEvaluator;
-    std::vector<GenericFilter> generic_filters;
+    // std::unique_ptr<FilterEvaluator> filterEvaluator;
+    // std::vector<GenericFilter> generic_filters;
     
     // Indicator values
-    std::vector<std::pair<double, double>> stoch_kd_values;
-    std::vector<double> rsi_values;
-    std::vector<double> atr_values;
+    // std::vector<std::pair<double, double>> stoch_kd_values;
+    // std::vector<double> rsi_values;
+    // std::vector<double> atr_values;
 
-    void before() override {        
-        if (config.use_stoch_filter && !stoch_kd_values.empty()) {
-            stoch_kd_values[0] = indicator_manager->getStochasticValue(stoch_params);
-        }
+    // methode rendu inutile
+    void before() override {
+
+        // if (config.use_stoch_filter && !stoch_kd_values.empty()) {
+        //     stoch_kd_values[0] = indicator_manager->getStochasticValue(stoch_params);
+        // }
         
-        if (config.use_rsi_filter && !rsi_values.empty()) {
-            rsi_values[0] = indicator_manager->getRSIValue(rsi_params);
-        }
+        // if (config.use_rsi_filter && !rsi_values.empty()) {
+        //     rsi_values[0] = indicator_manager->getRSIValue(rsi_params);
+        // }
         
-        if (config.use_atr_filter && !atr_values.empty()) {
-            atr_values[0] = indicator_manager->getATRValue(atrlog_filter_params);
-        }
+        // if (config.use_atr_filter && !atr_values.empty()) {
+        //     atr_values[0] = indicator_manager->getATRValue(atrlog_filter_params);
+        // }
     }
     
     // No should_long() or should_short() override - all logic handled by filters
@@ -121,8 +119,8 @@ private:
             price(), 
             indicator_manager->getATRValue(atrlog_params), 
             config.go_direction.value(),  // is_long = true 
-            candle_manager, 
-            candle_manager.get_latest_candle(), 
+            *candle_manager.get(), 
+            candle_manager->get_latest_candle(), 
             logger
         );
 
@@ -132,7 +130,7 @@ private:
             price(),
             indicator_manager->getATRValue(atrlog_params),
             stop_loss_distance,
-            candle_manager,
+            *candle_manager.get(),
             logger
         );
 
@@ -154,45 +152,47 @@ private:
         }
     }
 
+    // Inutile
     void after() override {
         // Perform historical value shifting after each update
 
-        // Shift stochastic values
-        if (config.use_stoch_filter && !stoch_kd_values.empty() && stoch_kd_values[0].first > 0) {
-            // Shift all values by one position
-            for (int i = stoch_kd_values.size() - 1; i > 0; i--) {
-                stoch_kd_values[i] = stoch_kd_values[i-1];
-            }
-        }
+        // // Shift stochastic values
+        // if (config.use_stoch_filter && !stoch_kd_values.empty() && stoch_kd_values[0].first > 0) {
+        //     // Shift all values by one position
+        //     for (int i = stoch_kd_values.size() - 1; i > 0; i--) {
+        //         stoch_kd_values[i] = stoch_kd_values[i-1];
+        //     }
+        // }
 
-        // Shift RSI values
-        if (config.use_rsi_filter && !rsi_values.empty() && rsi_values[0] > 0) {
-            // Shift all values by one position
-            for (int i = rsi_values.size() - 1; i > 0; i--) {
-                rsi_values[i] = rsi_values[i-1];
-            }
-        }
+        // // Shift RSI values
+        // if (config.use_rsi_filter && !rsi_values.empty() && rsi_values[0] > 0) {
+        //     // Shift all values by one position
+        //     for (int i = rsi_values.size() - 1; i > 0; i--) {
+        //         rsi_values[i] = rsi_values[i-1];
+        //     }
+        // }
 
-        // Shift ATR values
-        if (config.use_atr_filter && !atr_values.empty() && atr_values[0] > 0) {
-            // Shift all values by one position
-            for (int i = atr_values.size() - 1; i > 0; i--) {
-                atr_values[i] = atr_values[i-1];
-            }
-        }
+        // // Shift ATR values
+        // if (config.use_atr_filter && !atr_values.empty() && atr_values[0] > 0) {
+        //     // Shift all values by one position
+        //     for (int i = atr_values.size() - 1; i > 0; i--) {
+        //         atr_values[i] = atr_values[i-1];
+        //     }
+        // }
     }
 
+    // Inutile, les filtres sont dans le std::vector<GenericFilter>
     void registerFilters() {
         active_filters.clear();
         
         // il faut ajouter un filtre sur le nombre minimum de bougies a avoir dans le candle manager avant de commencer a trader
         active_filters.push_back([this]() {
-            if (candle_manager.size() < 3) {
+            if (candle_manager->size() < 3) {
                 logger->log_general("Pas assez d'historique (min 3 bougies)", LogLevel::WARNING);
                 return false;
             }
 
-            if (base_config.sl_method == StopLossMethod::MinMax && candle_manager.size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
+            if (base_config.sl_method == StopLossMethod::MinMax && candle_manager->size() < static_cast<size_t>(base_config.sl_minmax_periods)) {
                 logger->log_general("Pas assez d'historique pour le calcul Min/Max SL", LogLevel::WARNING);
                 return false;
             }
@@ -200,16 +200,21 @@ private:
             return true;
         });
 
-         // Add user-defined generic filters to active_filters
-        if (!generic_filters.empty()) {
-            active_filters.push_back([this]() {
-                bool result = filterEvaluator->evaluateAll(generic_filters);
-                logger->log_general(std::string("Generic filters result: ") + (result ? "PASS" : "FAIL"), LogLevel::INFO);
-                return result;
-            });
-        } else {
-            logger->log_general("No generic filters configured", LogLevel::INFO);
-        }
+
+        // Nouveau filtre pour vérifier si la bougie HA précédente est rouge ou verte qui remplace la condition dans should_long et should_short
+        // if (config.go_direction.value()) // true => LONG
+        //     active_filters.push_back([this]() {
+        //         return Filters::previousHACandlesGreen(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
+        //     });
+        // else // false => SHORT
+        //     active_filters.push_back([this]() {
+        //         return Filters::previousHACandlesRed(candle_manager, 1, 0, "Bougie HA précédente", logger.get());
+        //     });
+
+
+        // active_filters.push_back([this]() {
+        //     return filterEvaluator->evaluateAll(generic_filters);
+        // });
 
         // if (config.use_ema_short_filter)
         //     active_filters.push_back([this]() {
@@ -219,28 +224,29 @@ private:
             active_filters.push_back([this]() {
                 return Filters::priceSupEMA(price(), indicator_manager->getEMAValue(ema_long_params), "EMA Long", logger.get());
             });
-        if (config.use_stoch_filter)
-            active_filters.push_back([this]() {
-                return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, "Stoch", logger.get());
-            });
-        if (config.use_rsi_filter)
-            active_filters.push_back([this]() {
-                return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, "RSI", logger.get());
-            });
-        if (config.use_atr_filter)
-            active_filters.push_back([this]() {
-                return Filters::atrAboveThreshold(atr_values, config.atr_threshold, "ATR", logger.get());
-            });
-        if (config.use_previous_ha_candle_red_filter)
-            active_filters.push_back([this]() {
-                return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
-            });
-        if (config.use_supertrend_filter)
-            active_filters.push_back([this]() {
-                return Filters::priceSupSupertrend(price(), indicator_manager->getSuperTrendValue(supertrend_filter_params), "Supertrend", logger.get());
-            });
+        // if (config.use_stoch_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::stochInfThreshold(stoch_kd_values, config.stoch_threshold, "Stoch", logger.get());
+        //     });
+        // if (config.use_rsi_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::rsiInfThreshold(rsi_values, config.rsi_threshold, "RSI", logger.get());
+        //     });
+        // if (config.use_atr_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::atrAboveThreshold(atr_values, config.atr_threshold, "ATR", logger.get());
+        //     });
+        // if (config.use_previous_ha_candle_red_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::previousHACandlesRed(candle_manager, config.previous_ha_candle_red_filter_n, 1, "Bougie HA précédente", logger.get());
+        //     });
+        // if (config.use_supertrend_filter)
+        //     active_filters.push_back([this]() {
+        //         return Filters::priceSupSupertrend(price(), indicator_manager->getSuperTrendValue(supertrend_filter_params), "Supertrend", logger.get());
+        //     });
     }
 
+    // TODO : Il faut lire les filtres et extraire les indicateur qu'il faudra calculer et informer le indicator_manager
     void registerIndicators() {
         // Register only active indicators
         if (config.use_ema_short_filter)
@@ -278,8 +284,7 @@ public:
           atrlog_params(base_cfg.atr_period, true),
           atrlog_filter_params(config.atr_filter_period, true),
           supertrend_filter_params(config.supertrend_atr_period, config.supertrend_multiplier),
-          supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier),
-          generic_filters(config.filters) {
+          supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier) {
 
 
         if (!config.go_direction.has_value()) {
@@ -288,7 +293,7 @@ public:
         }
 
         // a tester
-        GenericFilter genFilter(
+        GenericFilter filterEMA(
             ValueSource::Price(PriceType::CLOSE), 
             ComparisonOperator::GREATER_THAN, 
             ValueSource::EMA(ema_short_params.period), 
@@ -296,12 +301,40 @@ public:
             1
         );
 
-        filterEvaluator = std::make_unique<FilterEvaluator>(&candle_manager, indicator_manager.get(), logger.get());
+        GenericFilter filterStoch(
+            ValueSource::StochasticK(stoch_params.fastK, stoch_params.slowK, stoch_params.slowD), 
+            ComparisonOperator::LESS_THAN, 
+            ValueSource::Constant(static_cast<double>(config.stoch_threshold)), 
+            TemporalLogic::ANY_OF, 
+            config.stoch_history_periods
+        );
+
+        GenericFilter filterHAGreen(
+            ValueSource::CandleProperty(CandlePropertyType::HEIKIN_ASHI_IS_GREEN),
+            ComparisonOperator::EQUAL,
+            ValueSource::Constant(1.0), // 1.0 pour vrai
+            TemporalLogic::CURRENT
+        );
+
+        GenericFilter filterPrevHARed(
+            ValueSource::CandleProperty(CandlePropertyType::HEIKIN_ASHI_IS_RED, 1),
+            ComparisonOperator::EQUAL,
+            ValueSource::Constant(1.0), // 1.0 pour vrai
+            TemporalLogic::ALL_OF,
+            config.previous_ha_candle_red_filter_n
+        );
+
+        filters.push_back(filterHAGreen);
+        filters.push_back(filterPrevHARed);
+        filters.push_back(filterEMA);
+        filters.push_back(filterStoch);
+
+        filterEvaluator = std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get());
 
         // Initialize vectors with appropriate sizes
-        stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
-        rsi_values.resize(config.rsi_history_periods, 0.0);
-        atr_values.resize(config.atr_history_periods, 0.0);
+        // stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
+        // rsi_values.resize(config.rsi_history_periods, 0.0);
+        // atr_values.resize(config.atr_history_periods, 0.0);
 
         registerFilters();
         registerIndicators();

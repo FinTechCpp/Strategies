@@ -4,6 +4,7 @@
 #include "Managers/CandleManager.hpp"
 #include "Managers/PositionManager.hpp"
 #include "Managers/IndicatorManager.hpp"
+#include "Managers/FilterEvaluator.hpp"
 #include "LoggerFactory.h"
 #include <string>
 #include <vector>
@@ -46,12 +47,14 @@ public:
 
 protected:
     StrategyBaseConfig base_config;
-    // TODO : mettre un unique ptr
-    CandleManager candle_manager;
-    std::unique_ptr<ILogger> logger;
     PositionInfo position_info;
-    std::vector<std::function<bool()>> active_filters;
+    std::unique_ptr<CandleManager> candle_manager;
     std::unique_ptr<IndicatorManager> indicator_manager;
+    std::unique_ptr<ILogger> logger;
+    // Deprecated il faut utiliser filters
+    std::vector<std::function<bool()>> active_filters;
+    std::vector<GenericFilter> filters;
+    std::unique_ptr<FilterEvaluator> filterEvaluator;
 
 
     // Signal components

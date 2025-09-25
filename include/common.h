@@ -621,6 +621,9 @@ struct StrategyBaseConfig {
     LogLevel logLevel = LogLevel::DEBUG;
     bool enable_logging = true; // Enable or disable logging
 
+    // Filters
+    std::vector<GenericFilter> filters;
+
     // Time settings
     Time trading_from;
     Time trading_to;
