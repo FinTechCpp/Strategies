@@ -42,6 +42,84 @@ int get_day_of_week(const DateTime& date) {
     return (weekday == 0) ? 6 : weekday - 1;
 }
 
+void Strategy::registerFiltersIndicators() {
+    // Fonction helper pour enregistrer un indicateur une seule fois
+    auto registerIfNeeded = [this](const ValueSource& source) {
+        if (source.category != ValueCategory::INDICATOR) {
+            return;
+        }
+        
+        switch (source.indicatorType) {
+            case IndicatorType::EMA:
+                indicator_manager->registerEMA(source.emaParams);
+                break;
+            case IndicatorType::RSI:
+                indicator_manager->registerRSI(source.rsiParams);
+                break;
+            case IndicatorType::ATR:
+                indicator_manager->registerATR(source.atrParams);
+                break;
+            case IndicatorType::STOCHASTIC_K:
+            case IndicatorType::STOCHASTIC_D:
+                indicator_manager->registerStochastic(source.stochParams);
+                break;
+            case IndicatorType::SUPERTREND_VALUE:
+            case IndicatorType::SUPERTREND_DIRECTION:
+                indicator_manager->registerSuperTrend(source.supertrendParams);
+                break;
+            default:
+                break;
+        }
+    };
+
+    // Parcourir tous les filtres et enregistrer directement les indicateurs nécessaires
+    for (const auto& filter : filters) {
+        registerIfNeeded(filter.leftValue);
+        registerIfNeeded(filter.rightValue);
+    }
+}
+
+void Strategy::go() {
+    logger->log_general("Préparation d'un signal d'entrée", LogLevel::INFO);
+
+    // Calculate Stop Loss
+    stop_loss_distance = PositionManager::calculateStopLoss(
+        base_config, 
+        price(), 
+        indicator_manager->getATRValue(ATRParams(base_config.atr_period, true)), 
+        base_config.tradeDirection,
+        *candle_manager, 
+        logger.get()
+    );
+
+    // Calculate Take Profit
+    take_profit_distance = PositionManager::calculateTakeProfit(
+        base_config,
+        price(),
+        indicator_manager->getATRValue(ATRParams(base_config.atr_period, true)),
+        stop_loss_distance,
+        *candle_manager,
+        logger.get()
+    );
+
+    // Calculate position size
+    double quantity = PositionManager::calculatePositionSize(
+        base_config,
+        price(),
+        stop_loss_distance,
+        logger.get()
+    );
+    
+    if (base_config.tradeDirection == TradeDirection::LONG) {
+        buy_quantity = quantity;
+        buy_price = price();
+    }
+    else {
+        sell_quantity = quantity;
+        sell_price = price();
+    }
+}
+
 bool Strategy::update_indicators()
 {
     if (candle_manager->size() == 0) {
@@ -417,7 +495,7 @@ void Strategy::reset() {
 }
 
 void Strategy::execute_long() {
-    go_long();
+    go();
     
     if (buy_quantity < 0.0 || buy_price <= 0.0) {
         logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
@@ -471,7 +549,7 @@ void Strategy::execute_long() {
 }
 
 void Strategy::execute_short() {
-    go_short();
+    go();
     
     if (sell_quantity < 0.0 || sell_price <= 0.0) {
         logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
@@ -525,12 +603,6 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    // for (const std::function<bool ()>& filter : active_filters)
-    //     if (!filter())
-    //         return false;  // Stop execution if any filter fails
-    
-    // return true;  // All filters passed
-
     for (const auto& filter : filters) {
         if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) {
             return false;
@@ -618,40 +690,6 @@ void Strategy::execute() {
         return;
     }
     
-    bool should_long_val = should_long();
-    bool should_short_val = should_long_val ? false : should_short();
-    
-    // Methode hybride a supprimer dans le future
-    // If neither should_long nor should_short returned true, check if we should use filter-only logic
-    // This happens when a strategy (like GenericStrategy) doesn't override these methods and relies only on filters
-    // if (!should_long_val && !should_short_val) {
-    //     // Try filter-only logic: if filters pass, we use the strategy's go_direction configuration
-    //     if (!execute_filters()) {
-    //         logger->log_execution_step("Filtres", false);
-    //         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
-    //         reset();
-    //         return;
-    //     }
-        
-    //     logger->log_execution_step("Filtres", true);
-    //     logger->log_execution_step("Logique basée uniquement sur les filtres", true);
-        
-    //     // For filter-only strategies, we need to determine direction from strategy configuration
-    //     // This will be handled in the strategy's go() method
-    //     execute_long();  // The strategy's go() method will handle the actual direction
-    //     return;
-    // }
-    
-    if (should_long_val) {
-        logger->log_execution_step("Conditions de long", true);
-    } else if (should_short_val) {
-        logger->log_execution_step("Conditions de short", true);
-    } else {
-        logger->log_execution_step("Conditions d entrée", false);
-        reset();
-        return;
-    }
-    
     if (!execute_filters()) {
         logger->log_execution_step("Filtres", false);
         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
@@ -660,7 +698,7 @@ void Strategy::execute() {
     }
     logger->log_execution_step("Filtres", true);
     
-    if (should_long_val) {
+    if (base_config.tradeDirection == TradeDirection::LONG) {
         execute_long();
     } else {
         execute_short();
@@ -668,16 +706,23 @@ void Strategy::execute() {
 }
 
 
-Strategy::Strategy(const StrategyBaseConfig& config) 
+Strategy::Strategy(const StrategyConfig& config) 
     : base_config(config), 
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
-    candle_manager(std::make_unique<CandleManager>())
-    // filters(config.filters),
+    candle_manager(std::make_unique<CandleManager>()),
+    filters(config.filters)
 {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
+
+    if (base_config.tradeDirection == TradeDirection::NOTSET) {
+        logger->log_general("La direction de la strategie n'est pas définie dans la configuration.", LogLevel::ERROR);
+        throw std::invalid_argument("Direction of the strategy must be specified in StrategyConfig");
+    }
+
+    registerFiltersIndicators();
 
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR) {
         indicator_manager->registerATR(ATRParams(base_config.atr_period, true));

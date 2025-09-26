@@ -35,7 +35,7 @@ struct Signal {
 
 class Strategy {
 public:
-    Strategy(const StrategyBaseConfig& config);
+    Strategy(const StrategyConfig& config);
     virtual ~Strategy() = default;
     
     // Main update method
@@ -46,13 +46,11 @@ public:
     }    
 
 protected:
-    StrategyBaseConfig base_config;
+    StrategyConfig base_config;
     PositionInfo position_info;
     std::unique_ptr<CandleManager> candle_manager;
     std::unique_ptr<IndicatorManager> indicator_manager;
     std::unique_ptr<ILogger> logger;
-    // Deprecated il faut utiliser filters
-    std::vector<std::function<bool()>> active_filters;
     std::vector<GenericFilter> filters;
 
 
@@ -89,27 +87,13 @@ protected:
     // Nth Heikin-Ashi TP tracking
     int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
     bool is_position_long = false;       // Track whether current position is long or short
+
+
     // Core strategy methods to implement in derived classes
+    virtual void registerFiltersIndicators();
     virtual void before() {}
     virtual void after() {}
-    virtual bool should_long() { 
-        logger->log_general("should_long not implemented, defaulting to false", LogLevel::WARNING);
-        return false; }
-    virtual bool should_short() { 
-        logger->log_general("should_short not implemented, defaulting to false", LogLevel::WARNING);
-        return false; }
-    virtual void go() { } // a mettre virtual pure
-    // a supprimer 
-    virtual void go_long() {
-        logger->log_general("go_long deprecated, use go() instead", LogLevel::WARNING);
-        go();
-    }
-    // a supprimer
-    virtual void go_short() {
-        logger->log_general("go_short deprecated, use go() instead", LogLevel::WARNING);
-        go();
-    }
-    virtual void updateLocalValues() {}
+    virtual void go();
     
     double price() const;
 

@@ -4,7 +4,7 @@
 std::unique_ptr<InferenceModel> PositionManager::rl_model = nullptr;
 
 double PositionManager::calculateTakeProfitWithRL(
-        const StrategyBaseConfig& config,
+        const StrategyConfig& config,
         double current_price,
         double current_atr,
         double stop_loss_distance,

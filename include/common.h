@@ -5,6 +5,7 @@
 #include <charconv>
 #include <array>
 #include <functional>
+#include <optional>
 
 
 // TODO : peut etre mettre dans un namespace ce qui concerne les filtres generiques
@@ -617,13 +618,23 @@ enum class TakeProfitMethod {
     NthHeikinAshi = 5
 };
 
+enum class TradeDirection {
+    NOTSET,
+    LONG,
+    SHORT
+};
+
 // On pourrait utiliser des union pour separer les paramettre des differents methodes de SL et TP
-struct StrategyBaseConfig {
+struct StrategyConfig {
+    std::string name;
+    TradeDirection tradeDirection = TradeDirection::NOTSET;
+
+    // Logging
     LogLevel logLevel = LogLevel::DEBUG;
     bool enable_logging = true; // Enable or disable logging
 
     // Filters
-    // std::vector<GenericFilter> filters;
+    std::vector<GenericFilter> filters;
 
     // Time settings
     Time trading_from;
@@ -728,13 +739,19 @@ inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method
     }
 }
 
-// Overload of the stream operator for StrategyBaseConfig
-inline std::ostream& operator<<(std::ostream& os, const StrategyBaseConfig& config) {
-    os << "StrategyBaseConfig {\n";
+// Overload of the stream operator for StrategyConfig
+inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) {
+    os << "StrategyConfig {\n";
+
+    os << "  Name: " << config.name << "\n";
 
     // Log level
     os << "  Log level: " << config.logLevel << "\n";
     os << "  Enable logging: " << (config.enable_logging ? "Yes" : "No") << "\n";
+
+    os << "  Go Direction: " << (config.tradeDirection == TradeDirection::NOTSET ? "Not Set" : (config.tradeDirection == TradeDirection::LONG ? "LONG" : "SHORT")) << "\n";
+    for (const auto& filter : config.filters)
+        os << "  Filter: " << filter.description << "\n";
     
     // Time settings
     os << "  Trading hours: " << config.trading_from.hour << ":" << config.trading_from.minute 
