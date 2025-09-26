@@ -167,7 +167,42 @@ private:
         double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
         double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
         
-        bool result = compareValues(leftValue, rightValue, filter.op);
+        bool result;
+
+        // Traitement spécial pour les croisements
+        if (filter.op == ComparisonOperator::CROSSES_ABOVE || filter.op == ComparisonOperator::CROSSES_BELOW) {
+            // Pour les croisements, nous devons comparer les valeurs actuelles et précédentes
+            ValueSource prevLeftSource = filter.leftValue;
+            ValueSource prevRightSource = filter.rightValue;
+            prevLeftSource.historicalOffset += 1 + offset;
+            prevRightSource.historicalOffset += 1 + offset;
+
+            double prevLeftValue = getSourceValue(prevLeftSource, 0, candleManager, indicatorManager, logger);
+            double prevRightValue = getSourceValue(prevRightSource, 0, candleManager, indicatorManager, logger);
+
+            if (filter.op == ComparisonOperator::CROSSES_ABOVE) {
+                result = (leftValue > rightValue) && (prevLeftValue <= prevRightValue);
+                if (logger) {
+                    logger->log_general("CROSSES_ABOVE check: left=" + std::to_string(leftValue) + 
+                                        ", right=" + std::to_string(rightValue) + 
+                                        ", prevLeft=" + std::to_string(prevLeftValue) + 
+                                        ", prevRight=" + std::to_string(prevRightValue) + 
+                                        ", result=" + (result ? "true" : "false"), LogLevel::DEBUG);
+                }
+            } else {
+                result = (leftValue < rightValue) && (prevLeftValue >= prevRightValue);
+                if (logger) {
+                    logger->log_general("CROSSES_BELOW check: left=" + std::to_string(leftValue) + 
+                                        ", right=" + std::to_string(rightValue) + 
+                                        ", prevLeft=" + std::to_string(prevLeftValue) + 
+                                        ", prevRight=" + std::to_string(prevRightValue) + 
+                                        ", result=" + (result ? "true" : "false"), LogLevel::DEBUG);
+                }
+            }
+        } else {
+            // Comparaison normale
+            result = compareValues(leftValue, rightValue, filter.op);
+        }
 
         if (logger) {
             logger->log_general(

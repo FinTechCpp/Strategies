@@ -4,6 +4,7 @@
 #include "Filters.h"
 #include <algorithm>
 #include <cmath>
+#include <set>
 #include <memory>
 #include <functional>
 
@@ -156,32 +157,100 @@ private:
     }
 
     // TODO : Il faut lire les filtres et extraire les indicateur qu'il faudra calculer et informer le indicator_manager
-    // void registerIndicators() {
-    //     // Register only active indicators
-    //     if (config.use_ema_short_filter)
-    //         indicator_manager->registerEMA(ema_short_params);
+    void registerIndicators() {
+        // Extraire automatiquement les indicateurs des filtres génériques
+        std::set<IndicatorType> required_indicators;
+        std::set<int> ema_periods;
+        std::set<int> rsi_periods;
+        std::set<int> atr_periods;
         
-    //     if (config.use_ema_long_filter)
-    //         indicator_manager->registerEMA(ema_long_params);
+        for (const auto& filter : filters) {
+            // Vérifier leftValue
+            if (filter.leftValue.category == ValueCategory::INDICATOR) {
+                required_indicators.insert(filter.leftValue.indicatorType);
+                
+                // Extraire les périodes spécifiques
+                if (filter.leftValue.indicatorType == IndicatorType::EMA) {
+                    ema_periods.insert(filter.leftValue.emaParams.period);
+                } else if (filter.leftValue.indicatorType == IndicatorType::RSI) {
+                    rsi_periods.insert(filter.leftValue.rsiParams.period);
+                } else if (filter.leftValue.indicatorType == IndicatorType::ATR) {
+                    atr_periods.insert(filter.leftValue.atrParams.period);
+                }
+            }
+            // Vérifier rightValue  
+            if (filter.rightValue.category == ValueCategory::INDICATOR) {
+                required_indicators.insert(filter.rightValue.indicatorType);
+                
+                // Extraire les périodes spécifiques
+                if (filter.rightValue.indicatorType == IndicatorType::EMA) {
+                    ema_periods.insert(filter.rightValue.emaParams.period);
+                } else if (filter.rightValue.indicatorType == IndicatorType::RSI) {
+                    rsi_periods.insert(filter.rightValue.rsiParams.period);
+                } else if (filter.rightValue.indicatorType == IndicatorType::ATR) {
+                    atr_periods.insert(filter.rightValue.atrParams.period);
+                }
+            }
+        }
+        
+        // Enregistrer les indicateurs requis avec leurs vraies périodes
+        for (IndicatorType indicator : required_indicators) {
+            switch (indicator) {
+                case IndicatorType::EMA: {
+                    // Enregistrer tous les EMAs avec leurs périodes spécifiques
+                    for (int period : ema_periods) {
+                        EMAParams emaParam(period);
+                        indicator_manager->registerEMA(emaParam);
+                        std::cout << "Registered EMA with period " << period << std::endl;
+                    }
+                    break;
+                }
+                case IndicatorType::STOCHASTIC_K:
+                case IndicatorType::STOCHASTIC_D: {
+                    StochasticParams stoch_params(14, 3, 3); // Valeurs par défaut
+                    indicator_manager->registerStochastic(stoch_params);
+                    std::cout << "Registered Stochastic indicators" << std::endl;
+                    break;
+                }
+                case IndicatorType::RSI: {
+                    // Enregistrer tous les RSIs avec leurs périodes spécifiques  
+                    for (int period : rsi_periods) {
+                        RSIParams rsiParam(period);
+                        indicator_manager->registerRSI(rsiParam);
+                        std::cout << "Registered RSI with period " << period << std::endl;
+                    }
+                    break;
+                }
+                case IndicatorType::ATR: {
+                    // Enregistrer tous les ATRs avec leurs périodes spécifiques
+                    for (int period : atr_periods) {
+                        ATRParams atrParam(period, true); // useLog = true par défaut
+                        indicator_manager->registerATR(atrParam);
+                        std::cout << "Registered ATR with period " << period << std::endl;
+                    }
+                    break;
+                }
+                case IndicatorType::SUPERTREND_VALUE:
+                case IndicatorType::SUPERTREND_DIRECTION: {
+                    SuperTrendParams supertrend_filter_params(base_config.atr_period, 3.0); // Valeurs par défaut
+                    indicator_manager->registerSuperTrend(supertrend_filter_params);
+                    std::cout << "Registered SuperTrend indicator" << std::endl;
+                    break;
+                }
+                default:
+                    break;
+            }
+        }
 
-    //     if (config.use_stoch_filter)
-    //         indicator_manager->registerStochastic(stoch_params);
+        // Toujours enregistrer ATR pour SL/TP si nécessaire
+        if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
+            indicator_manager->registerATR(atrlog_params);
 
-    //     if (config.use_rsi_filter)
-    //         indicator_manager->registerRSI(rsi_params);
-
-    //     if (config.use_atr_filter)
-    //         indicator_manager->registerATR(atrlog_filter_params);
-
-    //     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
-    //         indicator_manager->registerATR(atrlog_params);
-
-    //     if (config.use_supertrend_filter)
-    //         indicator_manager->registerSuperTrend(supertrend_filter_params);
-
-    //     if (base_config.tp_method == TakeProfitMethod::SuperTrend)
-    //         indicator_manager->registerSuperTrend(supertrend_tp_params);
-    // }
+        if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
+            SuperTrendParams supertrend_tp_params(base_config.atr_period, 3.0); // Valeurs par défaut
+            indicator_manager->registerSuperTrend(supertrend_tp_params);
+        }
+    }
 
 public:
     GenericStrategy(const StrategyBaseConfig& base_cfg, const GenericStrategyConfig& generic_cfg) 
@@ -195,15 +264,15 @@ public:
         }
 
         // a tester
-        GenericFilter filterEMA(
-            ValueSource::Price(PriceType::CLOSE), 
-            ComparisonOperator::GREATER_THAN, 
-            ValueSource::EMA(20), 
-            TemporalLogic::CURRENT, 
-            1
-        );
+        // GenericFilter filterEMA(
+        //     ValueSource::Price(PriceType::CLOSE), 
+        //     ComparisonOperator::GREATER_THAN, 
+        //     ValueSource::EMA(20), 
+        //     TemporalLogic::CURRENT, 
+        //     1
+        // );
 
-        indicator_manager->registerEMA(filterEMA.rightValue.emaParams);
+        // indicator_manager->registerEMA(filterEMA.rightValue.emaParams);
 
         // GenericFilter filterStoch(
         //     ValueSource::StochasticK(stoch_params.fastK, stoch_params.slowK, stoch_params.slowD), 
@@ -230,10 +299,10 @@ public:
 
         // filters.push_back(filterHAGreen);
         // filters.push_back(filterPrevHARed);
-        filters.push_back(filterEMA);
+        // filters.push_back(filterEMA);
         // filters.push_back(filterStoch);
 
         // registerFilters();
-        // registerIndicators();
+        registerIndicators();
     }
 };
