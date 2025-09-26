@@ -525,13 +525,13 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    for (const std::function<bool ()>& filter : active_filters)
-        if (!filter())
-            return false;  // Stop execution if any filter fails
+    // for (const std::function<bool ()>& filter : active_filters)
+    //     if (!filter())
+    //         return false;  // Stop execution if any filter fails
     
-    return true;  // All filters passed
+    // return true;  // All filters passed
 
-    // return filterEvaluator->evaluateAll(filters);
+    return filterEvaluator->evaluateAll(filters);
 }
 
 void Strategy::execute() {
@@ -619,23 +619,23 @@ void Strategy::execute() {
     // Methode hybride a supprimer dans le future
     // If neither should_long nor should_short returned true, check if we should use filter-only logic
     // This happens when a strategy (like GenericStrategy) doesn't override these methods and relies only on filters
-    if (!should_long_val && !should_short_val) {
-        // Try filter-only logic: if filters pass, we use the strategy's go_direction configuration
-        if (!execute_filters()) {
-            logger->log_execution_step("Filtres", false);
-            logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
-            reset();
-            return;
-        }
+    // if (!should_long_val && !should_short_val) {
+    //     // Try filter-only logic: if filters pass, we use the strategy's go_direction configuration
+    //     if (!execute_filters()) {
+    //         logger->log_execution_step("Filtres", false);
+    //         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
+    //         reset();
+    //         return;
+    //     }
         
-        logger->log_execution_step("Filtres", true);
-        logger->log_execution_step("Logique basée uniquement sur les filtres", true);
+    //     logger->log_execution_step("Filtres", true);
+    //     logger->log_execution_step("Logique basée uniquement sur les filtres", true);
         
-        // For filter-only strategies, we need to determine direction from strategy configuration
-        // This will be handled in the strategy's go() method
-        execute_long();  // The strategy's go() method will handle the actual direction
-        return;
-    }
+    //     // For filter-only strategies, we need to determine direction from strategy configuration
+    //     // This will be handled in the strategy's go() method
+    //     execute_long();  // The strategy's go() method will handle the actual direction
+    //     return;
+    // }
     
     if (should_long_val) {
         logger->log_execution_step("Conditions de long", true);
