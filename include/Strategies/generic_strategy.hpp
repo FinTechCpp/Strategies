@@ -6,6 +6,8 @@
 #include <cmath>
 #include <memory>
 #include <functional>
+#include <set>
+#include <iostream>
 
 struct GenericStrategyConfig {
     std::string name; // à mettre dans StrategyBaseConfig
@@ -43,29 +45,60 @@ struct GenericStrategyConfig {
     // Overload the << operator for easy printing
     friend std::ostream& operator<<(std::ostream& os, const GenericStrategyConfig& config) {
         os << "GenericStrategyConfig {\n"
-           << "  Go Direction: " << (config.go_direction == std::nullopt ? "Not Set" : (config.go_direction.value() ? "LONG" : "SHORT")) << "\n"
-           << "  EMA Short Period: " << config.ema_short_period << " (Used: " << (config.use_ema_short_filter ? "Yes" : "No") << ")\n"
-           << "  EMA Long Period: " << config.ema_long_period << " (Used: " << (config.use_ema_long_filter ? "Yes" : "No") << ")\n"
-           << "  Stochastic (Used: " << (config.use_stoch_filter ? "Yes" : "No") << "):\n"
-           << "    Fast K: " << config.stoch_fastk << "\n"
-           << "    Slow K: " << config.stoch_slowk << "\n"
-           << "    Slow D: " << config.stoch_slowd << "\n"
-           << "    Threshold: " << config.stoch_threshold << "\n"
-           << "    History Periods: " << config.stoch_history_periods << "\n"
-           << "  RSI (Used: " << (config.use_rsi_filter ? "Yes" : "No") << "):\n"
-           << "    Period: " << config.rsi_period << "\n"
-           << "    Threshold: " << config.rsi_threshold << "\n"
-           << "    History Periods: " << config.rsi_history_periods << "\n"
-           << "  Supertrend (Used: " << (config.use_supertrend_filter ? "Yes" : "No") << "):\n"
-           << "    ATR Period: " << config.supertrend_atr_period << "\n"
-           << "    Multiplier: " << config.supertrend_multiplier << "\n"
-           << "  ATR Filter (Used: " << (config.use_atr_filter ? "Yes" : "No") << "):\n"
-           << "    Period: " << config.atr_filter_period << "\n"
-           << "    Threshold: " << config.atr_threshold << "\n"
-           << "    History Periods: " << config.atr_history_periods << "\n"
-           << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
-           << "  Previous HA Candle Red Filter N: " << config.previous_ha_candle_red_filter_n << "\n"     
-           << "}";
+        << "  Name: " << config.name << "\n"
+        << "  Go Direction: " << (config.go_direction == std::nullopt ? "Not Set" : (config.go_direction.value() ? "LONG" : "SHORT")) << "\n"
+        << "  Generic Filters (" << config.filters.size() << " filters):\n";
+        
+        for (size_t i = 0; i < config.filters.size(); ++i) {
+            const auto& filter = config.filters[i];
+            os << "    Filter " << (i + 1) << ": " << filter.description << "\n"
+            << "      Left Value: " << filter.leftValue.getDescription() << "\n"
+            << "      Operator: ";
+            
+            switch (filter.op) {
+                case ComparisonOperator::GREATER_THAN: os << "GREATER_THAN"; break;
+                case ComparisonOperator::LESS_THAN: os << "LESS_THAN"; break;
+                case ComparisonOperator::GREATER_OR_EQUAL: os << "GREATER_OR_EQUAL"; break;
+                case ComparisonOperator::LESS_OR_EQUAL: os << "LESS_OR_EQUAL"; break;
+                case ComparisonOperator::EQUAL: os << "EQUAL"; break;
+                case ComparisonOperator::NOT_EQUAL: os << "NOT_EQUAL"; break;
+                case ComparisonOperator::CROSSES_ABOVE: os << "CROSSES_ABOVE"; break;
+                case ComparisonOperator::CROSSES_BELOW: os << "CROSSES_BELOW"; break;
+            }
+            
+            os << "\n      Right Value: " << filter.rightValue.getDescription() << "\n"
+            << "      Temporal Logic: ";
+            
+            switch (filter.temporalLogic) {
+                case TemporalLogic::CURRENT: os << "CURRENT"; break;
+                case TemporalLogic::ANY_OF: os << "ANY_OF"; break;
+                case TemporalLogic::ALL_OF: os << "ALL_OF"; break;
+            }
+            
+            os << "\n      Lookback Periods: " << filter.lookbackPeriods << "\n"
+            << "      Enabled: " << (filter.enabled ? "Yes" : "No") << "\n";
+            
+            if (!filter.description.empty()) {
+                os << "      Description: " << filter.description << "\n";
+            }
+        }
+        
+        if (config.filters.empty()) {
+            os << "    No generic filters configured!\n";
+        }
+        
+        os << "  ========================\n"
+        << "  DEPRECATED HARDCODED FILTERS (should be removed):\n"
+        << "  EMA Short Period: " << config.ema_short_period << " (Used: " << (config.use_ema_short_filter ? "Yes" : "No") << ")\n"
+        << "  EMA Long Period: " << config.ema_long_period << " (Used: " << (config.use_ema_long_filter ? "Yes" : "No") << ")\n"
+        << "  Stochastic (Used: " << (config.use_stoch_filter ? "Yes" : "No") << "):\n"
+        << "    Fast K: " << config.stoch_fastk << "\n"
+        << "    Slow K: " << config.stoch_slowk << "\n"
+        << "    Slow D: " << config.stoch_slowd << "\n"
+        << "    Threshold: " << config.stoch_threshold << "\n"
+        << "    History Periods: " << config.stoch_history_periods << "\n"
+        << "  Use Previous HA Candle Red Filter: " << (config.use_previous_ha_candle_red_filter ? "Yes" : "No") << "\n"
+        << "}";
         return os;
     }
 };
@@ -249,27 +282,86 @@ private:
 
     // TODO : Il faut lire les filtres et extraire les indicateur qu'il faudra calculer et informer le indicator_manager
     void registerIndicators() {
-        // Register only active indicators
-        if (config.use_ema_short_filter)
-            indicator_manager->registerEMA(ema_short_params);
+        // Extraire automatiquement les indicateurs des filtres génériques
+        std::set<IndicatorType> required_indicators;
+        std::set<int> ema_periods;
+        std::set<int> rsi_periods;
+        std::set<int> atr_periods;
         
-        if (config.use_ema_long_filter)
-            indicator_manager->registerEMA(ema_long_params);
+        for (const auto& filter : filters) {
+            // Vérifier leftValue
+            if (filter.leftValue.category == ValueCategory::INDICATOR) {
+                required_indicators.insert(filter.leftValue.indicatorType);
+                
+                // Extraire les périodes spécifiques
+                if (filter.leftValue.indicatorType == IndicatorType::EMA) {
+                    ema_periods.insert(filter.leftValue.emaParams.period);
+                } else if (filter.leftValue.indicatorType == IndicatorType::RSI) {
+                    rsi_periods.insert(filter.leftValue.rsiParams.period);
+                } else if (filter.leftValue.indicatorType == IndicatorType::ATR) {
+                    atr_periods.insert(filter.leftValue.atrParams.period);
+                }
+            }
+            // Vérifier rightValue  
+            if (filter.rightValue.category == ValueCategory::INDICATOR) {
+                required_indicators.insert(filter.rightValue.indicatorType);
+                
+                // Extraire les périodes spécifiques
+                if (filter.rightValue.indicatorType == IndicatorType::EMA) {
+                    ema_periods.insert(filter.rightValue.emaParams.period);
+                } else if (filter.rightValue.indicatorType == IndicatorType::RSI) {
+                    rsi_periods.insert(filter.rightValue.rsiParams.period);
+                } else if (filter.rightValue.indicatorType == IndicatorType::ATR) {
+                    atr_periods.insert(filter.rightValue.atrParams.period);
+                }
+            }
+        }
+        
+        // Enregistrer les indicateurs requis avec leurs vraies périodes
+        for (IndicatorType indicator : required_indicators) {
+            switch (indicator) {
+                case IndicatorType::EMA:
+                    // Enregistrer tous les EMAs avec leurs périodes spécifiques
+                    for (int period : ema_periods) {
+                        EMAParams emaParam(period);
+                        indicator_manager->registerEMA(emaParam);
+                        std::cout << "Registered EMA with period " << period << std::endl;
+                    }
+                    break;
+                case IndicatorType::STOCHASTIC_K:
+                case IndicatorType::STOCHASTIC_D:
+                    indicator_manager->registerStochastic(stoch_params);
+                    std::cout << "Registered Stochastic indicators" << std::endl;
+                    break;
+                case IndicatorType::RSI:
+                    // Enregistrer tous les RSIs avec leurs périodes spécifiques  
+                    for (int period : rsi_periods) {
+                        RSIParams rsiParam(period);
+                        indicator_manager->registerRSI(rsiParam);
+                        std::cout << "Registered RSI with period " << period << std::endl;
+                    }
+                    break;
+                case IndicatorType::ATR:
+                    // Enregistrer tous les ATRs avec leurs périodes spécifiques
+                    for (int period : atr_periods) {
+                        ATRParams atrParam(period, true); // useLog = true par défaut
+                        indicator_manager->registerATR(atrParam);
+                        std::cout << "Registered ATR with period " << period << std::endl;
+                    }
+                    break;
+                case IndicatorType::SUPERTREND_VALUE:
+                case IndicatorType::SUPERTREND_DIRECTION:
+                    indicator_manager->registerSuperTrend(supertrend_filter_params);
+                    std::cout << "Registered SuperTrend indicator" << std::endl;
+                    break;
+                default:
+                    break;
+            }
+        }
 
-        if (config.use_stoch_filter)
-            indicator_manager->registerStochastic(stoch_params);
-
-        if (config.use_rsi_filter)
-            indicator_manager->registerRSI(rsi_params);
-
-        if (config.use_atr_filter)
-            indicator_manager->registerATR(atrlog_filter_params);
-
+        // Toujours enregistrer ATR pour SL/TP si nécessaire
         if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR)
             indicator_manager->registerATR(atrlog_params);
-
-        if (config.use_supertrend_filter)
-            indicator_manager->registerSuperTrend(supertrend_filter_params);
 
         if (base_config.tp_method == TakeProfitMethod::SuperTrend)
             indicator_manager->registerSuperTrend(supertrend_tp_params);
@@ -287,55 +379,27 @@ public:
           supertrend_filter_params(config.supertrend_atr_period, config.supertrend_multiplier),
           supertrend_tp_params(base_cfg.tp_supertrend_atr_period, base_cfg.tp_supertrend_multiplier) {
 
-
         if (!config.go_direction.has_value()) {
             logger->log_general("La direction (go_direction) n'est pas définie dans la configuration.", LogLevel::ERROR);
             throw std::invalid_argument("Direction (go_direction) must be specified in GenericStrategyConfig");
         }
 
-        // a tester
-        GenericFilter filterEMA(
-            ValueSource::Price(PriceType::CLOSE), 
-            ComparisonOperator::GREATER_THAN, 
-            ValueSource::EMA(ema_short_params.period), 
-            TemporalLogic::CURRENT, 
-            1
-        );
-
-        GenericFilter filterStoch(
-            ValueSource::StochasticK(stoch_params.fastK, stoch_params.slowK, stoch_params.slowD), 
-            ComparisonOperator::LESS_THAN, 
-            ValueSource::Constant(static_cast<double>(config.stoch_threshold)), 
-            TemporalLogic::ANY_OF, 
-            config.stoch_history_periods
-        );
-
-        GenericFilter filterHAGreen(
-            ValueSource::CandleProperty(CandlePropertyType::HEIKIN_ASHI_IS_GREEN),
-            ComparisonOperator::EQUAL,
-            ValueSource::Constant(1.0), // 1.0 pour vrai
-            TemporalLogic::CURRENT
-        );
-
-        GenericFilter filterPrevHARed(
-            ValueSource::CandleProperty(CandlePropertyType::HEIKIN_ASHI_IS_RED, 1),
-            ComparisonOperator::EQUAL,
-            ValueSource::Constant(1.0), // 1.0 pour vrai
-            TemporalLogic::ALL_OF,
-            config.previous_ha_candle_red_filter_n
-        );
-
-        filters.push_back(filterHAGreen);
-        filters.push_back(filterPrevHARed);
-        filters.push_back(filterEMA);
-        filters.push_back(filterStoch);
+        // PROBLEME : Vous utilisez des filtres hardcodés au lieu des filtres de la configuration !
+        // Supprimons le code hardcodé et utilisons config.filters
+        
+        // Utiliser les filtres de la configuration au lieu de les créer
+        filters = config.filters;
+        
+        // Debug : afficher la configuration reçue
+        std::cout << "Configuration reçue dans GenericStrategy:\n" << config << std::endl;
+        
+        // Debug : afficher les filtres locaux
+        std::cout << "Filtres locaux dans GenericStrategy (" << filters.size() << " filtres):\n";
+        for (size_t i = 0; i < filters.size(); ++i) {
+            std::cout << "  " << (i + 1) << ": " << filters[i].description << "\n";
+        }
 
         filterEvaluator = std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get());
-
-        // Initialize vectors with appropriate sizes
-        // stoch_kd_values.resize(config.stoch_history_periods, {0.0, 0.0});
-        // rsi_values.resize(config.rsi_history_periods, 0.0);
-        // atr_values.resize(config.atr_history_periods, 0.0);
 
         registerFilters();
         registerIndicators();
