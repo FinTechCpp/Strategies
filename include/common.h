@@ -306,7 +306,7 @@ struct ValueSource {
                 break;
                 
             case ValueCategory::CONSTANT:
-                desc = "Constante " + std::to_string(constantValue);
+                desc = std::to_string(constantValue);
                 break;
                 
             case ValueCategory::INDICATOR:
@@ -348,6 +348,8 @@ struct ValueSource {
             case ValueCategory::CANDLE_PROPERTY:
                 desc = "Bougie ";
                 switch (candlePropertyType) {
+                    case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Verte"; break;
+                    case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Rouge"; break;
                     case CandlePropertyType::IS_GREEN: desc += "Est Verte"; break;
                     case CandlePropertyType::IS_RED: desc += "Est Rouge"; break;
                     case CandlePropertyType::BODY_SIZE: desc += "Taille Corps"; break;
@@ -630,8 +632,8 @@ struct StrategyConfig {
     TradeDirection tradeDirection = TradeDirection::NOTSET;
 
     // Logging
-    LogLevel logLevel = LogLevel::DEBUG;
     bool enable_logging = true; // Enable or disable logging
+    LogLevel logLevel = LogLevel::DEBUG;
 
     // Filters
     std::vector<GenericFilter> filters;
