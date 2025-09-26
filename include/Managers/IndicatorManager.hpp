@@ -170,12 +170,12 @@ private:
     };
     
     // Maps pour stocker les handlers par type de paramètres
-    std::map<EMAParams, std::unique_ptr<IIndicatorHandler>> m_emaHandlers;
-    std::map<RSIParams, std::unique_ptr<IIndicatorHandler>> m_rsiHandlers;
-    std::map<StochasticParams, std::unique_ptr<IIndicatorHandler>> m_stochHandlers;
-    std::map<ATRParams, std::unique_ptr<IIndicatorHandler>> m_atrHandlers;
-    std::map<SuperTrendParams, std::unique_ptr<IIndicatorHandler>> m_supertrendHandlers;
-    
+    std::map<filter::EMAParams, std::unique_ptr<IIndicatorHandler>> m_emaHandlers;
+    std::map<filter::RSIParams, std::unique_ptr<IIndicatorHandler>> m_rsiHandlers;
+    std::map<filter::StochasticParams, std::unique_ptr<IIndicatorHandler>> m_stochHandlers;
+    std::map<filter::ATRParams, std::unique_ptr<IIndicatorHandler>> m_atrHandlers;
+    std::map<filter::SuperTrendParams, std::unique_ptr<IIndicatorHandler>> m_supertrendHandlers;
+
     // Liste de tous les handlers pour les opérations en masse
     std::vector<IIndicatorHandler*> m_allHandlers;
     
@@ -197,7 +197,7 @@ private:
     
 public:
     // Méthodes d'enregistrement par type d'indicateur
-    void registerEMA(const EMAParams& params) {
+    void registerEMA(const filter::EMAParams& params) {
         if (m_emaHandlers.find(params) != m_emaHandlers.end()) {
             return; // Déjà enregistré
         }
@@ -207,7 +207,7 @@ public:
         m_emaHandlers[params] = std::move(handler);
     }
     
-    void registerRSI(const RSIParams& params) {
+    void registerRSI(const filter::RSIParams& params) {
         if (m_rsiHandlers.find(params) != m_rsiHandlers.end()) {
             return; // Déjà enregistré
         }
@@ -217,7 +217,7 @@ public:
         m_rsiHandlers[params] = std::move(handler);
     }
     
-    void registerStochastic(const StochasticParams& params) {
+    void registerStochastic(const filter::StochasticParams& params) {
         if (m_stochHandlers.find(params) != m_stochHandlers.end()) {
             return; // Déjà enregistré
         }
@@ -228,7 +228,7 @@ public:
         m_stochHandlers[params] = std::move(handler);
     }
     
-    void registerATR(const ATRParams& params) {
+    void registerATR(const filter::ATRParams& params) {
         if (m_atrHandlers.find(params) != m_atrHandlers.end()) {
             return; // Déjà enregistré
         }
@@ -238,7 +238,7 @@ public:
         m_atrHandlers[params] = std::move(handler);
     }
     
-    void registerSuperTrend(const SuperTrendParams& params) {
+    void registerSuperTrend(const filter::SuperTrendParams& params) {
         if (m_supertrendHandlers.find(params) != m_supertrendHandlers.end()) {
             return; // Déjà enregistré
         }
@@ -250,7 +250,7 @@ public:
     }
     
     // Méthodes d'accès aux valeurs
-    double getEMAValue(const EMAParams& params, int offset = 0) const {
+    double getEMAValue(const filter::EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
         if (it != m_emaHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -260,7 +260,7 @@ public:
         return 0.0;
     }
     
-    double getRSIValue(const RSIParams& params, int offset = 0) const {
+    double getRSIValue(const filter::RSIParams& params, int offset = 0) const {
         auto it = m_rsiHandlers.find(params);
         if (it != m_rsiHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -270,7 +270,7 @@ public:
         return 0.0;
     }
     
-    std::pair<double, double> getStochasticValue(const StochasticParams& params, int offset = 0) const {
+    std::pair<double, double> getStochasticValue(const filter::StochasticParams& params, int offset = 0) const {
         auto it = m_stochHandlers.find(params);
         if (it != m_stochHandlers.end()) {
             auto value = offset == 0 ? 
@@ -284,7 +284,7 @@ public:
         return {0.0, 0.0};
     }
     
-    double getATRValue(const ATRParams& params, int offset = 0) const {
+    double getATRValue(const filter::ATRParams& params, int offset = 0) const {
         auto it = m_atrHandlers.find(params);
         if (it != m_atrHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -294,7 +294,7 @@ public:
         return 0.0;
     }
     
-    std::pair<double, int> getSuperTrendValue(const SuperTrendParams& params, int offset = 0) const {
+    std::pair<double, int> getSuperTrendValue(const filter::SuperTrendParams& params, int offset = 0) const {
         auto it = m_supertrendHandlers.find(params);
         if (it != m_supertrendHandlers.end()) {
             auto value = offset == 0 ? 
@@ -309,7 +309,7 @@ public:
     }
     
     // Méthodes d'accès direct aux indicateurs pour compatibilité
-    std::shared_ptr<EMA> getEMACalculator(const EMAParams& params) {
+    std::shared_ptr<EMA> getEMACalculator(const filter::EMAParams& params) {
         auto it = m_emaHandlers.find(params);
         if (it != m_emaHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<EMA, double>*>(it->second.get());
@@ -320,7 +320,7 @@ public:
         return nullptr;
     }
     
-    std::shared_ptr<RSI> getRSICalculator(const RSIParams& params) {
+    std::shared_ptr<RSI> getRSICalculator(const filter::RSIParams& params) {
         auto it = m_rsiHandlers.find(params);
         if (it != m_rsiHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<RSI, double>*>(it->second.get());
@@ -331,7 +331,7 @@ public:
         return nullptr;
     }
     
-    std::shared_ptr<STOCH> getStochasticCalculator(const StochasticParams& params) {
+    std::shared_ptr<STOCH> getStochasticCalculator(const filter::StochasticParams& params) {
         auto it = m_stochHandlers.find(params);
         if (it != m_stochHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<STOCH, std::pair<double, double>>*>(it->second.get());
@@ -342,7 +342,7 @@ public:
         return nullptr;
     }
     
-    std::shared_ptr<ATR> getATRCalculator(const ATRParams& params) {
+    std::shared_ptr<ATR> getATRCalculator(const filter::ATRParams& params) {
         auto it = m_atrHandlers.find(params);
         if (it != m_atrHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<ATR, double>*>(it->second.get());
@@ -353,7 +353,7 @@ public:
         return nullptr;
     }
     
-    std::shared_ptr<SUPERTREND> getSuperTrendCalculator(const SuperTrendParams& params) {
+    std::shared_ptr<SUPERTREND> getSuperTrendCalculator(const filter::SuperTrendParams& params) {
         auto it = m_supertrendHandlers.find(params);
         if (it != m_supertrendHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<SUPERTREND, std::pair<double, int>>*>(it->second.get());

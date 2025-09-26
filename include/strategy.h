@@ -25,7 +25,7 @@ DateTime parse_iso_datetime(const std::string& iso_date);
 int get_day_of_week(const DateTime& date);
 
 struct Signal {
-    std::string action = ""; // "BUY", "SELL", "LIQUIDATE", "MOVE_SL"
+    SignalType type;
     double quantity = 0.0;
     double price = 0.0;
     double take_profit = 0.0;
@@ -51,7 +51,7 @@ protected:
     std::unique_ptr<CandleManager> candle_manager;
     std::unique_ptr<IndicatorManager> indicator_manager;
     std::unique_ptr<ILogger> logger;
-    std::vector<GenericFilter> filters;
+    std::vector<filter::GenericFilter> filters;
 
 
     // Signal components

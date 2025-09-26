@@ -8,486 +8,436 @@
 #include <optional>
 
 
-// TODO : peut etre mettre dans un namespace ce qui concerne les filtres generiques
-// Types de valeurs disponibles pour la comparaison
-enum class ValueCategory {
-    PRICE,              // Prix de la bougie
-    INDICATOR,          // Indicateur technique
-    CONSTANT,           // Valeur constante
-    CANDLE_PROPERTY     // Propriété spécifique de bougie
-};
-
-// Types de prix disponibles
-enum class PriceType {
-    CLOSE,
-    OPEN,
-    HIGH,
-    LOW,
-    TYPICAL,    // (High + Low + Close) / 3
-    MEDIAN      // (High + Low) / 2
-};
-
-// Types d'indicateurs disponibles
-enum class IndicatorType {
-    EMA,
-    RSI,
-    STOCHASTIC_K,
-    STOCHASTIC_D,
-    ATR,
-    SUPERTREND_VALUE,
-    SUPERTREND_DIRECTION,
-    PIVOT_POINT
-};
-
-// Propriétés de bougies
-enum class CandlePropertyType {
-    HEIKIN_ASHI_IS_GREEN,
-    HEIKIN_ASHI_IS_RED,
-    IS_GREEN,
-    IS_RED,
-    BODY_SIZE,
-    UPPER_SHADOW_SIZE,
-    LOWER_SHADOW_SIZE,
-    RANGE            // High - Low
-};
-
-// Types d'opérateurs de comparaison
-enum class ComparisonOperator {
-    GREATER_THAN,          // >
-    LESS_THAN,             // <
-    GREATER_OR_EQUAL,      // >=
-    LESS_OR_EQUAL,         // <=
-    EQUAL,                 // ==
-    NOT_EQUAL,             // !=
-    CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
-    CROSSES_BELOW          // Croisement à la baisse (période actuelle vs précédente)
-};
-
-// Type de logique temporelle
-enum class TemporalLogic {
-    CURRENT,          // Période courante uniquement
-    ANY_OF,           // Au moins une période (OR)
-    ALL_OF,           // Toutes les périodes (AND)
-};
-
-
-// TODO : il faut peut etre ajouter une relation d'ordre pour pouvoir les mettre dans une map
-// Paramètres pour EMA
-struct EMAParams {
-    int period;
-
-    explicit EMAParams(int p) : period(p) {}
-    
-    bool operator==(const EMAParams& other) const {
-        return period == other.period;
-    }
-
-    bool operator<(const EMAParams& other) const {
-        return period < other.period;
-    }
-};
-
-// Paramètres pour RSI
-struct RSIParams {
-    int period;
-
-    explicit RSIParams(int p) : period(p) {}
-
-    bool operator==(const RSIParams& other) const {
-        return period == other.period;
-    }
-
-    bool operator<(const RSIParams& other) const {
-        return period < other.period;
-    }
-};
-
-// Paramètres pour Stochastique
-struct StochasticParams {
-    int fastK;
-    int slowK;
-    int slowD;
-
-    explicit StochasticParams(int fK, int sK, int sD) : fastK(fK), slowK(sK), slowD(sD) {}
-
-    bool operator==(const StochasticParams& other) const {
-        return fastK == other.fastK && 
-               slowK == other.slowK && 
-               slowD == other.slowD;
-    }
-
-    bool operator<(const StochasticParams& other) const {
-        if (fastK != other.fastK) return fastK < other.fastK;
-        if (slowK != other.slowK) return slowK < other.slowK;
-        return slowD < other.slowD;
-    }
-};
-
-// Paramètres pour ATR
-struct ATRParams {
-    int period;
-    bool useLog = false;
-
-    explicit ATRParams(int p, bool log = false) : period(p), useLog(log) {}
-
-    bool operator==(const ATRParams& other) const {
-        return period == other.period && useLog == other.useLog;
-    }
-
-    bool operator<(const ATRParams& other) const {
-        if (period != other.period) return period < other.period;
-        return useLog < other.useLog;
-    }
-};
-
-// Paramètres pour SuperTrend
-struct SuperTrendParams {
-    int atrPeriod;
-    double multiplier;
-
-    explicit SuperTrendParams(int p, double m) : atrPeriod(p), multiplier(m) {}
-    
-    bool operator==(const SuperTrendParams& other) const {
-        return atrPeriod == other.atrPeriod && 
-               std::abs(multiplier - other.multiplier) < 0.0001;
-    }
-
-    bool operator<(const SuperTrendParams& other) const {
-        if (atrPeriod != other.atrPeriod) return atrPeriod < other.atrPeriod;
-        return multiplier < other.multiplier;
-    }
-};
-
-// Structure unifiée pour une source de valeur
-struct ValueSource {
-    ValueCategory category;
-
-    // Sous-types spécifiques à la catégorie
-    union {
-        PriceType priceType;
-        IndicatorType indicatorType;
-        CandlePropertyType candlePropertyType;
+namespace filter {
+    // Types de valeurs disponibles pour la comparaison
+    enum class ValueCategory {
+        PRICE,              // Prix de la bougie
+        INDICATOR,          // Indicateur technique
+        CONSTANT,           // Valeur constante
+        CANDLE_PROPERTY     // Propriété spécifique de bougie
     };
 
-    // Paramètres spécifiques aux indicateurs
-    union {
-        EMAParams emaParams;
-        RSIParams rsiParams;
-        StochasticParams stochParams;
-        ATRParams atrParams;
-        SuperTrendParams supertrendParams;
+    // Types de prix disponibles
+    enum class PriceType {
+        CLOSE,
+        OPEN,
+        HIGH,
+        LOW,
+        TYPICAL,    // (High + Low + Close) / 3
+        MEDIAN      // (High + Low) / 2
     };
 
-    // Valeur constante si la catégorie est CONSTANT
-    double constantValue = 0.0;
+    // Types d'indicateurs disponibles
+    enum class IndicatorType {
+        EMA,
+        RSI,
+        STOCHASTIC_K,
+        STOCHASTIC_D,
+        ATR,
+        SUPERTREND_VALUE,
+        SUPERTREND_DIRECTION,
+        PIVOT_POINT
+    };
 
-    // Décalage pour les valeurs historiques
-    int historicalOffset = 0;
+    // Propriétés de bougies
+    enum class CandlePropertyType {
+        HEIKIN_ASHI_IS_GREEN,
+        HEIKIN_ASHI_IS_RED,
+        IS_GREEN,
+        IS_RED,
+        BODY_SIZE,
+        UPPER_SHADOW_SIZE,
+        LOWER_SHADOW_SIZE,
+        RANGE            // High - Low
+    };
 
-    // Explicit default constructor to initialize unions safely
-    ValueSource()
-        : category(ValueCategory::PRICE),
-          priceType(PriceType::CLOSE),
-          emaParams(0),
-          constantValue(0.0),
-          historicalOffset(0)
-    {}
+    // Types d'opérateurs de comparaison
+    enum class ComparisonOperator {
+        GREATER_THAN,          // >
+        LESS_THAN,             // <
+        GREATER_OR_EQUAL,      // >=
+        LESS_OR_EQUAL,         // <=
+        EQUAL,                 // ==
+        NOT_EQUAL,             // !=
+        CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
+        CROSSES_BELOW          // Croisement à la baisse (période actuelle vs précédente)
+    };
 
-    // Constructeurs spécifiques pour chaque catégorie
-    // TODO remplacer les constructeur avec les structure de params
-    
-    // Pour le prix
-    static ValueSource Price(PriceType type, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::PRICE;
-        source.priceType = type;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour une constante
-    static ValueSource Constant(double value) {
-        ValueSource source;
-        source.category = ValueCategory::CONSTANT;
-        source.constantValue = value;
-        return source;
-    }
-    
-    // Pour EMA
-    static ValueSource EMA(int period, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::EMA;
-        source.emaParams.period = period;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour RSI
-    static ValueSource RSI(int period, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::RSI;
-        source.rsiParams.period = period;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour Stochastique K
-    static ValueSource StochasticK(int fastK, int slowK, int slowD, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::STOCHASTIC_K;
-        source.stochParams.fastK = fastK;
-        source.stochParams.slowK = slowK;
-        source.stochParams.slowD = slowD;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour Stochastique D
-    static ValueSource StochasticD(int fastK, int slowK, int slowD, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::STOCHASTIC_D;
-        source.stochParams.fastK = fastK;
-        source.stochParams.slowK = slowK;
-        source.stochParams.slowD = slowD;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour ATR
-    static ValueSource ATR(int period, bool useLog = true, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::ATR;
-        source.atrParams.period = period;
-        source.atrParams.useLog = useLog;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour SuperTrend (valeur)
-    static ValueSource SuperTrend(int atrPeriod, double multiplier, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::INDICATOR;
-        source.indicatorType = IndicatorType::SUPERTREND_VALUE;
-        source.supertrendParams.atrPeriod = atrPeriod;
-        source.supertrendParams.multiplier = multiplier;
-        source.historicalOffset = offset;
-        return source;
-    }
-    
-    // Pour propriétés de bougie
-    static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
-        ValueSource source;
-        source.category = ValueCategory::CANDLE_PROPERTY;
-        source.candlePropertyType = type;
-        source.historicalOffset = offset;
-        return source;
-    }
+    // Type de logique temporelle
+    enum class TemporalLogic {
+        CURRENT,          // Période courante uniquement
+        ANY_OF,           // Au moins une période (OR)
+        ALL_OF,           // Toutes les périodes (AND)
+    };
 
-    // Méthode pour obtenir une description humaine lisible de la source
-    std::string getDescription() const {
-        std::string desc;
+
+    // TODO : il faut peut etre ajouter une relation d'ordre pour pouvoir les mettre dans une map
+    // Paramètres pour EMA
+    struct EMAParams {
+        int period;
+
+        explicit EMAParams(int p) : period(p) {}
         
-        switch (category) {
-            case ValueCategory::PRICE:
-                desc = "Prix ";
-                switch (priceType) {
-                    case PriceType::CLOSE: desc += "Clôture"; break;
-                    case PriceType::OPEN: desc += "Ouverture"; break;
-                    case PriceType::HIGH: desc += "Haut"; break;
-                    case PriceType::LOW: desc += "Bas"; break;
-                    case PriceType::TYPICAL: desc += "Typique"; break;
-                    case PriceType::MEDIAN: desc += "Médian"; break;
-                }
-                break;
-                
-            case ValueCategory::CONSTANT:
-                desc = std::to_string(constantValue);
-                break;
-                
-            case ValueCategory::INDICATOR:
-                switch (indicatorType) {
-                    case IndicatorType::EMA: 
-                        desc = "EMA(" + std::to_string(emaParams.period) + ")"; 
-                        break;
-                    case IndicatorType::RSI: 
-                        desc = "RSI(" + std::to_string(rsiParams.period) + ")"; 
-                        break;
-                    case IndicatorType::STOCHASTIC_K: 
-                        desc = "Stochastique K(" + std::to_string(stochParams.fastK) + "," + 
-                               std::to_string(stochParams.slowK) + "," + 
-                               std::to_string(stochParams.slowD) + ")";
-                        break;
-                    case IndicatorType::STOCHASTIC_D: 
-                        desc = "Stochastique D(" + std::to_string(stochParams.fastK) + "," + 
-                               std::to_string(stochParams.slowK) + "," + 
-                               std::to_string(stochParams.slowD) + ")";
-                        break;
-                    case IndicatorType::ATR: 
-                        desc = std::string(atrParams.useLog ? "ATRLOG(" : "ATR(") + 
-                               std::to_string(atrParams.period) + ")";
-                        break;
-                    case IndicatorType::SUPERTREND_VALUE:
-                        desc = "SuperTrend(" + std::to_string(supertrendParams.atrPeriod) + "," +
-                               std::to_string(supertrendParams.multiplier) + ")";
-                        break;
-                    case IndicatorType::SUPERTREND_DIRECTION:
-                        desc = "SuperTrend Direction(" + std::to_string(supertrendParams.atrPeriod) + "," +
-                               std::to_string(supertrendParams.multiplier) + ")";
-                        break;
-                    case IndicatorType::PIVOT_POINT:
-                        desc = "Pivot Point";
-                        break;
-                }
-                break;
-                
-            case ValueCategory::CANDLE_PROPERTY:
-                desc = "Bougie ";
-                switch (candlePropertyType) {
-                    case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Verte"; break;
-                    case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Rouge"; break;
-                    case CandlePropertyType::IS_GREEN: desc += "Est Verte"; break;
-                    case CandlePropertyType::IS_RED: desc += "Est Rouge"; break;
-                    case CandlePropertyType::BODY_SIZE: desc += "Taille Corps"; break;
-                    case CandlePropertyType::UPPER_SHADOW_SIZE: desc += "Ombre Haute"; break;
-                    case CandlePropertyType::LOWER_SHADOW_SIZE: desc += "Ombre Basse"; break;
-                    case CandlePropertyType::RANGE: desc += "Étendue"; break;
-                }
-                break;
+        bool operator==(const EMAParams& other) const {
+            return period == other.period;
+        }
+
+        bool operator<(const EMAParams& other) const {
+            return period < other.period;
+        }
+    };
+
+    // Paramètres pour RSI
+    struct RSIParams {
+        int period;
+
+        explicit RSIParams(int p) : period(p) {}
+
+        bool operator==(const RSIParams& other) const {
+            return period == other.period;
+        }
+
+        bool operator<(const RSIParams& other) const {
+            return period < other.period;
+        }
+    };
+
+    // Paramètres pour Stochastique
+    struct StochasticParams {
+        int fastK;
+        int slowK;
+        int slowD;
+
+        explicit StochasticParams(int fK, int sK, int sD) : fastK(fK), slowK(sK), slowD(sD) {}
+
+        bool operator==(const StochasticParams& other) const {
+            return fastK == other.fastK && 
+                slowK == other.slowK && 
+                slowD == other.slowD;
+        }
+
+        bool operator<(const StochasticParams& other) const {
+            if (fastK != other.fastK) return fastK < other.fastK;
+            if (slowK != other.slowK) return slowK < other.slowK;
+            return slowD < other.slowD;
+        }
+    };
+
+    // Paramètres pour ATR
+    struct ATRParams {
+        int period;
+        bool useLog = false;
+
+        explicit ATRParams(int p, bool log = false) : period(p), useLog(log) {}
+
+        bool operator==(const ATRParams& other) const {
+            return period == other.period && useLog == other.useLog;
+        }
+
+        bool operator<(const ATRParams& other) const {
+            if (period != other.period) return period < other.period;
+            return useLog < other.useLog;
+        }
+    };
+
+    // Paramètres pour SuperTrend
+    struct SuperTrendParams {
+        int atrPeriod;
+        double multiplier;
+
+        explicit SuperTrendParams(int p, double m) : atrPeriod(p), multiplier(m) {}
+        
+        bool operator==(const SuperTrendParams& other) const {
+            return atrPeriod == other.atrPeriod && 
+                std::abs(multiplier - other.multiplier) < 0.0001;
+        }
+
+        bool operator<(const SuperTrendParams& other) const {
+            if (atrPeriod != other.atrPeriod) return atrPeriod < other.atrPeriod;
+            return multiplier < other.multiplier;
+        }
+    };
+
+    // Structure unifiée pour une source de valeur
+    struct ValueSource {
+        ValueCategory category;
+
+        // Sous-types spécifiques à la catégorie
+        union {
+            PriceType priceType;
+            IndicatorType indicatorType;
+            CandlePropertyType candlePropertyType;
+        };
+
+        // Paramètres spécifiques aux indicateurs
+        union {
+            EMAParams emaParams;
+            RSIParams rsiParams;
+            StochasticParams stochParams;
+            ATRParams atrParams;
+            SuperTrendParams supertrendParams;
+        };
+
+        // Valeur constante si la catégorie est CONSTANT
+        double constantValue = 0.0;
+
+        // Décalage pour les valeurs historiques
+        int historicalOffset = 0;
+
+        // Explicit default constructor to initialize unions safely
+        ValueSource()
+            : category(ValueCategory::PRICE),
+            priceType(PriceType::CLOSE),
+            emaParams(0),
+            constantValue(0.0),
+            historicalOffset(0)
+        {}
+
+        // Constructeurs spécifiques pour chaque catégorie
+        // TODO remplacer les constructeur avec les structure de params
+        
+        // Pour le prix
+        static ValueSource Price(PriceType type, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::PRICE;
+            source.priceType = type;
+            source.historicalOffset = offset;
+            return source;
         }
         
-        if (historicalOffset > 0) {
-            desc += " [T-" + std::to_string(historicalOffset) + "]";
+        // Pour une constante
+        static ValueSource Constant(double value) {
+            ValueSource source;
+            source.category = ValueCategory::CONSTANT;
+            source.constantValue = value;
+            return source;
         }
         
-        return desc;
-    }
+        // Pour EMA
+        static ValueSource EMA(int period, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::EMA;
+            source.emaParams.period = period;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour RSI
+        static ValueSource RSI(int period, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::RSI;
+            source.rsiParams.period = period;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour Stochastique K
+        static ValueSource StochasticK(int fastK, int slowK, int slowD, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::STOCHASTIC_K;
+            source.stochParams.fastK = fastK;
+            source.stochParams.slowK = slowK;
+            source.stochParams.slowD = slowD;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour Stochastique D
+        static ValueSource StochasticD(int fastK, int slowK, int slowD, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::STOCHASTIC_D;
+            source.stochParams.fastK = fastK;
+            source.stochParams.slowK = slowK;
+            source.stochParams.slowD = slowD;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour ATR
+        static ValueSource ATR(int period, bool useLog = true, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::ATR;
+            source.atrParams.period = period;
+            source.atrParams.useLog = useLog;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour SuperTrend (valeur)
+        static ValueSource SuperTrend(int atrPeriod, double multiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::SUPERTREND_VALUE;
+            source.supertrendParams.atrPeriod = atrPeriod;
+            source.supertrendParams.multiplier = multiplier;
+            source.historicalOffset = offset;
+            return source;
+        }
+        
+        // Pour propriétés de bougie
+        static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::CANDLE_PROPERTY;
+            source.candlePropertyType = type;
+            source.historicalOffset = offset;
+            return source;
+        }
 
-    // Compatibilité avec les méthodes de sérialisation
-    // template<class Archive>
-    // void serialize(Archive & ar) {
-    //     ar(CEREAL_NVP(category));
+        // Méthode pour obtenir une description humaine lisible de la source
+        std::string getDescription() const {
+            std::string desc;
+            
+            switch (category) {
+                case ValueCategory::PRICE:
+                    desc = "Prix ";
+                    switch (priceType) {
+                        case PriceType::CLOSE: desc += "Clôture"; break;
+                        case PriceType::OPEN: desc += "Ouverture"; break;
+                        case PriceType::HIGH: desc += "Haut"; break;
+                        case PriceType::LOW: desc += "Bas"; break;
+                        case PriceType::TYPICAL: desc += "Typique"; break;
+                        case PriceType::MEDIAN: desc += "Médian"; break;
+                    }
+                    break;
+                    
+                case ValueCategory::CONSTANT:
+                    desc = std::to_string(constantValue);
+                    break;
+                    
+                case ValueCategory::INDICATOR:
+                    switch (indicatorType) {
+                        case IndicatorType::EMA: 
+                            desc = "EMA(" + std::to_string(emaParams.period) + ")"; 
+                            break;
+                        case IndicatorType::RSI: 
+                            desc = "RSI(" + std::to_string(rsiParams.period) + ")"; 
+                            break;
+                        case IndicatorType::STOCHASTIC_K: 
+                            desc = "Stochastique K(" + std::to_string(stochParams.fastK) + "," + 
+                                std::to_string(stochParams.slowK) + "," + 
+                                std::to_string(stochParams.slowD) + ")";
+                            break;
+                        case IndicatorType::STOCHASTIC_D: 
+                            desc = "Stochastique D(" + std::to_string(stochParams.fastK) + "," + 
+                                std::to_string(stochParams.slowK) + "," + 
+                                std::to_string(stochParams.slowD) + ")";
+                            break;
+                        case IndicatorType::ATR: 
+                            desc = std::string(atrParams.useLog ? "ATRLOG(" : "ATR(") + 
+                                std::to_string(atrParams.period) + ")";
+                            break;
+                        case IndicatorType::SUPERTREND_VALUE:
+                            desc = "SuperTrend(" + std::to_string(supertrendParams.atrPeriod) + "," +
+                                std::to_string(supertrendParams.multiplier) + ")";
+                            break;
+                        case IndicatorType::SUPERTREND_DIRECTION:
+                            desc = "SuperTrend Direction(" + std::to_string(supertrendParams.atrPeriod) + "," +
+                                std::to_string(supertrendParams.multiplier) + ")";
+                            break;
+                        case IndicatorType::PIVOT_POINT:
+                            desc = "Pivot Point";
+                            break;
+                    }
+                    break;
+                    
+                case ValueCategory::CANDLE_PROPERTY:
+                    desc = "Bougie ";
+                    switch (candlePropertyType) {
+                        case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Verte"; break;
+                        case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Rouge"; break;
+                        case CandlePropertyType::IS_GREEN: desc += "Est Verte"; break;
+                        case CandlePropertyType::IS_RED: desc += "Est Rouge"; break;
+                        case CandlePropertyType::BODY_SIZE: desc += "Taille Corps"; break;
+                        case CandlePropertyType::UPPER_SHADOW_SIZE: desc += "Ombre Haute"; break;
+                        case CandlePropertyType::LOWER_SHADOW_SIZE: desc += "Ombre Basse"; break;
+                        case CandlePropertyType::RANGE: desc += "Étendue"; break;
+                    }
+                    break;
+            }
+            
+            if (historicalOffset > 0) {
+                desc += " [T-" + std::to_string(historicalOffset) + "]";
+            }
+            
+            return desc;
+        }
+    };
+
+    // Structure pour un filtre complet
+    struct GenericFilter {
+        ValueSource leftValue;
+        ValueSource rightValue;
+        ComparisonOperator op;
+        TemporalLogic temporalLogic = TemporalLogic::CURRENT;
+        int lookbackPeriods = 1;
+        bool enabled = true;
+        std::string description;
         
-    //     // Sérialiser les sous-types en fonction de la catégorie
-    //     switch (category) {
-    //         case ValueCategory::PRICE:
-    //             ar(CEREAL_NVP(priceType));
-    //             break;
-    //         case ValueCategory::INDICATOR:
-    //             ar(CEREAL_NVP(indicatorType));
-    //             switch (indicatorType) {
-    //                 case IndicatorType::EMA:
-    //                     ar(CEREAL_NVP(emaParams));
-    //                     break;
-    //                 case IndicatorType::RSI:
-    //                     ar(CEREAL_NVP(rsiParams));
-    //                     break;
-    //                 case IndicatorType::STOCHASTIC_K:
-    //                 case IndicatorType::STOCHASTIC_D:
-    //                     ar(CEREAL_NVP(stochParams));
-    //                     break;
-    //                 case IndicatorType::ATR:
-    //                     ar(CEREAL_NVP(atrParams));
-    //                     break;
-    //                 case IndicatorType::SUPERTREND_VALUE:
-    //                 case IndicatorType::SUPERTREND_DIRECTION:
-    //                     ar(CEREAL_NVP(supertrendParams));
-    //                     break;
-    //                 default:
-    //                     break;
-    //             }
-    //             break;
-    //         case ValueCategory::CONSTANT:
-    //             ar(CEREAL_NVP(constantValue));
-    //             break;
-    //         case ValueCategory::CANDLE_PROPERTY:
-    //             ar(CEREAL_NVP(candlePropertyType));
-    //             break;
-    //     }
+        GenericFilter() = default;
         
-    //     ar(CEREAL_NVP(historicalOffset));
-    // }
+        // Constructeur pratique pour les cas courants
+        GenericFilter(ValueSource left, 
+                    ComparisonOperator comp, 
+                    ValueSource right,
+                    TemporalLogic logic = TemporalLogic::CURRENT,
+                    int periods = 1,
+                    const std::string& desc = "") 
+            : leftValue(left), 
+            rightValue(right), 
+            op(comp), 
+            temporalLogic(logic), 
+            lookbackPeriods(periods),
+            description(desc) {
+            
+            // Générer une description automatique si aucune n'est fournie
+            if (description.empty()) {
+                description = autoGenerateDescription();
+            }
+        }
+        
+        // Génère une description lisible du filtre
+        std::string autoGenerateDescription() const {
+            std::string opStr;
+            switch (op) {
+                case ComparisonOperator::GREATER_THAN: opStr = ">"; break;
+                case ComparisonOperator::LESS_THAN: opStr = "<"; break;
+                case ComparisonOperator::GREATER_OR_EQUAL: opStr = ">="; break;
+                case ComparisonOperator::LESS_OR_EQUAL: opStr = "<="; break;
+                case ComparisonOperator::EQUAL: opStr = "="; break;
+                case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
+                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise au-dessus"; break;
+                case ComparisonOperator::CROSSES_BELOW: opStr = "croise en-dessous"; break;
+            }
+            
+            std::string timeLogicStr;
+            switch (temporalLogic) {
+                case TemporalLogic::CURRENT: 
+                    timeLogicStr = ""; 
+                    break;
+                case TemporalLogic::ANY_OF: 
+                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
+                    break;
+                case TemporalLogic::ALL_OF: 
+                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
+                    break;
+            }
+            
+            return leftValue.getDescription() + " " + opStr + " " + rightValue.getDescription() + timeLogicStr;
+        }
+    };
+}
+
+enum class SignalType {
+    BUY,
+    SELL,
+    MOVE_SL,
+    LIQUIDATE
 };
-
-// Structure pour un filtre complet
-struct GenericFilter {
-    ValueSource leftValue;
-    ValueSource rightValue;
-    ComparisonOperator op;
-    TemporalLogic temporalLogic = TemporalLogic::CURRENT;
-    int lookbackPeriods = 1;
-    bool enabled = true;
-    std::string description;
-    
-    GenericFilter() = default;
-    
-    // Constructeur pratique pour les cas courants
-    GenericFilter(ValueSource left, 
-                  ComparisonOperator comp, 
-                  ValueSource right,
-                  TemporalLogic logic = TemporalLogic::CURRENT,
-                  int periods = 1,
-                  const std::string& desc = "") 
-        : leftValue(left), 
-          rightValue(right), 
-          op(comp), 
-          temporalLogic(logic), 
-          lookbackPeriods(periods),
-          description(desc) {
-        
-        // Générer une description automatique si aucune n'est fournie
-        if (description.empty()) {
-            description = autoGenerateDescription();
-        }
-    }
-    
-    // Génère une description lisible du filtre
-    std::string autoGenerateDescription() const {
-        std::string opStr;
-        switch (op) {
-            case ComparisonOperator::GREATER_THAN: opStr = ">"; break;
-            case ComparisonOperator::LESS_THAN: opStr = "<"; break;
-            case ComparisonOperator::GREATER_OR_EQUAL: opStr = ">="; break;
-            case ComparisonOperator::LESS_OR_EQUAL: opStr = "<="; break;
-            case ComparisonOperator::EQUAL: opStr = "="; break;
-            case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
-            case ComparisonOperator::CROSSES_ABOVE: opStr = "croise au-dessus"; break;
-            case ComparisonOperator::CROSSES_BELOW: opStr = "croise en-dessous"; break;
-        }
-        
-        std::string timeLogicStr;
-        switch (temporalLogic) {
-            case TemporalLogic::CURRENT: 
-                timeLogicStr = ""; 
-                break;
-            case TemporalLogic::ANY_OF: 
-                timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
-                break;
-            case TemporalLogic::ALL_OF: 
-                timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
-                break;
-        }
-        
-        return leftValue.getDescription() + " " + opStr + " " + rightValue.getDescription() + timeLogicStr;
-    }
-    
-    // Compatibilité avec les méthodes de sérialisation
-    // template<class Archive>
-    // void serialize(Archive & ar) {
-    //     ar(CEREAL_NVP(leftValue),
-    //        CEREAL_NVP(rightValue),
-    //        CEREAL_NVP(op),
-    //        CEREAL_NVP(temporalLogic),
-    //        CEREAL_NVP(lookbackPeriods),
-    //        CEREAL_NVP(enabled),
-    //        CEREAL_NVP(description));
-    // }
-};
-
 
 
 struct Time {
@@ -636,7 +586,7 @@ struct StrategyConfig {
     LogLevel logLevel = LogLevel::DEBUG;
 
     // Filters
-    std::vector<GenericFilter> filters;
+    std::vector<filter::GenericFilter> filters;
 
     // Time settings
     Time trading_from;

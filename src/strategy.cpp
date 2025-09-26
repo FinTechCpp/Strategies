@@ -44,27 +44,27 @@ int get_day_of_week(const DateTime& date) {
 
 void Strategy::registerFiltersIndicators() {
     // Fonction helper pour enregistrer un indicateur une seule fois
-    auto registerIfNeeded = [this](const ValueSource& source) {
-        if (source.category != ValueCategory::INDICATOR) {
+    auto registerIfNeeded = [this](const filter::ValueSource& source) {
+        if (source.category != filter::ValueCategory::INDICATOR) {
             return;
         }
         
         switch (source.indicatorType) {
-            case IndicatorType::EMA:
+            case filter::IndicatorType::EMA:
                 indicator_manager->registerEMA(source.emaParams);
                 break;
-            case IndicatorType::RSI:
+            case filter::IndicatorType::RSI:
                 indicator_manager->registerRSI(source.rsiParams);
                 break;
-            case IndicatorType::ATR:
+            case filter::IndicatorType::ATR:
                 indicator_manager->registerATR(source.atrParams);
                 break;
-            case IndicatorType::STOCHASTIC_K:
-            case IndicatorType::STOCHASTIC_D:
+            case filter::IndicatorType::STOCHASTIC_K:
+            case filter::IndicatorType::STOCHASTIC_D:
                 indicator_manager->registerStochastic(source.stochParams);
                 break;
-            case IndicatorType::SUPERTREND_VALUE:
-            case IndicatorType::SUPERTREND_DIRECTION:
+            case filter::IndicatorType::SUPERTREND_VALUE:
+            case filter::IndicatorType::SUPERTREND_DIRECTION:
                 indicator_manager->registerSuperTrend(source.supertrendParams);
                 break;
             default:
@@ -86,7 +86,7 @@ void Strategy::go() {
     stop_loss_distance = PositionManager::calculateStopLoss(
         base_config, 
         price(), 
-        indicator_manager->getATRValue(ATRParams(base_config.atr_period, true)), 
+        indicator_manager->getATRValue(filter::ATRParams(base_config.atr_period, true)), 
         base_config.tradeDirection,
         *candle_manager, 
         logger.get()
@@ -96,7 +96,7 @@ void Strategy::go() {
     take_profit_distance = PositionManager::calculateTakeProfit(
         base_config,
         price(),
-        indicator_manager->getATRValue(ATRParams(base_config.atr_period, true)),
+        indicator_manager->getATRValue(filter::ATRParams(base_config.atr_period, true)),
         stop_loss_distance,
         *candle_manager,
         logger.get()
@@ -368,7 +368,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
                           "% du chemin vers TP", LogLevel::INFO);
 
         auto be_signal = std::make_unique<Signal>();
-        be_signal->action = "MOVE_SL";
+        be_signal->type = SignalType::MOVE_SL;
         be_signal->new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);
         be_signal->price = break_even_price;
         return be_signal;
@@ -460,7 +460,7 @@ std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
 
 std::unique_ptr<Signal> Strategy::generate_buy_signal() {
     auto sig = std::make_unique<Signal>();
-    sig->action = "BUY";
+    sig->type = SignalType::BUY;
     sig->quantity = buy_quantity;
     sig->price = buy_price;
     sig->take_profit = take_profit_distance;
@@ -470,7 +470,7 @@ std::unique_ptr<Signal> Strategy::generate_buy_signal() {
 
 std::unique_ptr<Signal> Strategy::generate_sell_signal() {
     auto sig = std::make_unique<Signal>();
-    sig->action = "SELL";
+    sig->type = SignalType::SELL;
     sig->quantity = sell_quantity;
     sig->price = sell_price;
     sig->take_profit = take_profit_distance;
@@ -480,7 +480,7 @@ std::unique_ptr<Signal> Strategy::generate_sell_signal() {
 
 std::unique_ptr<Signal> Strategy::generate_liquidation_signal() {
     auto sig = std::make_unique<Signal>();
-    sig->action = "LIQUIDATE";
+    sig->type = SignalType::LIQUIDATE;
     return sig;
 }
 
@@ -725,11 +725,11 @@ Strategy::Strategy(const StrategyConfig& config)
     registerFiltersIndicators();
 
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR) {
-        indicator_manager->registerATR(ATRParams(base_config.atr_period, true));
+        indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
     }
 
     if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
-        indicator_manager->registerSuperTrend(SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
+        indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
     }
 }
 

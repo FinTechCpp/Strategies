@@ -20,7 +20,7 @@ private:
     bool first_avg_calculated = false;
     
 public:
-    RSI(RSIParams params)
+    RSI(filter::RSIParams params)
     : IncrementalIndicator<double>("RSI_" + std::to_string(params.period), params.period),
     period(params.period) {}
 

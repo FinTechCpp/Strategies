@@ -17,7 +17,7 @@ private:
     std::deque<double> true_range_history;
     
 public:
-    ATR(ATRParams params)
+    ATR(filter::ATRParams params)
         : IncrementalIndicator<double>("ATR" + std::string(params.useLog ? "LOG" : "") + "_" + std::to_string(params.period), params.period * 2), 
         period(params.period), useLog(params.useLog) {}
     virtual double initialize_with_history(const std::vector<BasicCandle>& history) override;
