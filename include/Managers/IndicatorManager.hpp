@@ -250,7 +250,7 @@ public:
     }
     
     // Méthodes d'accès aux valeurs
-    double getEMAValue(const EMAParams& params, int offset = 0) {
+    double getEMAValue(const EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
         if (it != m_emaHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -260,7 +260,7 @@ public:
         return 0.0;
     }
     
-    double getRSIValue(const RSIParams& params, int offset = 0) {
+    double getRSIValue(const RSIParams& params, int offset = 0) const {
         auto it = m_rsiHandlers.find(params);
         if (it != m_rsiHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -270,7 +270,7 @@ public:
         return 0.0;
     }
     
-    std::pair<double, double> getStochasticValue(const StochasticParams& params, int offset = 0) {
+    std::pair<double, double> getStochasticValue(const StochasticParams& params, int offset = 0) const {
         auto it = m_stochHandlers.find(params);
         if (it != m_stochHandlers.end()) {
             auto value = offset == 0 ? 
@@ -284,7 +284,7 @@ public:
         return {0.0, 0.0};
     }
     
-    double getATRValue(const ATRParams& params, int offset = 0) {
+    double getATRValue(const ATRParams& params, int offset = 0) const {
         auto it = m_atrHandlers.find(params);
         if (it != m_atrHandlers.end()) {
             return extractValue(offset == 0 ? 
@@ -294,7 +294,7 @@ public:
         return 0.0;
     }
     
-    std::pair<double, int> getSuperTrendValue(const SuperTrendParams& params, int offset = 0) {
+    std::pair<double, int> getSuperTrendValue(const SuperTrendParams& params, int offset = 0) const {
         auto it = m_supertrendHandlers.find(params);
         if (it != m_supertrendHandlers.end()) {
             auto value = offset == 0 ? 

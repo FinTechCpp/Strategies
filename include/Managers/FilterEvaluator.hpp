@@ -9,27 +9,23 @@
 
 class FilterEvaluator {
 private:
-    CandleManager* m_candleManager;
-    IndicatorManager* m_indicatorManager;
-    ILogger* m_logger;
-
-public:
-    FilterEvaluator(CandleManager* candleManager, IndicatorManager* indicatorManager, ILogger* logger = nullptr)
-        : m_candleManager(candleManager), m_indicatorManager(indicatorManager), m_logger(logger) {}
+    // std::shared_ptr<CandleManager> m_candleManager;
+    // std::shared_ptr<IndicatorManager> m_indicatorManager;
+    // std::shared_ptr<ILogger> m_logger;
 
     // Obtenir la valeur d'une source
-    double getSourceValue(const ValueSource& source, int additionalOffset = 0) {
+    static double getSourceValue(const ValueSource& source, int additionalOffset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
         int offset = source.historicalOffset + additionalOffset;
 
         switch (source.category) {
             case ValueCategory::PRICE: {
                 // Récupérer la bougie correspondante
-                if (m_candleManager->size() <= offset) {
-                    if (m_logger) m_logger->log_general("Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
+                if (candleManager.size() <= offset) {
+                    if (logger) logger->log_general("Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
                     return 0.0;
                 }
 
-                std::vector<BasicCandle> candles = m_candleManager->get_last_candles(offset + 1);
+                std::vector<BasicCandle> candles = candleManager.get_last_candles(offset + 1);
                 BasicCandle candle = candles[0];
 
                 // Extraire la valeur de prix selon le type
@@ -52,44 +48,44 @@ public:
                 // Utiliser directement les objets de paramètres pour accéder aux indicateurs
                 switch (source.indicatorType) {
                     case IndicatorType::EMA:
-                        return m_indicatorManager->getEMAValue(source.emaParams, offset);
+                        return indicatorManager.getEMAValue(source.emaParams, offset);
                         
                     case IndicatorType::RSI:
-                        return m_indicatorManager->getRSIValue(source.rsiParams, offset);
+                        return indicatorManager.getRSIValue(source.rsiParams, offset);
                         
                     case IndicatorType::STOCHASTIC_K:
                         // Pour Stochastic K, on veut la première valeur de la paire
-                        return m_indicatorManager->getStochasticValue(source.stochParams, offset).first;
+                        return indicatorManager.getStochasticValue(source.stochParams, offset).first;
                         
                     case IndicatorType::STOCHASTIC_D:
                         // Pour Stochastic D, on veut la deuxième valeur de la paire
-                        return m_indicatorManager->getStochasticValue(source.stochParams, offset).second;
+                        return indicatorManager.getStochasticValue(source.stochParams, offset).second;
                         
                     case IndicatorType::ATR:
-                        return m_indicatorManager->getATRValue(source.atrParams, offset);
+                        return indicatorManager.getATRValue(source.atrParams, offset);
 
                     case IndicatorType::SUPERTREND_VALUE:
                         // Pour SuperTrend Value, on veut la première valeur de la paire
-                        return m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset).first;
+                        return indicatorManager.getSuperTrendValue(source.supertrendParams, offset).first;
 
                     case IndicatorType::SUPERTREND_DIRECTION:
                         // Pour SuperTrend Direction, on veut la deuxième valeur de la paire
-                        return m_indicatorManager->getSuperTrendValue(source.supertrendParams, offset).second;
+                        return indicatorManager.getSuperTrendValue(source.supertrendParams, offset).second;
 
                     default:
-                        if (m_logger) m_logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
+                        if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;
                 }
             }
             
             case ValueCategory::CANDLE_PROPERTY: {
-                if (m_candleManager->size() <= offset) {
-                    if (m_logger) m_logger->log_general("Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
+                if (candleManager.size() <= offset) {
+                    if (logger) logger->log_general("Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
                     return 0.0;
                 }
-                
-                const BasicCandle& candle = m_candleManager->get_last_candles(offset + 1)[0];
-                const BasicCandle& heikinAshiCandle = m_candleManager->get_last_heikin_ashi_candles(offset + 1)[0];
+
+                const BasicCandle& candle = candleManager.get_last_candles(offset + 1)[0];
+                const BasicCandle& heikinAshiCandle = candleManager.get_last_heikin_ashi_candles(offset + 1)[0];
                 
                 switch (source.candlePropertyType) {
                     case CandlePropertyType::HEIKIN_ASHI_IS_GREEN:
@@ -124,7 +120,7 @@ public:
     }
 
     // Comparer deux valeurs selon l'opérateur spécifié
-    bool compareValues(double left, double right, ComparisonOperator op) {
+    static bool compareValues(double left, double right, ComparisonOperator op) {
         switch (op) {
             case ComparisonOperator::GREATER_THAN:
                 return left > right;
@@ -151,15 +147,19 @@ public:
             // et la condition entre les deux est un ET logique
             case ComparisonOperator::CROSSES_ABOVE: {
                 // Vérifier si left a croisé right vers le haut
-                double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                // double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                // double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                double prevLeft = 0.0;
+                double prevRight = 0.0;
                 return left > right && prevLeft <= prevRight;
             }
                 
             case ComparisonOperator::CROSSES_BELOW: {
                 // Vérifier si left a croisé right vers le bas
-                double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                // double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                // double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
+                double prevLeft = 0.0;
+                double prevRight = 0.0;
                 return left < right && prevLeft >= prevRight;
             }
         }
@@ -167,15 +167,15 @@ public:
     }
 
     // Évaluer une condition de filtre à un offset donné
-    bool evaluateCondition(const GenericFilter& filter, int offset = 0) {
-        double leftValue = getSourceValue(filter.leftValue, offset);
-        double rightValue = getSourceValue(filter.rightValue, offset);
+    static bool evaluateCondition(const GenericFilter& filter, int offset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
+        double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
+        double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
         
         bool result = compareValues(leftValue, rightValue, filter.op);
-        
-        if (m_logger) {
-            m_logger->log_general(
-                "Évaluation filtre [T-" + std::to_string(offset) + "]: " + 
+
+        if (logger) {
+            logger->log_general(
+                "Évaluation filtre [T-" + std::to_string(offset) + "]: " +
                 filter.leftValue.getDescription() + " (" + std::to_string(leftValue) + ") " +
                 getOperatorString(filter.op) + " " +
                 filter.rightValue.getDescription() + " (" + std::to_string(rightValue) + ") = " +
@@ -187,19 +187,18 @@ public:
         return result;
     }
 
-    // C'est private plus haut
-
+public:
     // Évaluer un filtre complet avec sa logique temporelle
-    bool evaluate(const GenericFilter& filter) {
+    static bool evaluate(const GenericFilter& filter, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
         if (!filter.enabled) return true;
         
         switch (filter.temporalLogic) {
             case TemporalLogic::CURRENT:
-                return evaluateCondition(filter, 0);
+                return evaluateCondition(filter, 0, candleManager, indicatorManager, logger);
                 
             case TemporalLogic::ANY_OF: {
                 for (int i = 0; i < filter.lookbackPeriods; ++i) {
-                    if (evaluateCondition(filter, i)) {
+                    if (evaluateCondition(filter, i, candleManager, indicatorManager, logger)) {
                         return true;
                     }
                 }
@@ -208,7 +207,7 @@ public:
                 
             case TemporalLogic::ALL_OF: {
                 for (int i = 0; i < filter.lookbackPeriods; ++i) {
-                    if (!evaluateCondition(filter, i)) {
+                    if (!evaluateCondition(filter, i, candleManager, indicatorManager, logger)) {
                         return false;
                     }
                 }
@@ -219,22 +218,9 @@ public:
         return false;
     }
 
-    // Évaluer tous les filtres
-    bool evaluateAll(const std::vector<GenericFilter>& filters) {
-        for (const auto& filter : filters) {
-            if (!evaluate(filter)) {
-                if (m_logger) {
-                    m_logger->log_general("Filtre échoué: " + filter.description, LogLevel::INFO);
-                }
-                return false;
-            }
-        }
-        return true;
-    }
-
 private:
     // Obtenir une représentation textuelle de l'opérateur
-    std::string getOperatorString(ComparisonOperator op) {
+    static std::string getOperatorString(ComparisonOperator op) {
         switch (op) {
             case ComparisonOperator::GREATER_THAN: return ">";
             case ComparisonOperator::LESS_THAN: return "<";

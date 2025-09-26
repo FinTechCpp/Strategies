@@ -54,7 +54,6 @@ protected:
     // Deprecated il faut utiliser filters
     std::vector<std::function<bool()>> active_filters;
     std::vector<GenericFilter> filters;
-    std::unique_ptr<FilterEvaluator> filterEvaluator;
 
 
     // Signal components

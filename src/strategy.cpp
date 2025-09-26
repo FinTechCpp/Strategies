@@ -531,7 +531,12 @@ bool Strategy::execute_filters() {
     
     // return true;  // All filters passed
 
-    return filterEvaluator->evaluateAll(filters);
+    for (const auto& filter : filters) {
+        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void Strategy::execute() {
@@ -668,8 +673,7 @@ Strategy::Strategy(const StrategyBaseConfig& config)
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
-    candle_manager(std::make_unique<CandleManager>()),
-    filterEvaluator(std::make_unique<FilterEvaluator>(candle_manager.get(), indicator_manager.get(), logger.get()))
+    candle_manager(std::make_unique<CandleManager>())
     // filters(config.filters),
 {
     set_log_level(static_cast<int>(base_config.logLevel));

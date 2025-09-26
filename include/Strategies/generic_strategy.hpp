@@ -231,7 +231,7 @@ public:
 
         // filters.push_back(filterHAGreen);
         // filters.push_back(filterPrevHARed);
-        // filters.push_back(filterEMA);
+        filters.push_back(filterEMA);
         // filters.push_back(filterStoch);
 
         // registerFilters();
