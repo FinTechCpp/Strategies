@@ -617,6 +617,7 @@ enum class TakeProfitMethod {
     NthHeikinAshi = 5
 };
 
+// On pourrait utiliser des union pour separer les paramettre des differents methodes de SL et TP
 struct StrategyBaseConfig {
     LogLevel logLevel = LogLevel::DEBUG;
     bool enable_logging = true; // Enable or disable logging

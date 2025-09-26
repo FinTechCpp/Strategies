@@ -678,6 +678,14 @@ Strategy::Strategy(const StrategyBaseConfig& config)
 {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
+
+    if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR) {
+        indicator_manager->registerATR(ATRParams(base_config.atr_period, true));
+    }
+
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
+        indicator_manager->registerSuperTrend(SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
+    }
 }
 
 // Main update method

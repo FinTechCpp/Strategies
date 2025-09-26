@@ -166,7 +166,7 @@ private:
     /**
      * @brief Register dynamic indicators based on configuration
      */
-    void registerIndicators() {
+    void registerFiltersIndicators() {
         logger->log_general("Enregistrement des indicateurs génériques", LogLevel::INFO);
         
         for (const auto& indicator_config : config.indicators) {
@@ -419,7 +419,7 @@ public:
         logger->log_general("Direction configurée: " + std::string(config.direction ? "LONG" : "SHORT"), LogLevel::INFO);
         
         // Register indicators first (they're needed for filters)
-        registerIndicators();
+        registerFiltersIndicators();
         
         // Then register filters
         registerFilters();
