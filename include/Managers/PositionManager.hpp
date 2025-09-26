@@ -18,16 +18,15 @@ public:
         double current_price,
         double current_atr,
         bool is_long,
-        CandleManager* candle_manager,
-        const BasicCandle& basic_candle,
-        const std::unique_ptr<ILogger>& logger
+        const CandleManager& candle_manager,
+        ILogger* logger
     ) {
         if (config.sl_method == StopLossMethod::ATR && current_atr > 0.0) {
             return calculateStopLossWithATR(config, current_atr, logger);
         } 
-        else if (config.sl_method == StopLossMethod::MinMax && candle_manager->size() >= static_cast<size_t>(config.sl_minmax_periods)) {
+        else if (config.sl_method == StopLossMethod::MinMax && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
             return calculateStopLossWithMinMax(
-                config, current_price, current_atr, candle_manager, basic_candle, is_long, logger);
+                config, current_price, current_atr, candle_manager, is_long, logger);
         } 
         else {
             // Use fixed value for SL
@@ -42,8 +41,8 @@ public:
         double current_price,
         double current_atr,
         double stop_loss_distance,
-        CandleManager* candle_manager,
-        const std::unique_ptr<ILogger>& logger
+        const CandleManager& candle_manager,
+        ILogger* logger
     ) {
         if (config.tp_method == TakeProfitMethod::SuperTrend) {
             // SuperTrend TP: no fixed TP at open, exit based on trend reversal
@@ -70,7 +69,7 @@ public:
         const StrategyBaseConfig& config,
         double current_price,
         double stop_loss_distance,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (config.use_risk_based_sizing)
             return calculateRiskBasedPositionSize(config, current_price, stop_loss_distance, logger);
@@ -84,7 +83,7 @@ private:
     static double calculateStopLossWithATR(
         const StrategyBaseConfig& config,
         double current_atr,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using ATR to calculate SL", LogLevel::INFO);
 
@@ -111,10 +110,9 @@ private:
         const StrategyBaseConfig& config,
         double current_price,
         double current_atr,
-        CandleManager* candle_manager,
-        const BasicCandle& basic_candle,
+        const CandleManager& candle_manager,
         bool is_long,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using Min/Max to calculate SL " + 
             std::string(is_long ? "(LONG)" : "(SHORT)"), LogLevel::INFO);
@@ -133,12 +131,12 @@ private:
                 " * ATR=" + std::to_string(current_atr) + ")", LogLevel::INFO);
         }
         
-        int n_periods = std::min(static_cast<int>(candle_manager->size()), config.sl_minmax_periods);
-        auto recent_candles = candle_manager->get_last_candles(n_periods);
+        int n_periods = std::min(static_cast<int>(candle_manager.size()), config.sl_minmax_periods);
+        auto recent_candles = candle_manager.get_last_candles(n_periods);
         
         if (is_long) {
             // For LONG: find the minimum
-            double min_price = basic_candle.low;
+            double min_price = recent_candles[0].low;
             
             for (const auto& candle : recent_candles) 
                 min_price = std::min(min_price, candle.low);
@@ -167,9 +165,9 @@ private:
         } 
 
         // For SHORT: find the maximum
-        double max_price = basic_candle.high;
-        
-        for (const auto& candle : recent_candles) 
+        double max_price = recent_candles[0].high;
+
+        for (const auto& candle : recent_candles)
             max_price = std::max(max_price, candle.high);
         
         if (logger) logger->log_general("Maximum price found: " + std::to_string(max_price), LogLevel::INFO);
@@ -200,7 +198,7 @@ private:
     static double calculateTakeProfitWithATR(
         const StrategyBaseConfig& config,
         double current_atr,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using ATR to calculate TP", LogLevel::INFO);
 
@@ -226,7 +224,7 @@ private:
     static double calculateTakeProfitWithSLRatio(
         const StrategyBaseConfig& config,
         double stop_loss_distance,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using SL ratio to calculate TP", LogLevel::INFO);
         
@@ -253,8 +251,8 @@ private:
         double current_price,
         double current_atr,
         double stop_loss_distance,
-        CandleManager* candle_manager,
-        const std::unique_ptr<ILogger>& logger
+        const CandleManager& candle_manager,
+        ILogger* logger
     );
 
     // Position size calculation based on risk
@@ -262,7 +260,7 @@ private:
         const StrategyBaseConfig& config,
         double current_price,
         double stop_loss_distance,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         double initial_capital = config.cash;
         double risk_percentage = config.risk_percentage;

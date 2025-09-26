@@ -127,9 +127,8 @@ private:
             price(), 
             atrlog_calculator->get_value(), 
             true,  // is_long = true 
-            candle_manager.get(), 
-            candle_manager->get_latest_candle(), 
-            logger
+            *candle_manager, 
+            logger.get()
         );
 
         // Calculate Take Profit
@@ -138,8 +137,8 @@ private:
             price(),
             atrlog_calculator->get_value(),
             stop_loss_distance,
-            candle_manager.get(),
-            logger
+            *candle_manager,
+            logger.get()
         );
 
         // Calculate position size
@@ -147,7 +146,7 @@ private:
             base_config,
             price(),
             stop_loss_distance,
-            logger
+            logger.get()
         );
         
         buy_price = price();

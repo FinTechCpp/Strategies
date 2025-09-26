@@ -8,8 +8,8 @@ double PositionManager::calculateTakeProfitWithRL(
         double current_price,
         double current_atr,
         double stop_loss_distance,
-        CandleManager* candle_manager,
-        const std::unique_ptr<ILogger>& logger
+        const CandleManager& candle_manager,
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using ML model to calculate TP", LogLevel::INFO);
 
@@ -33,7 +33,7 @@ double PositionManager::calculateTakeProfitWithRL(
         // Add historical price data up to the configured lookback periods
         // The model determines how many candles it actually needs and how to use them
         if (config.rl_lookback_periods > 0) {
-            auto recent_candles = candle_manager->get_last_candles(config.rl_lookback_periods);
+            auto recent_candles = candle_manager.get_last_candles(config.rl_lookback_periods);
             
             // Add available candle data (model can handle variable input length)
             for (const auto& candle : recent_candles) {
@@ -57,7 +57,7 @@ double PositionManager::calculateTakeProfitWithRL(
             logger->log_general("ML Features: Price=" + std::to_string(current_price) + 
                 ", ATR=" + std::to_string(current_atr) + 
                 ", SL=" + std::to_string(stop_loss_distance) + 
-                ", Candles=" + std::to_string(std::min(static_cast<size_t>(config.rl_lookback_periods), candle_manager->size())) +
+                ", Candles=" + std::to_string(std::min(static_cast<size_t>(config.rl_lookback_periods), candle_manager.size())) +
                 ", Total features=" + std::to_string(features.size()), LogLevel::DEBUG);
         }
         

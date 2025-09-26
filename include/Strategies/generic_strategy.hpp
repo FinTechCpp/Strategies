@@ -58,9 +58,8 @@ private:
             price(), 
             indicator_manager->getATRValue(atrlog_params), 
             config.go_direction.value(),  // is_long = true 
-            candle_manager.get(), 
-            candle_manager->get_latest_candle(), 
-            logger
+            *candle_manager, 
+            logger.get()
         );
 
         // Calculate Take Profit
@@ -69,8 +68,8 @@ private:
             price(),
             indicator_manager->getATRValue(atrlog_params),
             stop_loss_distance,
-            candle_manager.get(),
-            logger
+            *candle_manager,
+            logger.get()
         );
 
         // Calculate position size
@@ -78,7 +77,7 @@ private:
             base_config,
             price(),
             stop_loss_distance,
-            logger
+            logger.get()
         );
         
         if (config.go_direction.value()) { // true => LONG

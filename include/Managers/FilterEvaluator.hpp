@@ -9,10 +9,6 @@
 
 class FilterEvaluator {
 private:
-    // std::shared_ptr<CandleManager> m_candleManager;
-    // std::shared_ptr<IndicatorManager> m_indicatorManager;
-    // std::shared_ptr<ILogger> m_logger;
-
     // Obtenir la valeur d'une source
     static double getSourceValue(const ValueSource& source, int additionalOffset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
         int offset = source.historicalOffset + additionalOffset;
