@@ -215,7 +215,8 @@ public:
     
     // Logs d'indicateurs
     void log_indicator_value(const std::string& name, double value, int level = LogLevel::DEBUG) override {
-        std::string msg = "Indicateur " + name + " = " + fast_double_to_string(value);
+        int precision = 8;
+        std::string msg = "Indicateur " + name + " = " + fast_double_to_string(value, precision);
         add_log(LogCategory::INDICATOR, std::move(msg), level);
     }
 

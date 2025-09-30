@@ -4,12 +4,12 @@
 std::unique_ptr<InferenceModel> PositionManager::rl_model = nullptr;
 
 double PositionManager::calculateTakeProfitWithRL(
-        const StrategyBaseConfig& config,
+        const StrategyConfig& config,
         double current_price,
         double current_atr,
         double stop_loss_distance,
         const CandleManager& candle_manager,
-        const std::unique_ptr<ILogger>& logger
+        ILogger* logger
     ) {
         if (logger) logger->log_general("Using ML model to calculate TP", LogLevel::INFO);
 

@@ -4,6 +4,7 @@
 #include "Managers/CandleManager.hpp"
 #include "Managers/PositionManager.hpp"
 #include "Managers/IndicatorManager.hpp"
+#include "Managers/FilterEvaluator.hpp"
 #include "LoggerFactory.h"
 #include <string>
 #include <vector>
@@ -16,7 +17,6 @@
 #include <iostream>
 #include <sstream>
 #include "Indicators/indicators.hpp"
-#include "Indicators/supertrend.hpp"
 
 // Fonction utilitaire pour parser une chaîne de date ISO
 DateTime parse_iso_datetime(const std::string& iso_date);
@@ -25,7 +25,7 @@ DateTime parse_iso_datetime(const std::string& iso_date);
 int get_day_of_week(const DateTime& date);
 
 struct Signal {
-    std::string action = ""; // "BUY", "SELL", "LIQUIDATE", "MOVE_SL"
+    SignalType type;
     double quantity = 0.0;
     double price = 0.0;
     double take_profit = 0.0;
@@ -35,7 +35,7 @@ struct Signal {
 
 class Strategy {
 public:
-    Strategy(const StrategyBaseConfig& config);
+    Strategy(const StrategyConfig& config);
     virtual ~Strategy() = default;
     
     // Main update method
@@ -46,12 +46,12 @@ public:
     }    
 
 protected:
-    StrategyBaseConfig base_config;
-    CandleManager candle_manager;
-    std::unique_ptr<ILogger> logger;
+    StrategyConfig base_config;
     PositionInfo position_info;
-    std::vector<std::function<bool()>> active_filters;
+    std::unique_ptr<CandleManager> candle_manager;
     std::unique_ptr<IndicatorManager> indicator_manager;
+    std::unique_ptr<ILogger> logger;
+    std::vector<filter::GenericFilter> filters;
 
 
     // Signal components
@@ -87,16 +87,13 @@ protected:
     // Nth Heikin-Ashi TP tracking
     int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
     bool is_position_long = false;       // Track whether current position is long or short
+
+
     // Core strategy methods to implement in derived classes
+    virtual void registerFiltersIndicators();
     virtual void before() {}
     virtual void after() {}
-    virtual bool should_long() = 0;
-    virtual bool should_short() { return false; }
-    virtual void go_long() = 0;
-    virtual void go_short() {
-        throw std::runtime_error("Short not implemented");
-    }
-    virtual void updateLocalValues() {}
+    virtual void go();
     
     double price() const;
 

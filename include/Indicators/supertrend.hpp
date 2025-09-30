@@ -32,10 +32,10 @@ private:
     }
     
 public:
-    SUPERTREND(int atr_period, double multiplier)
-        : IncrementalIndicator<std::pair<double, int>>("SUPERTREND_" + std::to_string(atr_period) + "_" + std::to_string(multiplier), atr_period * 2),
-          atr_period(atr_period), multiplier(multiplier) {
-        atr_calculator = std::make_unique<ATR>(atr_period);
+    SUPERTREND(filter::SuperTrendParams params)
+        : IncrementalIndicator<std::pair<double, int>>("SUPERTREND_" + std::to_string(params.atrPeriod) + "_" + std::to_string(params.multiplier), params.atrPeriod * 2),
+          atr_period(params.atrPeriod), multiplier(params.multiplier) {
+        atr_calculator = std::make_unique<ATR>(filter::ATRParams(atr_period, false));
     }
 
     std::pair<double, int> initialize_with_history(const std::vector<BasicCandle>& history) override;
@@ -73,7 +73,7 @@ inline std::pair<double, int> SUPERTREND::initialize_with_history(const std::vec
         double hl2 = calculate_hl2(history[i]);
         
         // Get ATR value by simulating the calculation up to this point
-        ATR temp_atr(atr_period);
+        ATR temp_atr(filter::ATRParams(atr_period, false));
         std::vector<BasicCandle> temp_history(history.begin(), history.begin() + i + 1);
         double atr_value = temp_atr.initialize_with_history(temp_history);
         
