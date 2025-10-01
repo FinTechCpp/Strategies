@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <deque>
 #include <map>
 #include <type_traits>
 #include <variant>
@@ -39,7 +40,8 @@ private:
     class IndicatorHandler : public IIndicatorHandler {
     private:
         std::shared_ptr<T> m_indicator;
-        std::vector<R> m_history; // Stockage des valeurs historiques
+        std::deque<R> m_history; // Stockage des valeurs historiques
+        static constexpr size_t MAX_HISTORY_SIZE = 100;
         
     public:
         template<typename... Args>
@@ -77,33 +79,25 @@ private:
         }
         
         bool update(const BasicCandle& candle, ILogger* logger) override {
-            try {
-                R result = m_indicator->update(candle);
-                bool success = isValidResult(result);
-                
-                if (success) {
-                    // Stocker la valeur mise à jour
-                    m_history.push_back(result);
-                    // Limiter l'historique (optionnel)
-                    if (m_history.size() > 100) {
-                        m_history.erase(m_history.begin());
-                    }
-                    
-                    if (logger) {
-                        logger->log_indicator_value(m_indicator->get_name(), result);
-                    }
-                } else if (logger) {
-                    logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
+            R result = m_indicator->update(candle);
+            bool success = isValidResult(result);
+            
+            if (success) {
+                // Stocker la valeur mise à jour
+                m_history.push_back(result);
+                // Limiter l'historique (optionnel)
+                if (m_history.size() > MAX_HISTORY_SIZE) {
+                    m_history.pop_front();
                 }
                 
-                return success;
-            }
-            catch (const std::exception& e) {
                 if (logger) {
-                    logger->log_general("Exception lors de la mise à jour de " + m_indicator->get_name() + ": " + e.what(), LogLevel::ERROR);
+                    logger->log_indicator_value(m_indicator->get_name(), result);
                 }
-                return false;
+            } else if (logger) {
+                logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
             }
+            
+            return success;
         }
         
         bool isInitialized() const override {

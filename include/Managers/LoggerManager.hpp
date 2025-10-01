@@ -38,6 +38,7 @@ public:
     // Logs généraux
     virtual void log_general(const std::string& message, int level = LogLevel::INFO) = 0;
     virtual void log_general(std::string&& message, int level = LogLevel::INFO) = 0;
+    virtual void log_general_BE_activated(double position_sign, double ref_price, double break_even_price, double threshold) = 0;
     
     // Logs d'indicateurs
     virtual void log_indicator_value(const std::string& name, double value, int level = LogLevel::DEBUG) = 0;
@@ -47,6 +48,8 @@ public:
     
     // Logs de filtres
     virtual void log_filter_result(const std::string& name, bool passed, const std::string& detail = "", int level = LogLevel::DEBUG) = 0;
+
+    virtual void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) = 0;
     
     // Logs de signaux
     virtual void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) = 0;
@@ -61,7 +64,7 @@ public:
     virtual void log_position_sizing(double raw_size, double adjusted_size, const std::string& reason, int level = LogLevel::INFO) = 0;
     
     // Logs de temps
-    virtual void log_time_check(bool in_trading_hours, const std::string& detail, int level = LogLevel::INFO) = 0;
+    virtual void log_time_check(bool in_trading_days, int weekday, bool in_trading_hours, const Time& current_time, int level = LogLevel::INFO) = 0;
     
     // Obtention de tous les logs pour la bougie actuelle
     virtual std::string get_all_logs() const = 0;
@@ -212,6 +215,17 @@ public:
         std::string msg_copy = message;
         add_log(LogCategory::GENERAL, std::move(msg_copy), level);
     }
+
+    void log_general_BE_activated(double position_sign, double ref_price, double break_even_price, double threshold) {
+        std::string msg = "Activation break-even: " + 
+                          std::string(position_sign > 0 ? "High" : "Low") + "=" + 
+                          fast_double_to_string(ref_price) + 
+                          " " + std::string(position_sign > 0 ? ">=" : "<=") + 
+                          " seuil (" + fast_double_to_string(break_even_price) + 
+                          "), " + fast_double_to_string(threshold * 100) + 
+                          "% du chemin vers TP";
+        add_log(LogCategory::GENERAL, std::move(msg), LogLevel::INFO);
+    }
     
     // Logs d'indicateurs
     void log_indicator_value(const std::string& name, double value, int level = LogLevel::DEBUG) override {
@@ -244,6 +258,13 @@ public:
         if (!detail.empty())
             add_log(LogCategory::FILTER, indent(1) + detail, level);
     }
+
+    void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) override {
+        std::string status = result ? "PASSÉ" : "ÉCHOUÉ";
+        std::string msg = "Évaluation filtre [T-" + fast_int_to_string(offset) + "]:" + filter.description + " : " + status;
+
+        add_log(LogCategory::FILTER, std::move(msg), level);
+    }
     
     // Logs de signaux
     void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) override {
@@ -275,10 +296,28 @@ public:
     }
     
     // Logs de temps
-    void log_time_check(bool in_trading_hours, const std::string& detail, int level = LogLevel::INFO) override {
-        std::string status = in_trading_hours ? "DANS" : "HORS";
-        std::string msg = status + " horaires de trading: " + detail;
-        add_log(LogCategory::TIME, std::move(msg), level);
+    void log_time_check(bool in_trading_days, int weekday, bool in_trading_hours, const Time& current_time, int level = LogLevel::INFO) override {
+        if (!in_trading_days) {
+            std::string msg = "Jour non autorisé pour le trading : " +
+                              std::string(weekday == 0 ? "Lundi" : weekday == 1 ? "Mardi" : weekday == 2 ? "Mercredi" : 
+                               weekday == 3 ? "Jeudi" : weekday == 4 ? "Vendredi" : 
+                               weekday == 5 ? "Samedi" : "Dimanche") + ")";
+            add_log(LogCategory::TIME, std::move(msg), level);
+            return;
+        }
+
+        if (!in_trading_hours) {
+            std::string msg = "Hors des heures de trading : " +
+                              fast_int_to_string(current_time.hour) + ":" +
+                              fast_int_to_string(current_time.minute);
+            add_log(LogCategory::TIME, std::move(msg), level);
+            return;
+        }
+
+        std::string msg = "Dans les heures de trading : " +
+                          fast_int_to_string(current_time.hour) + ":" +
+                          fast_int_to_string(current_time.minute);
+        add_log(LogCategory::TIME, std::move(msg), LogLevel::DEBUG);
     }
 
     // Logs de performance
@@ -369,18 +408,20 @@ public:
     void finalize_and_send_logs() override {}
     void log_general(const std::string&, int) override {}
     void log_general(std::string&&, int) override {}
+    void log_general_BE_activated(double position_sign, double ref_price, double break_even_price, double threshold) override {}
     void log_indicator_value(const std::string&, double, int) override {}
     void log_indicator_value(const std::string&, std::pair<double, double>, int) override {}
     void log_indicator_value(const std::string&, std::pair<double, int>, int) override {}
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
     void log_filter_result(const std::string&, bool, const std::string&, int) override {}
+    void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) override {}
     void log_signal(const std::string&, double, double, int) override {}
     void log_sl_tp(double, double, int) override {}
     void log_execution_step(const std::string&, bool, int) override {}
     void log_execution_time(int64_t, int) override {}
     void log_risk_calculation(double, double, int) override {}
     void log_position_sizing(double, double, const std::string&, int) override {}
-    void log_time_check(bool, const std::string&, int) override {}
+    void log_time_check(bool in_trading_days, int weekday, bool in_trading_hours, const Time& current_time, int level = LogLevel::INFO) override {}
     std::string get_all_logs() const override { return ""; }
 
     std::string fast_double_to_string(double value, int precision = 4) override { return ""; }

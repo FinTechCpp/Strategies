@@ -280,11 +280,6 @@ void Strategy::update_daily_pnl_tracking() {
 
 // Method to check if we are within trading hours
 bool Strategy::check_time() {
-    if (!candle_manager->get_latest_candle().date.is_valid()) {
-        logger->log_time_check(false, "Date de bougie invalide", LogLevel::WARNING);
-        return false;
-    }
-
     const DateTime& current_date = candle_manager->get_latest_candle().date;
     const Time& current_time = current_date.time;
 
@@ -295,11 +290,10 @@ bool Strategy::check_time() {
 
         last_check_date = current_date;
 
-        int weekday = get_day_of_week(current_date);
+        weekday = get_day_of_week(current_date);
         weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
-            logger->log_time_check(false, "Jour non autorisé pour le trading: " +
-                                 current_date.to_string(), LogLevel::INFO);
+            logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
             return false;
         }
     }
@@ -312,19 +306,14 @@ bool Strategy::check_time() {
     time_check = after_start && before_end;
 
     if (!weekday_check) {
-        logger->log_time_check(false, "Jour non autorisé pour le trading: " +
-                             current_date.to_string(), LogLevel::INFO);
+        logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
         return false;
     }
 
     if (!time_check) {
-        logger->log_time_check(false,
-                             std::to_string(current_time.hour) + ":" +
-                             std::to_string(current_time.minute), LogLevel::INFO);
+        logger->log_time_check(true, 0, false, current_time, LogLevel::INFO);
     } else {
-        logger->log_time_check(true,
-                             std::to_string(current_time.hour) + ":" +
-                             std::to_string(current_time.minute), LogLevel::DEBUG);
+        logger->log_time_check(true, 0, true, current_time, LogLevel::DEBUG);
     }
 
     return time_check;
@@ -358,14 +347,8 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
 
 
     if (threshold_reached) {
-        logger->log_general("Activation break-even: " + 
-                          std::string(position_sign > 0 ? "High" : "Low") + "=" + 
-                          logger->fast_double_to_string(reference_price) + 
-                          " " + std::string(position_sign > 0 ? ">=" : "<=") + 
-                          " seuil (" + logger->fast_double_to_string(break_even_price) + 
-                          "), " + logger->fast_double_to_string(base_config.break_even_threshold * 100) + 
-                          "% du chemin vers TP", LogLevel::INFO);
-
+        logger->log_general_BE_activated(position_sign, reference_price, break_even_price, base_config.break_even_threshold);
+            
         auto be_signal = std::make_unique<Signal>();
         be_signal->type = SignalType::MOVE_SL;
         be_signal->new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);

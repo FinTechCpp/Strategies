@@ -12,6 +12,7 @@ private:
     // Obtenir la valeur d'une source
     static double getSourceValue(const filter::ValueSource& source, int additionalOffset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
         int offset = source.historicalOffset + additionalOffset;
+        BasicCandle candle = candleManager.get_last_candles(offset + 1)[0];
 
         switch (source.category) {
             case filter::ValueCategory::PRICE: {
@@ -20,9 +21,6 @@ private:
                     if (logger) logger->log_general("Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
                     return 0.0;
                 }
-
-                std::vector<BasicCandle> candles = candleManager.get_last_candles(offset + 1);
-                BasicCandle candle = candles[0];
 
                 // Extraire la valeur de prix selon le type
                 switch (source.priceType) {
@@ -79,9 +77,8 @@ private:
                     if (logger) logger->log_general("Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
                     return 0.0;
                 }
-
-                const BasicCandle& candle = candleManager.get_last_candles(offset + 1)[0];
-                const BasicCandle& heikinAshiCandle = candleManager.get_last_heikin_ashi_candles(offset + 1)[0];
+                
+                BasicCandle heikinAshiCandle = candleManager.get_last_heikin_ashi_candles(offset + 1)[0];
                 
                 switch (source.candlePropertyType) {
                     case filter::CandlePropertyType::HEIKIN_ASHI_IS_GREEN:
@@ -95,7 +92,7 @@ private:
                         
                     case filter::CandlePropertyType::IS_RED:
                         return candle.close < candle.open ? 1.0 : 0.0;
-                        
+
                     case filter::CandlePropertyType::BODY_SIZE:
                         return std::abs(candle.close - candle.open);
                         
@@ -205,14 +202,7 @@ private:
         }
 
         if (logger) {
-            logger->log_general(
-                "Évaluation filtre [T-" + std::to_string(offset) + "]: " +
-                filter.leftValue.getDescription() + " (" + std::to_string(leftValue) + ") " +
-                getOperatorString(filter.op) + " " +
-                filter.rightValue.getDescription() + " (" + std::to_string(rightValue) + ") = " +
-                (result ? "VRAI" : "FAUX"),
-                LogLevel::DEBUG
-            );
+            logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
         }
         
         return result;

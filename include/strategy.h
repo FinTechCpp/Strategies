@@ -68,6 +68,7 @@ protected:
     // Cache for time checking
     DateTime last_check_date;
     bool weekday_check = false;
+    int weekday = -1;
     bool time_check = false;
 
     // Suivi des pertes journalières

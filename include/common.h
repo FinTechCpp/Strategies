@@ -184,6 +184,8 @@ namespace filter {
         // Décalage pour les valeurs historiques
         int historicalOffset = 0;
 
+        std::string description;
+
         // Explicit default constructor to initialize unions safely
         ValueSource()
             : category(ValueCategory::PRICE),
@@ -191,7 +193,9 @@ namespace filter {
             emaParams(0),
             constantValue(0.0),
             historicalOffset(0)
-        {}
+        {
+            updateDescription();
+        }
 
         // Constructeurs spécifiques pour chaque catégorie
         // TODO remplacer les constructeur avec les structure de params
@@ -202,6 +206,7 @@ namespace filter {
             source.category = ValueCategory::PRICE;
             source.priceType = type;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -210,6 +215,7 @@ namespace filter {
             ValueSource source;
             source.category = ValueCategory::CONSTANT;
             source.constantValue = value;
+            source.updateDescription();
             return source;
         }
         
@@ -220,6 +226,7 @@ namespace filter {
             source.indicatorType = IndicatorType::EMA;
             source.emaParams.period = period;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -230,6 +237,7 @@ namespace filter {
             source.indicatorType = IndicatorType::RSI;
             source.rsiParams.period = period;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -242,6 +250,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -254,6 +263,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -265,6 +275,7 @@ namespace filter {
             source.atrParams.period = period;
             source.atrParams.useLog = useLog;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -276,6 +287,7 @@ namespace filter {
             source.supertrendParams.atrPeriod = atrPeriod;
             source.supertrendParams.multiplier = multiplier;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
         
@@ -285,11 +297,12 @@ namespace filter {
             source.category = ValueCategory::CANDLE_PROPERTY;
             source.candlePropertyType = type;
             source.historicalOffset = offset;
+            source.updateDescription();
             return source;
         }
 
         // Méthode pour obtenir une description humaine lisible de la source
-        std::string getDescription() const {
+        void updateDescription() {
             std::string desc;
             
             switch (category) {
@@ -364,7 +377,7 @@ namespace filter {
                 desc += " [T-" + std::to_string(historicalOffset) + "]";
             }
             
-            return desc;
+            description = desc;
         }
     };
 
@@ -431,7 +444,7 @@ namespace filter {
             if (!enabled)
                 enabledStr = "[Désactivé] ";
 
-            return enabledStr + leftValue.getDescription() + " " + opStr + " " + rightValue.getDescription() + timeLogicStr;
+            return enabledStr + leftValue.description + " " + opStr + " " + rightValue.description + timeLogicStr;
         }
     };
 }
