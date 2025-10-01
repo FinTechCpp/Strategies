@@ -296,7 +296,7 @@ namespace filter {
                 case ValueCategory::PRICE:
                     desc = "Prix ";
                     switch (priceType) {
-                        case PriceType::CLOSE: desc += "Clôture"; break;
+                        case PriceType::CLOSE: desc += "Cloture"; break;
                         case PriceType::OPEN: desc += "Ouverture"; break;
                         case PriceType::HIGH: desc += "Haut"; break;
                         case PriceType::LOW: desc += "Bas"; break;
@@ -420,10 +420,10 @@ namespace filter {
                     timeLogicStr = ""; 
                     break;
                 case TemporalLogic::ANY_OF: 
-                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
+                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
                     break;
                 case TemporalLogic::ALL_OF: 
-                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
+                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
                     break;
             }
 

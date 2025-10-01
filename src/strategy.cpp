@@ -132,9 +132,8 @@ bool Strategy::update_indicators()
         int max_period = indicator_manager->getMaxRequiredPeriods();
         
         // Prendre en compte également la période pour le Stop Loss si nécessaire
-        if (base_config.sl_method == StopLossMethod::MinMax) {
+        if (base_config.sl_method == StopLossMethod::MinMax) 
             max_period = std::max(max_period, base_config.sl_minmax_periods);
-        }
         
         size_t available_candles = candle_manager->size();
         
@@ -724,13 +723,12 @@ Strategy::Strategy(const StrategyConfig& config)
 
     registerFiltersIndicators();
 
-    if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR) {
+    if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
-    }
-
-    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
+    
+    if (base_config.tp_method == TakeProfitMethod::SuperTrend) 
         indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
-    }
+    
 }
 
 // Main update method
