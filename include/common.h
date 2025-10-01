@@ -410,8 +410,8 @@ namespace filter {
                 case ComparisonOperator::LESS_OR_EQUAL: opStr = "<="; break;
                 case ComparisonOperator::EQUAL: opStr = "="; break;
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
-                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise au-dessus"; break;
-                case ComparisonOperator::CROSSES_BELOW: opStr = "croise en-dessous"; break;
+                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise à la hausse"; break;
+                case ComparisonOperator::CROSSES_BELOW: opStr = "croise à la baisse"; break;
             }
             
             std::string timeLogicStr;
