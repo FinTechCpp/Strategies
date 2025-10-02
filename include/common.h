@@ -429,19 +429,18 @@ namespace filter {
                 case ComparisonOperator::TRUE: opStr = "est vrai"; break;
                 case ComparisonOperator::FALSE: opStr = "est faux"; break;
             }
-            
-            std::string timeLogicStr;
 
+            std::string timeLogicStr;
             if (lookbackPeriods == 1)
-                timeLogicStr = " (sur la periode courante)"; 
+                timeLogicStr = " (sur la periode courante)";
             else {
                 switch (temporalLogic) {
-                    case TemporalLogic::ANY_OF: 
-                        timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
-                        break;
-                    case TemporalLogic::ALL_OF: 
-                        timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
-                        break;
+                    case TemporalLogic::ANY_OF:
+                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)";
+                    break;
+                    case TemporalLogic::ALL_OF:
+                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)";
+                    break;
                 }
             }
 
@@ -449,10 +448,13 @@ namespace filter {
             if (!enabled)
                 enabledStr = "[Désactivé] ";
 
-            if (op != ComparisonOperator::TRUE && op != ComparisonOperator::FALSE)
-                return enabledStr + leftValue.description + " " + opStr + " " + rightValue.description + timeLogicStr;
-            else 
-                return enabledStr + leftValue.description + " " + opStr + " " + timeLogicStr;
+            std::string rightDesc;
+            if (op == ComparisonOperator::TRUE || op == ComparisonOperator::FALSE)
+                rightDesc = "";
+            else
+                rightDesc = " " + rightValue.description;
+
+            return enabledStr + leftValue.description + " " + opStr + rightDesc + timeLogicStr;
         }
     };
 }
