@@ -133,28 +133,11 @@ private:
                 
             case filter::ComparisonOperator::NOT_EQUAL:
                 return std::abs(left - right) >= 0.00001;
+            
+            case filter::ComparisonOperator::CROSSES_ABOVE:
+            case filter::ComparisonOperator::CROSSES_BELOW:
+                return false;
                 
-            // Il faut interpreter les croisements en faisant une duplication du filtre avec un offset de 1 et en liant les deux filtre par une condition de ET. ainsi par exmeple un croisement stochastique a la hausse sera vrai si le stochastique K est superieur au stochastique D sur la bougie courante ET que le stochastique K est inferieur ou egal au stochastique D sur la bougie precedente. Cela est en realité deux filtres : 
-            // - Stochastique K > Stochastique D (temporal logic = CURRENT)
-            // - Stochastique K <= Stochastique D (temporal logic = CURRENT, historical offset = 1)
-            // et la condition entre les deux est un ET logique
-            case filter::ComparisonOperator::CROSSES_ABOVE: {
-                // Vérifier si left a croisé right vers le haut
-                // double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                // double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                double prevLeft = 0.0;
-                double prevRight = 0.0;
-                return left > right && prevLeft <= prevRight;
-            }
-                
-            case filter::ComparisonOperator::CROSSES_BELOW: {
-                // Vérifier si left a croisé right vers le bas
-                // double prevLeft = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                // double prevRight = getSourceValue(ValueSource::Price(PriceType::CLOSE), 1);
-                double prevLeft = 0.0;
-                double prevRight = 0.0;
-                return left < right && prevLeft >= prevRight;
-            }
             case filter::ComparisonOperator::TRUE:
                 return std::abs(left - 1.0) < 0.00001;
     
@@ -166,45 +149,47 @@ private:
 
     // Évaluer une condition de filtre à un offset donné
     static bool evaluateCondition(const filter::GenericFilter& filter, int offset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
+        // Traitement spécial pour les croisements en les décomposant en filtres unitaires
+        if (filter.op == filter::ComparisonOperator::CROSSES_ABOVE || filter.op == filter::ComparisonOperator::CROSSES_BELOW) {
+            // Créer deux filtres unitaires
+            filter::GenericFilter currentFilter = filter;
+            filter::GenericFilter previousFilter = filter;
+            
+            if (filter.op == filter::ComparisonOperator::CROSSES_ABOVE) {
+                // Pour CROSSES_ABOVE:
+                // 1. Filtre actuel: left > right
+                currentFilter.op = filter::ComparisonOperator::GREATER_THAN;
+                
+                // 2. Filtre précédent: left <= right
+                previousFilter.op = filter::ComparisonOperator::LESS_OR_EQUAL;
+                previousFilter.leftValue.historicalOffset += 1;
+                previousFilter.rightValue.historicalOffset += 1;
+            } 
+            else { // CROSSES_BELOW
+                // Pour CROSSES_BELOW:
+                // 1. Filtre actuel: left < right
+                currentFilter.op = filter::ComparisonOperator::LESS_THAN;
+                
+                // 2. Filtre précédent: left >= right
+                previousFilter.op = filter::ComparisonOperator::GREATER_OR_EQUAL;
+                previousFilter.leftValue.historicalOffset += 1;
+                previousFilter.rightValue.historicalOffset += 1;
+            }
+
+            // Évaluer les deux filtres
+            bool currentResult = evaluateCondition(currentFilter, offset, candleManager, indicatorManager, logger);
+            bool previousResult = evaluateCondition(previousFilter, offset, candleManager, indicatorManager, logger);
+            
+            // Un croisement nécessite que les deux conditions soient vraies
+            bool result = currentResult && previousResult;
+            
+            return result;
+        }
+
         double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
         double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
         
-        bool result;
-
-        // Traitement spécial pour les croisements
-        if (filter.op == filter::ComparisonOperator::CROSSES_ABOVE || filter.op == filter::ComparisonOperator::CROSSES_BELOW) {
-            // Pour les croisements, nous devons comparer les valeurs actuelles et précédentes
-            filter::ValueSource prevLeftSource = filter.leftValue;
-            filter::ValueSource prevRightSource = filter.rightValue;
-            prevLeftSource.historicalOffset += 1 + offset;
-            prevRightSource.historicalOffset += 1 + offset;
-
-            double prevLeftValue = getSourceValue(prevLeftSource, 0, candleManager, indicatorManager, logger);
-            double prevRightValue = getSourceValue(prevRightSource, 0, candleManager, indicatorManager, logger);
-
-            if (filter.op == filter::ComparisonOperator::CROSSES_ABOVE) {
-                result = (leftValue > rightValue) && (prevLeftValue <= prevRightValue);
-                if (logger) {
-                    logger->log_general("CROSSES_ABOVE check: left=" + std::to_string(leftValue) + 
-                                        ", right=" + std::to_string(rightValue) + 
-                                        ", prevLeft=" + std::to_string(prevLeftValue) + 
-                                        ", prevRight=" + std::to_string(prevRightValue) + 
-                                        ", result=" + (result ? "true" : "false"), LogLevel::DEBUG);
-                }
-            } else {
-                result = (leftValue < rightValue) && (prevLeftValue >= prevRightValue);
-                if (logger) {
-                    logger->log_general("CROSSES_BELOW check: left=" + std::to_string(leftValue) + 
-                                        ", right=" + std::to_string(rightValue) + 
-                                        ", prevLeft=" + std::to_string(prevLeftValue) + 
-                                        ", prevRight=" + std::to_string(prevRightValue) + 
-                                        ", result=" + (result ? "true" : "false"), LogLevel::DEBUG);
-                }
-            }
-        } else {
-            // Comparaison normale
-            result = compareValues(leftValue, rightValue, filter.op);
-        }
+        bool result = compareValues(leftValue, rightValue, filter.op);
 
         if (logger) {
             logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
