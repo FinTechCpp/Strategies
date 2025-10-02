@@ -214,9 +214,6 @@ public:
         if (!filter.enabled) return true;
         
         switch (filter.temporalLogic) {
-            case filter::TemporalLogic::CURRENT:
-                return evaluateCondition(filter, 0, candleManager, indicatorManager, logger);
-                
             case filter::TemporalLogic::ANY_OF: {
                 for (int i = 0; i < filter.lookbackPeriods; ++i) {
                     if (evaluateCondition(filter, i, candleManager, indicatorManager, logger)) {

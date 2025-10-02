@@ -65,7 +65,6 @@ namespace filter {
 
     // Type de logique temporelle
     enum class TemporalLogic {
-        CURRENT,          // Période courante uniquement
         ANY_OF,           // Au moins une période (OR)
         ALL_OF,           // Toutes les périodes (AND)
     };
@@ -386,7 +385,7 @@ namespace filter {
         ValueSource leftValue;
         ValueSource rightValue;
         ComparisonOperator op;
-        TemporalLogic temporalLogic = TemporalLogic::CURRENT;
+        TemporalLogic temporalLogic = TemporalLogic::ALL_OF;
         int lookbackPeriods = 1;
         bool enabled = true;
         std::string description;
@@ -397,7 +396,7 @@ namespace filter {
         GenericFilter(ValueSource left, 
                     ComparisonOperator comp, 
                     ValueSource right,
-                    TemporalLogic logic = TemporalLogic::CURRENT,
+                    TemporalLogic logic = TemporalLogic::ALL_OF,
                     int periods = 1,
                     const std::string& desc = "") 
             : leftValue(left), 
@@ -428,16 +427,18 @@ namespace filter {
             }
             
             std::string timeLogicStr;
-            switch (temporalLogic) {
-                case TemporalLogic::CURRENT: 
-                    timeLogicStr = ""; 
-                    break;
-                case TemporalLogic::ANY_OF: 
-                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
-                    break;
-                case TemporalLogic::ALL_OF: 
-                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
-                    break;
+
+            if (lookbackPeriods == 1)
+                timeLogicStr = " (sur la periode courante)"; 
+            else {
+                switch (temporalLogic) {
+                    case TemporalLogic::ANY_OF: 
+                        timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
+                        break;
+                    case TemporalLogic::ALL_OF: 
+                        timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)"; 
+                        break;
+                }
             }
 
             std::string enabledStr;
