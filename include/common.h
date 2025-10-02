@@ -60,7 +60,9 @@ namespace filter {
         EQUAL,                 // ==
         NOT_EQUAL,             // !=
         CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
-        CROSSES_BELOW          // Croisement à la baisse (période actuelle vs précédente)
+        CROSSES_BELOW,         // Croisement à la baisse (période actuelle vs précédente)
+        TRUE,                  // Racourci pour == Constante 1.0
+        FALSE                  // Racourci pour == Constante 0.0
     };
 
     // Type de logique temporelle
@@ -424,6 +426,8 @@ namespace filter {
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
                 case ComparisonOperator::CROSSES_ABOVE: opStr = "croise à la hausse"; break;
                 case ComparisonOperator::CROSSES_BELOW: opStr = "croise à la baisse"; break;
+                case ComparisonOperator::TRUE: opStr = "est vrai"; break;
+                case ComparisonOperator::FALSE: opStr = "est faux"; break;
             }
             
             std::string timeLogicStr;
@@ -445,7 +449,10 @@ namespace filter {
             if (!enabled)
                 enabledStr = "[Désactivé] ";
 
-            return enabledStr + leftValue.description + " " + opStr + " " + rightValue.description + timeLogicStr;
+            if (op != ComparisonOperator::TRUE && op != ComparisonOperator::FALSE)
+                return enabledStr + leftValue.description + " " + opStr + " " + rightValue.description + timeLogicStr;
+            else 
+                return enabledStr + leftValue.description + " " + opStr + " " + timeLogicStr;
         }
     };
 }

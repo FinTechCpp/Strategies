@@ -155,6 +155,11 @@ private:
                 double prevRight = 0.0;
                 return left < right && prevLeft >= prevRight;
             }
+            case filter::ComparisonOperator::TRUE:
+                return std::abs(left - 1.0) < 0.00001;
+    
+            case filter::ComparisonOperator::FALSE:
+                return std::abs(left) < 0.00001;
         }
         return false;
     }
@@ -234,21 +239,5 @@ public:
         }
         
         return false;
-    }
-
-private:
-    // Obtenir une représentation textuelle de l'opérateur
-    static std::string getOperatorString(filter::ComparisonOperator op) {
-        switch (op) {
-            case filter::ComparisonOperator::GREATER_THAN: return ">";
-            case filter::ComparisonOperator::LESS_THAN: return "<";
-            case filter::ComparisonOperator::GREATER_OR_EQUAL: return ">=";
-            case filter::ComparisonOperator::LESS_OR_EQUAL: return "<=";
-            case filter::ComparisonOperator::EQUAL: return "=";
-            case filter::ComparisonOperator::NOT_EQUAL: return "!=";
-            case filter::ComparisonOperator::CROSSES_ABOVE: return "^";
-            case filter::ComparisonOperator::CROSSES_BELOW: return "v";
-        }
-        return "?";
     }
 };
