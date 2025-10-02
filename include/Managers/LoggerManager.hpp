@@ -70,7 +70,7 @@ public:
     virtual std::string get_all_logs() const = 0;
 
     virtual std::string fast_double_to_string(double value, int precision = 4) = 0;
-    virtual std::string fast_int_to_string(int value) = 0;
+    virtual std::string fast_int_to_string(int64_t value) = 0;
 };
 
 class LoggerManager : public ILogger {
@@ -143,7 +143,7 @@ public:
         return std::string(buffer, ptr - buffer);
     }
 
-    std::string fast_int_to_string(int value) override {
+    std::string fast_int_to_string(int64_t value) override {
         char buffer[64];
         auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), value);
         return std::string(buffer, ptr - buffer);
@@ -425,6 +425,6 @@ public:
     std::string get_all_logs() const override { return ""; }
 
     std::string fast_double_to_string(double value, int precision = 4) override { return ""; }
-    std::string fast_int_to_string(int value) override { return ""; }
+    std::string fast_int_to_string(int64_t value) override { return ""; }
 };
 

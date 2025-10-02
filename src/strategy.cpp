@@ -139,14 +139,14 @@ bool Strategy::update_indicators()
         
         if (available_candles < static_cast<size_t>(max_period)) {
             int remaining = max_period - static_cast<int>(available_candles);
-            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(available_candles) + 
+            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
                               "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
                               logger->fast_int_to_string(remaining) + " bougies)");
             return false;
         }
         
         auto candles = candle_manager->get_last_candles(candle_manager->size());
-        logger->log_general("Initialisation avec " + logger->fast_int_to_string(candles.size()) + " bougies");
+        logger->log_general("Initialisation avec " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " bougies");
         return indicator_manager->initializeAll(candles, logger.get());
     }
     
