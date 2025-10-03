@@ -715,6 +715,22 @@ Strategy::Strategy(const StrategyConfig& config)
     if (base_config.tp_method == TakeProfitMethod::SuperTrend) 
         indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
     
+    // Ajuster les paramètres du CandleManager en fonction de la période maximale requise
+    int max_period = indicator_manager->getMaxRequiredPeriods();
+    if (base_config.sl_method == StopLossMethod::MinMax) 
+        max_period = std::max(max_period, base_config.sl_minmax_periods);
+    
+    // Configurer le CandleManager avec une marge de sécurité
+    // - hysteresis_threshold : max_period + 100 bougies de marge
+    // - clean_target_size : max_period (garde exactement ce qu'il faut)
+    // - max_buffer_size : max_period (pas utilisé vraiment mais cohérent)
+    size_t threshold = max_period + 100;
+    size_t target = max_period;
+    candle_manager->set_buffer_params(max_period, threshold, target);
+    
+    logger->log_general("CandleManager configuré: seuil=" + std::to_string(threshold) + 
+                       ", cible=" + std::to_string(target) + 
+                       " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
 }
 
 // Main update method
