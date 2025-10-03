@@ -6,5 +6,6 @@
 #include "Indicators/atr.hpp"
 #include "Indicators/atrc.hpp"
 #include "Indicators/supertrend.hpp"
+#include "Indicators/cci.hpp"
 
 // Add new indicators here as needed

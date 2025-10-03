@@ -67,6 +67,9 @@ void Strategy::registerFiltersIndicators() {
             case filter::IndicatorType::SUPERTREND_DIRECTION:
                 indicator_manager->registerSuperTrend(source.supertrendParams);
                 break;
+            case filter::IndicatorType::CCI:
+                indicator_manager->registerCCI(source.cciParams);
+                break;
             default:
                 break;
         }

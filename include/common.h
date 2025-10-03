@@ -36,6 +36,7 @@ namespace filter {
         ATR,
         SUPERTREND_VALUE,
         SUPERTREND_DIRECTION,
+        CCI,
         PIVOT_POINT
     };
 
@@ -159,6 +160,21 @@ namespace filter {
         }
     };
 
+    // Paramètres pour CCI
+    struct CCIParams {
+        int period;
+        
+        explicit CCIParams(int p = 20) : period(p) {}
+        
+        bool operator<(const CCIParams& other) const {
+            return period < other.period;
+        }
+        
+        bool operator==(const CCIParams& other) const {
+            return period == other.period;
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -177,6 +193,7 @@ namespace filter {
             StochasticParams stochParams;
             ATRParams atrParams;
             SuperTrendParams supertrendParams;
+            CCIParams cciParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT
@@ -280,6 +297,15 @@ namespace filter {
             source.historicalOffset = offset;
             return source;
         }
+        // Pour CCI (valeur)
+        static ValueSource CCI(int period, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::CCI;
+            source.cciParams.period = period;
+            source.historicalOffset = offset;
+            return source;
+        }
         
         // Pour propriétés de bougie
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
@@ -340,6 +366,9 @@ namespace filter {
                         case IndicatorType::SUPERTREND_DIRECTION:
                             desc = "SuperTrend Direction(" + std::to_string(source.supertrendParams.atrPeriod) + "," +
                                 std::to_string(source.supertrendParams.multiplier) + ")";
+                            break;
+                        case IndicatorType::CCI:
+                            desc = "CCI(" + std::to_string(source.cciParams.period) + ")";
                             break;
                         case IndicatorType::PIVOT_POINT:
                             desc = "Pivot Point";

@@ -169,6 +169,7 @@ private:
     std::map<filter::StochasticParams, std::unique_ptr<IIndicatorHandler>> m_stochHandlers;
     std::map<filter::ATRParams, std::unique_ptr<IIndicatorHandler>> m_atrHandlers;
     std::map<filter::SuperTrendParams, std::unique_ptr<IIndicatorHandler>> m_supertrendHandlers;
+    std::map<filter::CCIParams, std::unique_ptr<IIndicatorHandler>> m_cciHandlers;
 
     // Liste de tous les handlers pour les opérations en masse
     std::vector<IIndicatorHandler*> m_allHandlers;
@@ -243,6 +244,16 @@ public:
         m_supertrendHandlers[params] = std::move(handler);
     }
     
+    void registerCCI(const filter::CCIParams& params) {
+        if (m_cciHandlers.find(params) != m_cciHandlers.end()) {
+            return; // Déjà enregistré
+        }
+        
+        auto handler = std::make_unique<IndicatorHandler<CCI, double>>(params.period);
+        m_allHandlers.push_back(handler.get());
+        m_cciHandlers[params] = std::move(handler);
+    }
+    
     // Méthodes d'accès aux valeurs
     double getEMAValue(const filter::EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
@@ -302,6 +313,16 @@ public:
         return {0.0, 0};
     }
     
+    double getCCIValue(const filter::CCIParams& params, int offset = 0) const {
+        auto it = m_cciHandlers.find(params);
+        if (it != m_cciHandlers.end()) {
+            return extractValue(offset == 0 ? 
+                it->second->getCurrentValue() : 
+                it->second->getHistoricalValue(offset));
+        }
+        return 0.0;
+    }
+    
     // Méthodes d'accès direct aux indicateurs pour compatibilité
     std::shared_ptr<EMA> getEMACalculator(const filter::EMAParams& params) {
         auto it = m_emaHandlers.find(params);
@@ -351,6 +372,17 @@ public:
         auto it = m_supertrendHandlers.find(params);
         if (it != m_supertrendHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<SUPERTREND, std::pair<double, int>>*>(it->second.get());
+            if (handler) {
+                return handler->getIndicator();
+            }
+        }
+        return nullptr;
+    }
+    
+    std::shared_ptr<CCI> getCCICalculator(const filter::CCIParams& params) {
+        auto it = m_cciHandlers.find(params);
+        if (it != m_cciHandlers.end()) {
+            auto* handler = dynamic_cast<IndicatorHandler<CCI, double>*>(it->second.get());
             if (handler) {
                 return handler->getIndicator();
             }

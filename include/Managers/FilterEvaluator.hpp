@@ -65,6 +65,9 @@ private:
                     case filter::IndicatorType::SUPERTREND_DIRECTION:
                         // Pour SuperTrend Direction, on veut la deuxième valeur de la paire
                         return indicatorManager.getSuperTrendValue(source.supertrendParams, offset).second;
+                    
+                    case filter::IndicatorType::CCI:
+                        return indicatorManager.getCCIValue(source.cciParams, offset);
 
                     default:
                         if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
