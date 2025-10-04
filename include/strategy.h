@@ -52,7 +52,8 @@ protected:
     std::unique_ptr<IndicatorManager> indicator_manager;
     std::unique_ptr<ILogger> logger;
     std::vector<filter::GenericFilter> filters;
-
+    // Filters that trigger liquidation when true
+    std::vector<filter::GenericFilter> resale_filters;
 
     // Signal components
     double buy_quantity = 0.0;
@@ -121,6 +122,7 @@ private:
     void execute_long();
     void execute_short();
     bool execute_filters();
+    bool execute_resale_filters();
     void execute();
 
     void set_log_level(int level) {

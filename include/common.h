@@ -628,6 +628,8 @@ struct StrategyConfig {
 
     // Filters
     std::vector<filter::GenericFilter> filters;
+    // Filters that, when true, should trigger a liquidation (resale) of the open position
+    std::vector<filter::GenericFilter> resale_filters;
 
     // Time settings
     Time trading_from;
@@ -746,6 +748,9 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     for (const auto& filter : config.filters)
         os << "  Filter: " << filter.description << "\n";
     
+    for (const auto& filter : config.resale_filters)
+        os << "  Resale Filter: " << filter.description << "\n";
+
     // Time settings
     os << "  Trading hours: " << config.trading_from.hour << ":" << config.trading_from.minute 
        << " - " << config.trading_to.hour << ":" << config.trading_to.minute << "\n";

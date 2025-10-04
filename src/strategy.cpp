@@ -80,6 +80,11 @@ void Strategy::registerFiltersIndicators() {
         registerIfNeeded(filter.leftValue);
         registerIfNeeded(filter.rightValue);
     }
+    // Parcourir les resale_filters et enregistrer les indicateurs qu'ils utilisent
+    for (const auto& rf : resale_filters) {
+        registerIfNeeded(rf.leftValue);
+        registerIfNeeded(rf.rightValue);
+    }
 }
 
 void Strategy::go() {
@@ -588,11 +593,17 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
-    for (const auto& filter : filters) {
-        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) {
+    for (const auto& filter : filters) 
+        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
             return false;
-        }
-    }
+    return true;
+}
+
+bool Strategy::execute_resale_filters() {
+    logger->log_general("Vérification des conditions de revente", LogLevel::INFO);
+    for (const auto& filter : resale_filters) 
+        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
+            return false;
     return true;
 }
 
@@ -675,6 +686,12 @@ void Strategy::execute() {
         return;
     }
     
+    if (position_info.entry_price > 0.0 && execute_resale_filters()) {
+         logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
+         signal = generate_liquidation_signal();
+         return;
+    }
+    
     if (!execute_filters()) {
         logger->log_execution_step("Filtres", false);
         logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
@@ -697,7 +714,8 @@ Strategy::Strategy(const StrategyConfig& config)
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
     candle_manager(std::make_unique<CandleManager>()),
-    filters(config.filters)
+    filters(config.filters),
+    resale_filters(config.resale_filters)
 {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
