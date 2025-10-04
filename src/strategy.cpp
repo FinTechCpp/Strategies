@@ -593,6 +593,9 @@ void Strategy::execute_short() {
 }
 
 bool Strategy::execute_filters() {
+    if (filters.empty()) 
+        return false; // No filters defined, never pass
+        
     for (const auto& filter : filters) 
         if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
             return false;
@@ -600,6 +603,9 @@ bool Strategy::execute_filters() {
 }
 
 bool Strategy::execute_resale_filters() {
+    if (resale_filters.empty()) 
+        return false; // No resale filters defined
+  
     logger->log_general("Vérification des conditions de revente", LogLevel::INFO);
     for (const auto& filter : resale_filters) 
         if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
@@ -687,9 +693,9 @@ void Strategy::execute() {
     }
     
     if (position_info.entry_price > 0.0 && execute_resale_filters()) {
-         logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
-         signal = generate_liquidation_signal();
-         return;
+        logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
+        signal = generate_liquidation_signal();
+        return;
     }
     
     if (!execute_filters()) {
@@ -706,7 +712,6 @@ void Strategy::execute() {
         execute_short();
     }
 }
-
 
 Strategy::Strategy(const StrategyConfig& config) 
     : base_config(config), 
