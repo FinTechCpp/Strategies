@@ -25,18 +25,18 @@ private:
     }
     
 public:
-    CCI(int period)
-        : IncrementalIndicator<double>("CCI_" + std::to_string(period), period), 
-          period(period) {}
-    
-    double initialize_with_history(const std::vector<BasicCandle>& history) override;
-    double update(const BasicCandle& candle) override;
-    double get_value() const override;
+    CCI(filter::CCIParams params)
+        : IncrementalIndicator<double>("CCI_" + std::to_string(params.period), params.period),
+          period(params.period) {}
+
+    std::optional<double> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    std::optional<double> update(const BasicCandle& candle) override;
+    std::optional<double> get_value() const override;
 };
 
-inline double CCI::initialize_with_history(const std::vector<BasicCandle>& history) {
+inline std::optional<double> CCI::initialize_with_history(const std::vector<BasicCandle>& history) {
     if (history.size() < static_cast<size_t>(period)) {
-        return 0.0;
+        return std::nullopt;
     }
     
     // Calculate typical prices for all history
@@ -76,7 +76,7 @@ inline double CCI::initialize_with_history(const std::vector<BasicCandle>& histo
     return current_cci;
 }
 
-inline double CCI::update(const BasicCandle& candle) {
+inline std::optional<double> CCI::update(const BasicCandle& candle) {
     double new_tp = calculate_typical_price(candle);
     
     // Add new typical price to buffer
@@ -84,34 +84,33 @@ inline double CCI::update(const BasicCandle& candle) {
     
     if (!is_initialized) {
         // Check if we have enough data to initialize
-        if (tp_history.size() >= static_cast<size_t>(period)) {
-            // Calculate SMA
-            double sum = std::accumulate(tp_history.begin(), tp_history.end(), 0.0);
-            current_sma = sum / period;
-            
-            // Calculate MD
-            double deviation_sum = 0.0;
-            for (const auto& tp : tp_history) 
-                deviation_sum += std::abs(tp - current_sma);
-            
-            current_md = deviation_sum / period;
-            
-            // Calculate CCI
-            if (current_md > 0.0) 
-                current_cci = (new_tp - current_sma) / (CCI_CONSTANT * current_md);
-            else 
-                current_cci = 0.0;
-            
-            is_initialized = true;
-            
-            // Limit buffer size
-            while (tp_history.size() > static_cast<size_t>(period)) 
-                tp_history.pop_front();
-            
-            return current_cci;
-        }
+        if (tp_history.size() < static_cast<size_t>(period))
+            return std::nullopt;
+
+        // Calculate SMA
+        double sum = std::accumulate(tp_history.begin(), tp_history.end(), 0.0);
+        current_sma = sum / period;
         
-        return 0.0; // Not enough data yet
+        // Calculate MD
+        double deviation_sum = 0.0;
+        for (const auto& tp : tp_history) 
+            deviation_sum += std::abs(tp - current_sma);
+        
+        current_md = deviation_sum / period;
+        
+        // Calculate CCI
+        if (current_md > 0.0) 
+            current_cci = (new_tp - current_sma) / (CCI_CONSTANT * current_md);
+        else 
+            current_cci = 0.0;
+        
+        is_initialized = true;
+        
+        // Limit buffer size
+        while (tp_history.size() > static_cast<size_t>(period)) 
+            tp_history.pop_front();
+        
+        return current_cci;
     }
     
     // Incremental calculation
@@ -144,6 +143,6 @@ inline double CCI::update(const BasicCandle& candle) {
     return current_cci;
 }
 
-inline double CCI::get_value() const {
+inline std::optional<double> CCI::get_value() const {
     return current_cci;
 }

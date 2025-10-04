@@ -28,14 +28,14 @@ public:
     : IncrementalIndicator<std::pair<double, double>>("STOCH_" + std::to_string(params.fastK) + "_" + std::to_string(params.slowK) + "_" + std::to_string(params.slowD), params.fastK + params.slowK + params.slowD + 1),
     fastk_period(params.fastK), slowk_period(params.slowK), slowd_period(params.slowD) {}
 
-    std::pair<double, double> initialize_with_history(const std::vector<BasicCandle>& history) override;
-    std::pair<double, double> update(const BasicCandle& candle) override;
-    std::pair<double, double> get_value() const override;
+    std::optional<std::pair<double, double>> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    std::optional<std::pair<double, double>> update(const BasicCandle& candle) override;
+    std::optional<std::pair<double, double>> get_value() const override;
 };
 
-inline std::pair<double, double> STOCH::initialize_with_history(const std::vector<BasicCandle>& history) {
+inline std::optional<std::pair<double, double>> STOCH::initialize_with_history(const std::vector<BasicCandle>& history) {
     if (history.size() < static_cast<size_t>(fastk_period)) {
-        return {0.0, 0.0};
+        return std::nullopt;
     }
 
     // Store candles for processing
@@ -97,10 +97,10 @@ inline std::pair<double, double> STOCH::initialize_with_history(const std::vecto
         is_initialized = true;
     }
 
-    return {current_k, current_d};
+    return std::make_optional(std::make_pair(current_k, current_d));
 }
 
-inline std::pair<double, double> STOCH::update(const BasicCandle& candle) {
+inline std::optional<std::pair<double, double>> STOCH::update(const BasicCandle& candle) {
     // Add new candle to buffer
     candle_buffer.push_back(candle);
 
@@ -109,11 +109,11 @@ inline std::pair<double, double> STOCH::update(const BasicCandle& candle) {
     }
 
     if (!is_initialized) {
-        if (candle_buffer.size() >= static_cast<size_t>(fastk_period + slowk_period + slowd_period)) {
-            std::vector<BasicCandle> history(candle_buffer.begin(), candle_buffer.end());
-            return initialize_with_history(history);
-        }
-        return {0.0, 0.0};
+        if (candle_buffer.size() < static_cast<size_t>(fastk_period + slowk_period + slowd_period))
+            return std::nullopt;
+
+        std::vector<BasicCandle> history(candle_buffer.begin(), candle_buffer.end());
+        return initialize_with_history(history);
     }
 
     // Calculate new raw K value
@@ -169,9 +169,9 @@ inline std::pair<double, double> STOCH::update(const BasicCandle& candle) {
         current_d = d_values.back();
     }
 
-    return {current_k, current_d};
+    return std::make_optional(std::make_pair(current_k, current_d));
 }
 
-inline std::pair<double, double> STOCH::get_value() const {
-    return {current_k, current_d};
+inline std::optional<std::pair<double, double>> STOCH::get_value() const {
+    return std::make_optional(std::make_pair(current_k, current_d));
 }

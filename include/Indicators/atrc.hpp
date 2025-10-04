@@ -17,15 +17,15 @@ private:
 public:
     ATRC(int period)
         : IncrementalIndicator<double>("ATRC_" + std::to_string(period), period * 2), period(period) {}
-    double initialize_with_history(const std::vector<BasicCandle>& history) override;
-    double update(const BasicCandle& candle) override;
-    double get_value() const override;
+    std::optional<double> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    std::optional<double> update(const BasicCandle& candle) override;
+    std::optional<double> get_value() const override;
 };
 
-inline double ATRC::initialize_with_history(const std::vector<BasicCandle>& history)
+inline std::optional<double> ATRC::initialize_with_history(const std::vector<BasicCandle>& history)
 {
     if (history.size() < static_cast<size_t>(period + 1)) {
-        return 0.0;
+        return std::nullopt;
     }
     
     std::vector<double> high_history;
@@ -54,24 +54,25 @@ inline double ATRC::initialize_with_history(const std::vector<BasicCandle>& hist
     return current_atr;
 } 
 
-inline double ATRC::update(const BasicCandle& candle)
+inline std::optional<double> ATRC::update(const BasicCandle& candle)
 {
     if (!is_initialized) {
         double tr = candle.high - candle.low;
         
         true_range_history.push_back(tr);
         
-        if (true_range_history.size() >= static_cast<size_t>(period)) {
-            double sum = 0.0;
-            for (const auto& tr : true_range_history) {
-                sum += tr;
-            }
-            current_atr = sum / period;
-            is_initialized = true;
-            return current_atr;
+        if (true_range_history.size() < static_cast<size_t>(period))
+            return std::nullopt;
+
+        double sum = 0.0;
+        for (const auto& tr : true_range_history) {
+            sum += tr;
         }
         
-        return 0.0;
+        current_atr = sum / period;
+        is_initialized = true;
+
+        return current_atr;
     }
     
     // Calculate new True Range
@@ -83,6 +84,6 @@ inline double ATRC::update(const BasicCandle& candle)
     return current_atr;
 }
 
-inline double ATRC::get_value() const {
+inline std::optional<double> ATRC::get_value() const {
     return current_atr;
 }

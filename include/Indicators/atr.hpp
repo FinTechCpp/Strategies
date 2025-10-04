@@ -20,16 +20,16 @@ public:
     ATR(filter::ATRParams params)
         : IncrementalIndicator<double>("ATR" + std::string(params.useLog ? "LOG" : "") + "_" + std::to_string(params.period), params.period * 2), 
         period(params.period), useLog(params.useLog) {}
-    virtual double initialize_with_history(const std::vector<BasicCandle>& history) override;
-    virtual double update(const BasicCandle& candle) override;
-    virtual double get_value() const override;
+    virtual std::optional<double> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    virtual std::optional<double> update(const BasicCandle& candle) override;
+    virtual std::optional<double> get_value() const override;
 };
 
 
-inline double ATR::initialize_with_history(const std::vector<BasicCandle>& history)
+inline std::optional<double> ATR::initialize_with_history(const std::vector<BasicCandle>& history)
 {
     if (history.size() < static_cast<size_t>(period + 1)) {
-        return 0.0;
+        return std::nullopt;
     }
     
     std::vector<double> high_history;
@@ -71,12 +71,12 @@ inline double ATR::initialize_with_history(const std::vector<BasicCandle>& histo
     return current_atr;
 }
 
-inline double ATR::update(const BasicCandle& candle)
+inline std::optional<double> ATR::update(const BasicCandle& candle)
 {
     if (!is_initialized) {
         if (previous_close == 0.0) {
             previous_close = candle.close;
-            return 0.0;
+            return std::nullopt;
         }
         
         double tr = std::max({
@@ -88,21 +88,21 @@ inline double ATR::update(const BasicCandle& candle)
         true_range_history.push_back(tr);
         previous_close = candle.close;
         
-        if (true_range_history.size() >= static_cast<size_t>(period)) {
-            double sum = 0.0;
-            for (const auto& tr : true_range_history) {
-                sum += tr;
-            }
-            current_atr = sum / period;
-            is_initialized = true;
+        if (true_range_history.size() < static_cast<size_t>(period))
+            return std::nullopt;
 
-            if (useLog)
-                current_atr = std::log(1.0 + current_atr);
-
-            return current_atr;
+        double sum = 0.0;
+        for (const auto& tr : true_range_history) {
+            sum += tr;
         }
-        
-        return 0.0;
+
+        current_atr = sum / period;
+        is_initialized = true;
+
+        if (useLog)
+            current_atr = std::log(1.0 + current_atr);
+
+        return current_atr;
     }
     
     // Calculate new True Range
@@ -122,7 +122,7 @@ inline double ATR::update(const BasicCandle& candle)
     return current_atr;
 }
 
-inline double ATR::get_value() const {
+inline std::optional<double> ATR::get_value() const {
     if (useLog)
         return std::log(1.0 + current_atr);
 

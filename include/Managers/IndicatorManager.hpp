@@ -11,186 +11,220 @@
 #include <map>
 #include <type_traits>
 #include <variant>
+#include <optional>
+
+// template<typename> inline constexpr bool always_false_v = false;
 
 
-// Type pour stocker différentes valeurs d'indicateurs
-using IndicatorValue = std::variant<
-    double,                      // Pour EMA, RSI, ATR
-    std::pair<double, double>,   // Pour Stochastic (K, D)
-    std::pair<double, int>       // Pour SuperTrend (valeur, direction)
->;
+// Interface commune pour tous les gestionnaires d'indicateurs
+class IIndicatorHandlerBase {
+public:
+    virtual ~IIndicatorHandlerBase() = default;
+    virtual bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) = 0;
+    virtual bool update(const BasicCandle& candle, ILogger* logger) = 0;
+    virtual bool isInitialized() const = 0;
+    virtual const std::string& getName() const = 0;
+    virtual int getRequiredPeriods() const = 0;
+};
 
-class IndicatorManager {
+// Gestionnaire typé pour chaque type d'indicateur
+template<typename T, typename R>
+class IndicatorHandler : public IIndicatorHandlerBase {
 private:
-    // Interface commune pour tous les gestionnaires d'indicateurs
-    class IIndicatorHandler {
-    public:
-        virtual ~IIndicatorHandler() = default;
-        virtual bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) = 0;
-        virtual bool update(const BasicCandle& candle, ILogger* logger) = 0;
-        virtual bool isInitialized() const = 0;
-        virtual const std::string& getName() const = 0;
-        virtual int getRequiredPeriods() const = 0;
-        virtual IndicatorValue getCurrentValue() const = 0;
-        virtual IndicatorValue getHistoricalValue(int offset) const = 0;
-    };
-    
-    // Gestionnaire typé pour chaque type d'indicateur
-    template<typename T, typename R>
-    class IndicatorHandler : public IIndicatorHandler {
-    private:
-        std::shared_ptr<T> m_indicator;
-        std::deque<R> m_history; // Stockage des valeurs historiques
-        static constexpr size_t MAX_HISTORY_SIZE = 100;
-        
-    public:
-        template<typename... Args>
-        IndicatorHandler(Args&&... args) {
-            m_indicator = std::make_shared<T>(std::forward<Args>(args)...);
-        }
-        
-        bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) override {
-            if (logger) logger->log_general("Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
-            
-            try {
-                R result = m_indicator->initialize_with_history(history);
-                bool success = isValidResult(result);
-                
-                if (success) {
-                    // Stocker la valeur initiale
-                    m_history.clear();
-                    m_history.push_back(result);
-                    
-                    if (logger) {
-                        logger->log_indicator_value(m_indicator->get_name(), result);
-                    }
-                } else if (logger) {
-                    logger->log_general("Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
-                }
-                
-                return success;
-            }
-            catch (const std::exception& e) {
-                if (logger) {
-                    logger->log_general("Exception lors de l'initialisation de " + m_indicator->get_name() + ": " + e.what(), LogLevel::ERROR);
-                }
-                return false;
-            }
-        }
-        
-        bool update(const BasicCandle& candle, ILogger* logger) override {
-            R result = m_indicator->update(candle);
-            bool success = isValidResult(result);
-            
-            if (success) {
-                // Stocker la valeur mise à jour
-                m_history.push_back(result);
-                // Limiter l'historique (optionnel)
-                if (m_history.size() > MAX_HISTORY_SIZE) {
-                    m_history.pop_front();
-                }
-                
-                if (logger) {
-                    logger->log_indicator_value(m_indicator->get_name(), result);
-                }
-            } else if (logger) {
-                logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
-            }
-            
-            return success;
-        }
-        
-        bool isInitialized() const override {
-            return m_indicator->initialized();
-        }
-        
-        const std::string& getName() const override {
-            return m_indicator->get_name();
-        }
-
-        int getRequiredPeriods() const override {
-            return m_indicator->get_required_periods();
-        }
-        
-        IndicatorValue getCurrentValue() const override {
-            if (m_history.empty()) {
-                // Valeur par défaut selon le type
-                if constexpr (std::is_same_v<R, double>) {
-                    return 0.0;
-                } else if constexpr (std::is_same_v<R, std::pair<double, double>>) {
-                    return std::make_pair(0.0, 0.0);
-                } else if constexpr (std::is_same_v<R, std::pair<double, int>>) {
-                    return std::make_pair(0.0, 0);
-                }
-            }
-            return m_history.back();
-        }
-        
-        IndicatorValue getHistoricalValue(int offset) const override {
-            if (m_history.empty() || offset >= static_cast<int>(m_history.size())) {
-                // Valeur par défaut selon le type
-                if constexpr (std::is_same_v<R, double>) {
-                    return 0.0;
-                } else if constexpr (std::is_same_v<R, std::pair<double, double>>) {
-                    return std::make_pair(0.0, 0.0);
-                } else if constexpr (std::is_same_v<R, std::pair<double, int>>) {
-                    return std::make_pair(0.0, 0);
-                }
-            }
-            
-            // Retourner la valeur à l'offset spécifié (0 = plus récent)
-            size_t idx = m_history.size() - 1 - offset;
-            return m_history[idx];
-        }
-        
-        // Accès direct à l'indicateur sous-jacent (pour compatibilité)
-        std::shared_ptr<T> getIndicator() const {
-            return m_indicator;
-        }
-        
-    private:
-        // Vérifier si le résultat est valide
-        bool isValidResult(double value) const {
-            return value > 0.0 || value <= 0.0; // Accepte toutes les valeurs
-        }
-        
-        bool isValidResult(const std::pair<double, double>& value) const {
-            return true;
-        }
-        
-        bool isValidResult(const std::pair<double, int>& value) const {
-            return true;
-        }
-    };
-    
-    // Maps pour stocker les handlers par type de paramètres
-    std::map<filter::EMAParams, std::unique_ptr<IIndicatorHandler>> m_emaHandlers;
-    std::map<filter::RSIParams, std::unique_ptr<IIndicatorHandler>> m_rsiHandlers;
-    std::map<filter::StochasticParams, std::unique_ptr<IIndicatorHandler>> m_stochHandlers;
-    std::map<filter::ATRParams, std::unique_ptr<IIndicatorHandler>> m_atrHandlers;
-    std::map<filter::SuperTrendParams, std::unique_ptr<IIndicatorHandler>> m_supertrendHandlers;
-    std::map<filter::CCIParams, std::unique_ptr<IIndicatorHandler>> m_cciHandlers;
-
-    // Liste de tous les handlers pour les opérations en masse
-    std::vector<IIndicatorHandler*> m_allHandlers;
-    
-    // Fonction utilitaire pour extraire une valeur simple
-    static double extractValue(const IndicatorValue& value, bool isSecond = false) {
-        if (std::holds_alternative<double>(value)) {
-            return std::get<double>(value);
-        } 
-        else if (std::holds_alternative<std::pair<double, double>>(value)) {
-            auto& pair = std::get<std::pair<double, double>>(value);
-            return isSecond ? pair.second : pair.first;
-        } 
-        else if (std::holds_alternative<std::pair<double, int>>(value)) {
-            auto& pair = std::get<std::pair<double, int>>(value);
-            return isSecond ? static_cast<double>(pair.second) : pair.first;
-        }
-        return 0.0;
-    }
+    std::shared_ptr<T> m_indicator;
+    std::deque<R> m_history; // Stockage des valeurs historiques
+    static constexpr size_t MAX_HISTORY_SIZE = 100;
     
 public:
+    template<typename... Args>
+    IndicatorHandler(Args&&... args) {
+        m_indicator = std::make_shared<T>(std::forward<Args>(args)...);
+    }
+    
+    bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) override {
+        if (logger) logger->log_general("Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
+        
+        std::optional<R> result = m_indicator->initialize_with_history(history);
+        
+        if (result.has_value()) {
+            // Stocker la valeur initiale
+            m_history.clear();
+            m_history.push_back(result.value());
+            
+            if (logger) {
+                logger->log_indicator_value(m_indicator->get_name(), result.value());
+            }
+        } else if (logger) {
+            logger->log_general("Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
+        }
+        
+        return result.has_value();
+    }
+    
+    bool update(const BasicCandle& candle, ILogger* logger) override {
+        std::optional<R> result = m_indicator->update(candle);
+
+        if (result.has_value()) {
+            // Stocker la valeur mise à jour
+            m_history.push_back(result.value());
+            // Limiter l'historique (optionnel)
+            if (m_history.size() > MAX_HISTORY_SIZE) {
+                m_history.pop_front();
+            }
+            
+            if (logger) {
+                logger->log_indicator_value(m_indicator->get_name(), result.value());
+            }
+        } else if (logger) {
+            logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
+        }
+        
+        return result.has_value();
+    }
+    
+    bool isInitialized() const override {
+        return m_indicator->initialized();
+    }
+    
+    const std::string& getName() const override {
+        return m_indicator->get_name();
+    }
+
+    int getRequiredPeriods() const override {
+        return m_indicator->get_required_periods();
+    }
+    
+    std::optional<R> getCurrentValue() const {
+        if (m_history.empty()) {
+            return std::nullopt;
+        }
+        return m_history.back();
+    }
+
+    std::optional<R> getHistoricalValue(int offset) const {
+        if (m_history.empty() || offset >= static_cast<int>(m_history.size())) {
+            return std::nullopt;
+        }
+        
+        // Retourner la valeur à l'offset spécifié (0 = plus récent)
+        size_t idx = m_history.size() - 1 - offset;
+        return m_history[idx];
+    }
+    
+    // Accès direct à l'indicateur sous-jacent (pour compatibilité)
+    std::shared_ptr<T> getIndicator() const {
+        return m_indicator;
+    }
+};
+
+
+class IndicatorManager {
+private:    
+    // Maps pour stocker les handlers par type de paramètres
+    std::map<filter::EMAParams, std::unique_ptr<IndicatorHandler<EMA, double>>> m_emaHandlers;
+    std::map<filter::RSIParams, std::unique_ptr<IndicatorHandler<RSI, double>>> m_rsiHandlers;
+    std::map<filter::StochasticParams, std::unique_ptr<IndicatorHandler<STOCH, std::pair<double, double>>>> m_stochHandlers;
+    std::map<filter::ATRParams, std::unique_ptr<IndicatorHandler<ATR, double>>> m_atrHandlers;
+    std::map<filter::SuperTrendParams, std::unique_ptr<IndicatorHandler<SUPERTREND, std::pair<double, int>>>> m_supertrendHandlers;
+    std::map<filter::CCIParams, std::unique_ptr<IndicatorHandler<CCI, double>>> m_cciHandlers;
+
+    // Liste de tous les handlers pour les opérations en masse
+    std::vector<IIndicatorHandlerBase*> m_allHandlers;
+    
+public:
+
+    // template<typename IndicatorT, typename ParamT, typename ReturnT>
+    // void registerIndicator(const ParamT& params) {
+    //     auto& handlers = getHandlerMapImpl<IndicatorT, ParamT, ReturnT>();
+
+    //     if (handlers.find(params) != handlers.end()) {
+    //         return; // Déjà enregistré
+    //     }
+
+    //     auto handler = std::make_unique<IndicatorHandler<IndicatorT, ReturnT>>(params);
+    //     m_allHandlers.push_back(handler.get());
+    //     handlers[params] = std::move(handler);
+    // }
+
+    // // Méthode générique d'accès aux valeurs
+    // template<typename IndicatorT, typename ParamT, typename ReturnT>
+    // std::optional<ReturnT> getIndicatorValue(const ParamT& params, int offset = 0) const {
+    //     const auto& handlers = getHandlerMapImpl<IndicatorT, ParamT, ReturnT>();
+        
+    //     auto it = handlers.find(params);
+    //     if (it != handlers.end()) {
+    //         return offset == 0 ? 
+    //             it->second->getCurrentValue() : 
+    //             it->second->getHistoricalValue(offset);
+    //     }
+    //     return std::nullopt;
+    // }
+
+    // // helper interne (implémentation)
+    // template<typename IndicatorT, typename ParamT, typename ReturnT>
+    // auto& getHandlerMapImpl() {
+    //     if constexpr (std::is_same_v<IndicatorT, EMA> &&
+    //                   std::is_same_v<ParamT, filter::EMAParams> &&
+    //                   std::is_same_v<ReturnT, double>) {
+    //         return m_emaHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, RSI> &&
+    //                          std::is_same_v<ParamT, filter::RSIParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_rsiHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, STOCH> &&
+    //                          std::is_same_v<ParamT, filter::StochasticParams> &&
+    //                          std::is_same_v<ReturnT, std::pair<double, double>>) {
+    //         return m_stochHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, ATR> &&
+    //                          std::is_same_v<ParamT, filter::ATRParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_atrHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, SUPERTREND> &&
+    //                          std::is_same_v<ParamT, filter::SuperTrendParams> &&
+    //                          std::is_same_v<ReturnT, std::pair<double, int>>) {
+    //         return m_supertrendHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, CCI> &&
+    //                          std::is_same_v<ParamT, filter::CCIParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_cciHandlers;
+    //     } else {
+    //         static_assert(always_false_v<IndicatorT>, "getHandlerMap: combinaison IndicatorT/ParamT/ReturnT non supportée");
+    //     }
+    // }
+
+    // template<typename IndicatorT, typename ParamT, typename ReturnT>
+    // const auto& getHandlerMapImpl() const {
+    //     if constexpr (std::is_same_v<IndicatorT, EMA> &&
+    //                   std::is_same_v<ParamT, filter::EMAParams> &&
+    //                   std::is_same_v<ReturnT, double>) {
+    //         return m_emaHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, RSI> &&
+    //                          std::is_same_v<ParamT, filter::RSIParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_rsiHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, STOCH> &&
+    //                          std::is_same_v<ParamT, filter::StochasticParams> &&
+    //                          std::is_same_v<ReturnT, std::pair<double, double>>) {
+    //         return m_stochHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, ATR> &&
+    //                          std::is_same_v<ParamT, filter::ATRParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_atrHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, SUPERTREND> &&
+    //                          std::is_same_v<ParamT, filter::SuperTrendParams> &&
+    //                          std::is_same_v<ReturnT, std::pair<double, int>>) {
+    //         return m_supertrendHandlers;
+    //     } else if constexpr (std::is_same_v<IndicatorT, CCI> &&
+    //                          std::is_same_v<ParamT, filter::CCIParams> &&
+    //                          std::is_same_v<ReturnT, double>) {
+    //         return m_cciHandlers;
+    //     } else {
+    //         static_assert(always_false_v<IndicatorT>, "getHandlerMap (const): combinaison IndicatorT/ParamT/ReturnT non supportée");
+    //     }
+    // }
+    
+
+
     // Méthodes d'enregistrement par type d'indicateur
     void registerEMA(const filter::EMAParams& params) {
         if (m_emaHandlers.find(params) != m_emaHandlers.end()) {
@@ -249,18 +283,21 @@ public:
             return; // Déjà enregistré
         }
         
-        auto handler = std::make_unique<IndicatorHandler<CCI, double>>(params.period);
+        auto handler = std::make_unique<IndicatorHandler<CCI, double>>(params);
         m_allHandlers.push_back(handler.get());
         m_cciHandlers[params] = std::move(handler);
     }
-    
-    // Méthodes d'accès aux valeurs
+
+    // Méthodes d'accès aux valeurs avec valeurs par défaut
     double getEMAValue(const filter::EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
         if (it != m_emaHandlers.end()) {
-            return extractValue(offset == 0 ? 
+            auto value = offset == 0 ? 
                 it->second->getCurrentValue() : 
-                it->second->getHistoricalValue(offset));
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
         }
         return 0.0;
     }
@@ -268,9 +305,12 @@ public:
     double getRSIValue(const filter::RSIParams& params, int offset = 0) const {
         auto it = m_rsiHandlers.find(params);
         if (it != m_rsiHandlers.end()) {
-            return extractValue(offset == 0 ? 
+            auto value = offset == 0 ? 
                 it->second->getCurrentValue() : 
-                it->second->getHistoricalValue(offset));
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
         }
         return 0.0;
     }
@@ -282,8 +322,8 @@ public:
                 it->second->getCurrentValue() : 
                 it->second->getHistoricalValue(offset);
                 
-            if (std::holds_alternative<std::pair<double, double>>(value)) {
-                return std::get<std::pair<double, double>>(value);
+            if (value.has_value()) {
+                return value.value();
             }
         }
         return {0.0, 0.0};
@@ -292,9 +332,12 @@ public:
     double getATRValue(const filter::ATRParams& params, int offset = 0) const {
         auto it = m_atrHandlers.find(params);
         if (it != m_atrHandlers.end()) {
-            return extractValue(offset == 0 ? 
+            auto value = offset == 0 ? 
                 it->second->getCurrentValue() : 
-                it->second->getHistoricalValue(offset));
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
         }
         return 0.0;
     }
@@ -305,9 +348,8 @@ public:
             auto value = offset == 0 ? 
                 it->second->getCurrentValue() : 
                 it->second->getHistoricalValue(offset);
-                
-            if (std::holds_alternative<std::pair<double, int>>(value)) {
-                return std::get<std::pair<double, int>>(value);
+            if (value.has_value()) {
+                return value.value();
             }
         }
         return {0.0, 0};
@@ -316,9 +358,12 @@ public:
     double getCCIValue(const filter::CCIParams& params, int offset = 0) const {
         auto it = m_cciHandlers.find(params);
         if (it != m_cciHandlers.end()) {
-            return extractValue(offset == 0 ? 
+            auto value = offset == 0 ? 
                 it->second->getCurrentValue() : 
-                it->second->getHistoricalValue(offset));
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
         }
         return 0.0;
     }
