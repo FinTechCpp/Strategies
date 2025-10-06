@@ -41,9 +41,9 @@ public:
     // Main update method
     Signal* update_candle(const Candle& candle);
 
-    void set_log_callback(std::function<void(const std::string&, int)> callback) {
+    void set_log_callback(std::function<void(const std::string&)> callback) {
         logger->set_log_callback(callback);
-    }    
+    }
 
 protected:
     StrategyConfig base_config;
