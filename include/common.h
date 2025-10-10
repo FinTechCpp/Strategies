@@ -36,6 +36,7 @@ namespace filter {
         ATR,
         SUPERTREND_VALUE,
         SUPERTREND_DIRECTION,
+        CCI,
         PIVOT_POINT
     };
 
@@ -60,12 +61,13 @@ namespace filter {
         EQUAL,                 // ==
         NOT_EQUAL,             // !=
         CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
-        CROSSES_BELOW          // Croisement à la baisse (période actuelle vs précédente)
+        CROSSES_BELOW,         // Croisement à la baisse (période actuelle vs précédente)
+        TRUE,                  // Racourci pour == Constante 1.0
+        FALSE                  // Racourci pour == Constante 0.0
     };
 
     // Type de logique temporelle
     enum class TemporalLogic {
-        CURRENT,          // Période courante uniquement
         ANY_OF,           // Au moins une période (OR)
         ALL_OF,           // Toutes les périodes (AND)
     };
@@ -158,6 +160,21 @@ namespace filter {
         }
     };
 
+    // Paramètres pour CCI
+    struct CCIParams {
+        int period;
+        
+        explicit CCIParams(int p = 20) : period(p) {}
+        
+        bool operator<(const CCIParams& other) const {
+            return period < other.period;
+        }
+        
+        bool operator==(const CCIParams& other) const {
+            return period == other.period;
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -176,6 +193,7 @@ namespace filter {
             StochasticParams stochParams;
             ATRParams atrParams;
             SuperTrendParams supertrendParams;
+            CCIParams cciParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT
@@ -191,7 +209,8 @@ namespace filter {
             emaParams(0),
             constantValue(0.0),
             historicalOffset(0)
-        {}
+        {
+        }
 
         // Constructeurs spécifiques pour chaque catégorie
         // TODO remplacer les constructeur avec les structure de params
@@ -278,6 +297,15 @@ namespace filter {
             source.historicalOffset = offset;
             return source;
         }
+        // Pour CCI (valeur)
+        static ValueSource CCI(int period, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::CCI;
+            source.cciParams.period = period;
+            source.historicalOffset = offset;
+            return source;
+        }
         
         // Pour propriétés de bougie
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
@@ -289,14 +317,14 @@ namespace filter {
         }
 
         // Méthode pour obtenir une description humaine lisible de la source
-        std::string getDescription() const {
+        static std::string description(const ValueSource& source) {
             std::string desc;
             
-            switch (category) {
+            switch (source.category) {
                 case ValueCategory::PRICE:
                     desc = "Prix ";
-                    switch (priceType) {
-                        case PriceType::CLOSE: desc += "Clôture"; break;
+                    switch (source.priceType) {
+                        case PriceType::CLOSE: desc += "Cloture"; break;
                         case PriceType::OPEN: desc += "Ouverture"; break;
                         case PriceType::HIGH: desc += "Haut"; break;
                         case PriceType::LOW: desc += "Bas"; break;
@@ -306,38 +334,41 @@ namespace filter {
                     break;
                     
                 case ValueCategory::CONSTANT:
-                    desc = std::to_string(constantValue);
+                    desc = std::to_string(source.constantValue);
                     break;
                     
                 case ValueCategory::INDICATOR:
-                    switch (indicatorType) {
+                    switch (source.indicatorType) {
                         case IndicatorType::EMA: 
-                            desc = "EMA(" + std::to_string(emaParams.period) + ")"; 
+                            desc = "EMA(" + std::to_string(source.emaParams.period) + ")"; 
                             break;
                         case IndicatorType::RSI: 
-                            desc = "RSI(" + std::to_string(rsiParams.period) + ")"; 
+                            desc = "RSI(" + std::to_string(source.rsiParams.period) + ")"; 
                             break;
                         case IndicatorType::STOCHASTIC_K: 
-                            desc = "Stochastique K(" + std::to_string(stochParams.fastK) + "," + 
-                                std::to_string(stochParams.slowK) + "," + 
-                                std::to_string(stochParams.slowD) + ")";
+                            desc = "Stochastique K(" + std::to_string(source.stochParams.fastK) + "," + 
+                                std::to_string(source.stochParams.slowK) + "," + 
+                                std::to_string(source.stochParams.slowD) + ")";
                             break;
                         case IndicatorType::STOCHASTIC_D: 
-                            desc = "Stochastique D(" + std::to_string(stochParams.fastK) + "," + 
-                                std::to_string(stochParams.slowK) + "," + 
-                                std::to_string(stochParams.slowD) + ")";
+                            desc = "Stochastique D(" + std::to_string(source.stochParams.fastK) + "," + 
+                                std::to_string(source.stochParams.slowK) + "," + 
+                                std::to_string(source.stochParams.slowD) + ")";
                             break;
                         case IndicatorType::ATR: 
-                            desc = std::string(atrParams.useLog ? "ATRLOG(" : "ATR(") + 
-                                std::to_string(atrParams.period) + ")";
+                            desc = std::string(source.atrParams.useLog ? "ATRLOG(" : "ATR(") + 
+                                std::to_string(source.atrParams.period) + ")";
                             break;
                         case IndicatorType::SUPERTREND_VALUE:
-                            desc = "SuperTrend(" + std::to_string(supertrendParams.atrPeriod) + "," +
-                                std::to_string(supertrendParams.multiplier) + ")";
+                            desc = "SuperTrend(" + std::to_string(source.supertrendParams.atrPeriod) + "," +
+                                std::to_string(source.supertrendParams.multiplier) + ")";
                             break;
                         case IndicatorType::SUPERTREND_DIRECTION:
-                            desc = "SuperTrend Direction(" + std::to_string(supertrendParams.atrPeriod) + "," +
-                                std::to_string(supertrendParams.multiplier) + ")";
+                            desc = "SuperTrend Direction(" + std::to_string(source.supertrendParams.atrPeriod) + "," +
+                                std::to_string(source.supertrendParams.multiplier) + ")";
+                            break;
+                        case IndicatorType::CCI:
+                            desc = "CCI(" + std::to_string(source.cciParams.period) + ")";
                             break;
                         case IndicatorType::PIVOT_POINT:
                             desc = "Pivot Point";
@@ -347,7 +378,7 @@ namespace filter {
                     
                 case ValueCategory::CANDLE_PROPERTY:
                     desc = "Bougie ";
-                    switch (candlePropertyType) {
+                    switch (source.candlePropertyType) {
                         case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Verte"; break;
                         case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Rouge"; break;
                         case CandlePropertyType::IS_GREEN: desc += "Est Verte"; break;
@@ -359,9 +390,9 @@ namespace filter {
                     }
                     break;
             }
-            
-            if (historicalOffset > 0) {
-                desc += " [T-" + std::to_string(historicalOffset) + "]";
+
+            if (source.historicalOffset > 0) {
+                desc += " [T-" + std::to_string(source.historicalOffset) + "]";
             }
             
             return desc;
@@ -373,31 +404,28 @@ namespace filter {
         ValueSource leftValue;
         ValueSource rightValue;
         ComparisonOperator op;
-        TemporalLogic temporalLogic = TemporalLogic::CURRENT;
+        TemporalLogic temporalLogic = TemporalLogic::ALL_OF;
         int lookbackPeriods = 1;
         bool enabled = true;
         std::string description;
-        
+
         GenericFilter() = default;
-        
+                
         // Constructeur pratique pour les cas courants
         GenericFilter(ValueSource left, 
                     ComparisonOperator comp, 
                     ValueSource right,
-                    TemporalLogic logic = TemporalLogic::CURRENT,
-                    int periods = 1,
-                    const std::string& desc = "") 
+                    TemporalLogic logic,
+                    int periods = 1) 
             : leftValue(left), 
             rightValue(right), 
             op(comp), 
             temporalLogic(logic), 
             lookbackPeriods(periods),
-            enabled(true),
-            description(desc) {
+            enabled(true) {
             
             // Générer une description automatique si aucune n'est fournie
-            if (description.empty())
-                description = autoGenerateDescription();
+            description = autoGenerateDescription();
         }
         
         // Génère une description lisible du filtre
@@ -410,28 +438,37 @@ namespace filter {
                 case ComparisonOperator::LESS_OR_EQUAL: opStr = "<="; break;
                 case ComparisonOperator::EQUAL: opStr = "="; break;
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
-                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise au-dessus"; break;
-                case ComparisonOperator::CROSSES_BELOW: opStr = "croise en-dessous"; break;
+                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise à la hausse"; break;
+                case ComparisonOperator::CROSSES_BELOW: opStr = "croise à la baisse"; break;
+                case ComparisonOperator::TRUE: opStr = "est vrai"; break;
+                case ComparisonOperator::FALSE: opStr = "est faux"; break;
             }
-            
+
             std::string timeLogicStr;
-            switch (temporalLogic) {
-                case TemporalLogic::CURRENT: 
-                    timeLogicStr = ""; 
+            if (lookbackPeriods == 1)
+                timeLogicStr = " (sur la periode courante)";
+            else {
+                switch (temporalLogic) {
+                    case TemporalLogic::ANY_OF:
+                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)";
                     break;
-                case TemporalLogic::ANY_OF: 
-                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
+                    case TemporalLogic::ALL_OF:
+                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)";
                     break;
-                case TemporalLogic::ALL_OF: 
-                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernières périodes)"; 
-                    break;
+                }
             }
 
             std::string enabledStr;
             if (!enabled)
                 enabledStr = "[Désactivé] ";
 
-            return enabledStr + leftValue.getDescription() + " " + opStr + " " + rightValue.getDescription() + timeLogicStr;
+            std::string rightDesc;
+            if (op == ComparisonOperator::TRUE || op == ComparisonOperator::FALSE)
+                rightDesc = "";
+            else
+                rightDesc = " " + ValueSource::description(rightValue);
+
+            return enabledStr + ValueSource::description(leftValue) + " " + opStr + rightDesc + timeLogicStr;
         }
     };
 }
@@ -591,6 +628,8 @@ struct StrategyConfig {
 
     // Filters
     std::vector<filter::GenericFilter> filters;
+    // Filters that, when true, should trigger a liquidation (resale) of the open position
+    std::vector<filter::GenericFilter> resale_filters;
 
     // Time settings
     Time trading_from;
@@ -619,9 +658,9 @@ struct StrategyConfig {
     // New parameter for TP based on SL
     double tp_sl_ratio;
 
-    // New parameter for TP based on SuperTrend
+/*     // New parameter for TP based on SuperTrend
     int tp_supertrend_atr_period;
-    double tp_supertrend_multiplier;
+    double tp_supertrend_multiplier; */
 
     // New parameters for TP based on ML/RL
     std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
@@ -684,12 +723,12 @@ inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method
             return os << "ATR";
         case TakeProfitMethod::SLRatio:
             return os << "SLRatio";
-        case TakeProfitMethod::SuperTrend:
-            return os << "SuperTrend";
+/*         case TakeProfitMethod::SuperTrend:
+            return os << "SuperTrend"; */
         case TakeProfitMethod::RL:
             return os << "RL";
-        case TakeProfitMethod::NthHeikinAshi:
-            return os << "NthHeikinAshi";
+/*         case TakeProfitMethod::NthHeikinAshi:
+            return os << "NthHeikinAshi"; */
         default:
             return os << "Unknown(" << static_cast<int>(method) << ")";
     }
@@ -709,6 +748,9 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     for (const auto& filter : config.filters)
         os << "  Filter: " << filter.description << "\n";
     
+    for (const auto& filter : config.resale_filters)
+        os << "  Resale Filter: " << filter.description << "\n";
+
     // Time settings
     os << "  Trading hours: " << config.trading_from.hour << ":" << config.trading_from.minute 
        << " - " << config.trading_to.hour << ":" << config.trading_to.minute << "\n";
@@ -747,12 +789,12 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     // SL ratio for TP
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
 
-    // SuperTrend parameters for TP
+/*     // SuperTrend parameters for TP
     os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
-    os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n";
+    os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n"; */
 
-    // Nth Heikin-Ashi parameters for TP
-    os << "  Nth Heikin-Ashi count: " << config.nth_heikin_ashi_count << "\n";
+/*     // Nth Heikin-Ashi parameters for TP
+    os << "  Nth Heikin-Ashi count: " << config.nth_heikin_ashi_count << "\n"; */
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";

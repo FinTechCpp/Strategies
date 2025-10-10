@@ -67,6 +67,9 @@ void Strategy::registerFiltersIndicators() {
             case filter::IndicatorType::SUPERTREND_DIRECTION:
                 indicator_manager->registerSuperTrend(source.supertrendParams);
                 break;
+            case filter::IndicatorType::CCI:
+                indicator_manager->registerCCI(source.cciParams);
+                break;
             default:
                 break;
         }
@@ -76,6 +79,11 @@ void Strategy::registerFiltersIndicators() {
     for (const auto& filter : filters) {
         registerIfNeeded(filter.leftValue);
         registerIfNeeded(filter.rightValue);
+    }
+    // Parcourir les resale_filters et enregistrer les indicateurs qu'ils utilisent
+    for (const auto& rf : resale_filters) {
+        registerIfNeeded(rf.leftValue);
+        registerIfNeeded(rf.rightValue);
     }
 }
 
@@ -132,22 +140,21 @@ bool Strategy::update_indicators()
         int max_period = indicator_manager->getMaxRequiredPeriods();
         
         // Prendre en compte également la période pour le Stop Loss si nécessaire
-        if (base_config.sl_method == StopLossMethod::MinMax) {
+        if (base_config.sl_method == StopLossMethod::MinMax) 
             max_period = std::max(max_period, base_config.sl_minmax_periods);
-        }
         
         size_t available_candles = candle_manager->size();
         
         if (available_candles < static_cast<size_t>(max_period)) {
             int remaining = max_period - static_cast<int>(available_candles);
-            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(available_candles) + 
+            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
                               "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
                               logger->fast_int_to_string(remaining) + " bougies)");
             return false;
         }
         
         auto candles = candle_manager->get_last_candles(candle_manager->size());
-        logger->log_general("Initialisation avec " + logger->fast_int_to_string(candles.size()) + " bougies");
+        logger->log_general("Initialisation avec " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " bougies");
         return indicator_manager->initializeAll(candles, logger.get());
     }
     
@@ -281,11 +288,6 @@ void Strategy::update_daily_pnl_tracking() {
 
 // Method to check if we are within trading hours
 bool Strategy::check_time() {
-    if (!candle_manager->get_latest_candle().date.is_valid()) {
-        logger->log_time_check(false, "Date de bougie invalide", LogLevel::WARNING);
-        return false;
-    }
-
     const DateTime& current_date = candle_manager->get_latest_candle().date;
     const Time& current_time = current_date.time;
 
@@ -296,11 +298,10 @@ bool Strategy::check_time() {
 
         last_check_date = current_date;
 
-        int weekday = get_day_of_week(current_date);
+        weekday = get_day_of_week(current_date);
         weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
-            logger->log_time_check(false, "Jour non autorisé pour le trading: " +
-                                 current_date.to_string(), LogLevel::INFO);
+            logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
             return false;
         }
     }
@@ -313,19 +314,14 @@ bool Strategy::check_time() {
     time_check = after_start && before_end;
 
     if (!weekday_check) {
-        logger->log_time_check(false, "Jour non autorisé pour le trading: " +
-                             current_date.to_string(), LogLevel::INFO);
+        logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
         return false;
     }
 
     if (!time_check) {
-        logger->log_time_check(false,
-                             std::to_string(current_time.hour) + ":" +
-                             std::to_string(current_time.minute), LogLevel::INFO);
+        logger->log_time_check(true, 0, false, current_time, LogLevel::INFO);
     } else {
-        logger->log_time_check(true,
-                             std::to_string(current_time.hour) + ":" +
-                             std::to_string(current_time.minute), LogLevel::DEBUG);
+        logger->log_time_check(true, 0, true, current_time, LogLevel::DEBUG);
     }
 
     return time_check;
@@ -359,14 +355,8 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
 
 
     if (threshold_reached) {
-        logger->log_general("Activation break-even: " + 
-                          std::string(position_sign > 0 ? "High" : "Low") + "=" + 
-                          logger->fast_double_to_string(reference_price) + 
-                          " " + std::string(position_sign > 0 ? ">=" : "<=") + 
-                          " seuil (" + logger->fast_double_to_string(break_even_price) + 
-                          "), " + logger->fast_double_to_string(base_config.break_even_threshold * 100) + 
-                          "% du chemin vers TP", LogLevel::INFO);
-
+        logger->log_general_BE_activated(position_sign, reference_price, break_even_price, base_config.break_even_threshold);
+            
         auto be_signal = std::make_unique<Signal>();
         be_signal->type = SignalType::MOVE_SL;
         be_signal->new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);
@@ -377,7 +367,7 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     return nullptr;
 }
 
-std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
+/* std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
     // Check if SuperTrend is enabled and we have a pending open position
     if(base_config.tp_method != TakeProfitMethod::SuperTrend || position_info.entry_price <= 0.0) {
         // Insufficient data to calculate SuperTrend exit
@@ -456,7 +446,7 @@ std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
     }
 
     return nullptr;
-}
+} */
 
 std::unique_ptr<Signal> Strategy::generate_buy_signal() {
     auto sig = std::make_unique<Signal>();
@@ -528,7 +518,7 @@ void Strategy::execute_long() {
     logger->log_signal("BUY", buy_price, buy_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
-    // Marquer qu'une position est maintenant ouverte
+/*     // Marquer qu'une position est maintenant ouverte
     if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
@@ -543,7 +533,7 @@ void Strategy::execute_long() {
         is_position_long = true;
         logger->log_general("Nth Heikin-Ashi TP activé pour position LONG: cherche " + 
                           std::to_string(base_config.nth_heikin_ashi_count) + " bougies rouges", LogLevel::DEBUG);
-    }
+    } */
             
     signal = generate_buy_signal();
 }
@@ -582,7 +572,7 @@ void Strategy::execute_short() {
     logger->log_signal("SELL", sell_price, sell_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
-    // Marquer qu'une position est maintenant ouverte
+/*     // Marquer qu'une position est maintenant ouverte
     if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
         // Store the current direction to track trend reversals
         previous_supertrend_direction = current_supertrend_direction;
@@ -597,17 +587,29 @@ void Strategy::execute_short() {
         is_position_long = false;
         logger->log_general("Nth Heikin-Ashi TP activé pour position SHORT: cherche " + 
                           std::to_string(base_config.nth_heikin_ashi_count) + " bougies vertes", LogLevel::DEBUG);
-    }
+    } */
     
     signal = generate_sell_signal();
 }
 
 bool Strategy::execute_filters() {
-    for (const auto& filter : filters) {
-        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) {
+    if (filters.empty()) 
+        return false; // No filters defined, never pass
+
+    for (const auto& filter : filters) 
+        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
             return false;
-        }
-    }
+    return true;
+}
+
+bool Strategy::execute_resale_filters() {
+    if (resale_filters.empty()) 
+        return false; // No resale filters defined
+  
+    logger->log_general("Vérification des conditions de revente", LogLevel::INFO);
+    for (const auto& filter : resale_filters) 
+        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
+            return false;
     return true;
 }
 
@@ -674,7 +676,7 @@ void Strategy::execute() {
         return;
     }
 
-    // Check for SuperTrend exit signal if position is open
+/*     // Check for SuperTrend exit signal if position is open
     auto st_exit_signal = check_supertrend_exit();
     if (st_exit_signal) {
         logger->log_general("Signal de sortie SuperTrend généré");
@@ -687,6 +689,12 @@ void Strategy::execute() {
     if (ha_exit_signal) {
         logger->log_general("Signal de sortie nth Heikin-Ashi généré");
         signal = std::move(ha_exit_signal);
+        return;
+    } */
+    
+    if (position_info.entry_price > 0.0 && execute_resale_filters()) {
+        logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
+        signal = generate_liquidation_signal();
         return;
     }
     
@@ -705,14 +713,14 @@ void Strategy::execute() {
     }
 }
 
-
 Strategy::Strategy(const StrategyConfig& config) 
     : base_config(config), 
     signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
     candle_manager(std::make_unique<CandleManager>()),
-    filters(config.filters)
+    filters(config.filters),
+    resale_filters(config.resale_filters)
 {
     set_log_level(static_cast<int>(base_config.logLevel));
     set_log_enabled(base_config.enable_logging);
@@ -724,13 +732,28 @@ Strategy::Strategy(const StrategyConfig& config)
 
     registerFiltersIndicators();
 
-    if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR) {
+    if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
-    }
-
-    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
-        indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier));
-    }
+    
+/*     if (base_config.tp_method == TakeProfitMethod::SuperTrend) 
+        indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier)); */
+    
+    // Ajuster les paramètres du CandleManager en fonction de la période maximale requise
+    int max_period = indicator_manager->getMaxRequiredPeriods();
+    if (base_config.sl_method == StopLossMethod::MinMax) 
+        max_period = std::max(max_period, base_config.sl_minmax_periods);
+    
+    // Configurer le CandleManager avec une marge de sécurité
+    // - hysteresis_threshold : max_period + 100 bougies de marge
+    // - clean_target_size : max_period (garde exactement ce qu'il faut)
+    // - max_buffer_size : max_period (pas utilisé vraiment mais cohérent)
+    size_t threshold = max_period + 100;
+    size_t target = max_period;
+    candle_manager->set_buffer_params(max_period, threshold, target);
+    
+    logger->log_general("CandleManager configuré: seuil=" + std::to_string(threshold) + 
+                       ", cible=" + std::to_string(target) + 
+                       " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
 }
 
 // Main update method

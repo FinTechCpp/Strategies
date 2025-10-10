@@ -41,9 +41,9 @@ public:
     // Main update method
     Signal* update_candle(const Candle& candle);
 
-    void set_log_callback(std::function<void(const std::string&, int)> callback) {
+    void set_log_callback(std::function<void(const std::string&)> callback) {
         logger->set_log_callback(callback);
-    }    
+    }
 
 protected:
     StrategyConfig base_config;
@@ -52,7 +52,8 @@ protected:
     std::unique_ptr<IndicatorManager> indicator_manager;
     std::unique_ptr<ILogger> logger;
     std::vector<filter::GenericFilter> filters;
-
+    // Filters that trigger liquidation when true
+    std::vector<filter::GenericFilter> resale_filters;
 
     // Signal components
     double buy_quantity = 0.0;
@@ -68,6 +69,7 @@ protected:
     // Cache for time checking
     DateTime last_check_date;
     bool weekday_check = false;
+    int weekday = -1;
     bool time_check = false;
 
     // Suivi des pertes journalières
@@ -79,14 +81,14 @@ protected:
     // Cache pour le dernier trade
     double last_trade_pnl = 0.0;
     
-    // SuperTrend pour TP - values updated by derived classes
+/*     // SuperTrend pour TP - values updated by derived classes
     int previous_supertrend_direction = 0;
     double current_supertrend = 0.0;
-    int current_supertrend_direction = 0;
+    int current_supertrend_direction = 0; */
 
-    // Nth Heikin-Ashi TP tracking
+/*     // Nth Heikin-Ashi TP tracking
     int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
-    bool is_position_long = false;       // Track whether current position is long or short
+    bool is_position_long = false;       // Track whether current position is long or short */
 
 
     // Core strategy methods to implement in derived classes
@@ -110,8 +112,8 @@ private:
     bool check_time();
     
     std::unique_ptr<Signal> check_break_even();
-    std::unique_ptr<Signal> check_supertrend_exit();
-    std::unique_ptr<Signal> check_nth_heikin_ashi_exit();
+/*     std::unique_ptr<Signal> check_supertrend_exit();
+    std::unique_ptr<Signal> check_nth_heikin_ashi_exit(); */
     std::unique_ptr<Signal> generate_buy_signal();
     std::unique_ptr<Signal> generate_sell_signal();
     std::unique_ptr<Signal> generate_liquidation_signal();
@@ -120,6 +122,7 @@ private:
     void execute_long();
     void execute_short();
     bool execute_filters();
+    bool execute_resale_filters();
     void execute();
 
     void set_log_level(int level) {

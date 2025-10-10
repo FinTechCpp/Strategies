@@ -1,11 +1,12 @@
 #pragma once
 #include "common.h"
 #include <string>
+#include <optional>
 
 /**
  * Base class for all incremental indicators
  */
-template <typename ReturnType>
+template <typename ReturnT>
 class IncrementalIndicator {
 protected:
     bool is_initialized = false;
@@ -24,7 +25,7 @@ public:
     int get_required_periods() const { return required_periods; }
     
     // Méthodes virtuelles pures pour les classes dérivées
-    virtual ReturnType initialize_with_history(const std::vector<BasicCandle>& history) = 0;
-    virtual ReturnType update(const BasicCandle& candle) = 0;
-    virtual ReturnType get_value() const = 0;
+    virtual std::optional<ReturnT> initialize_with_history(const std::vector<BasicCandle>& history) = 0;
+    virtual std::optional<ReturnT> update(const BasicCandle& candle) = 0;
+    virtual std::optional<ReturnT> get_value() const = 0;
 };

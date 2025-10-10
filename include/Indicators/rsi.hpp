@@ -24,14 +24,14 @@ public:
     : IncrementalIndicator<double>("RSI_" + std::to_string(params.period), params.period),
     period(params.period) {}
 
-    double initialize_with_history(const std::vector<BasicCandle>& history) override;
-    double update(const BasicCandle& candle) override;
-    double get_value() const override;
+    std::optional<double> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    std::optional<double> update(const BasicCandle& candle) override;
+    std::optional<double> get_value() const override;
 };
 
-inline double RSI::initialize_with_history(const std::vector<BasicCandle>& history) {
+inline std::optional<double> RSI::initialize_with_history(const std::vector<BasicCandle>& history) {
     if (history.size() < static_cast<size_t>(period + 1)) {
-        return 0.0;
+        return std::nullopt;
     }
 
     // Initialize close history
@@ -74,7 +74,7 @@ inline double RSI::initialize_with_history(const std::vector<BasicCandle>& histo
     return current_rsi;
 }
 
-inline double RSI::update(const BasicCandle& candle) {
+inline std::optional<double> RSI::update(const BasicCandle& candle) {
     double price = candle.close;
 
     if (!is_initialized) {
@@ -98,7 +98,7 @@ inline double RSI::update(const BasicCandle& candle) {
             prev_close = close_history[close_history.size() - 2];
         }
         
-        return 0.0;
+        return std::nullopt; // Pas encore initialisé
     }
     
     // Calculate current gain/loss
@@ -122,6 +122,6 @@ inline double RSI::update(const BasicCandle& candle) {
     return current_rsi;
 }
 
-inline double RSI::get_value() const {
+inline std::optional<double> RSI::get_value() const {
     return current_rsi;
 }

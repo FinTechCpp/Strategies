@@ -38,9 +38,9 @@ public:
         atr_calculator = std::make_unique<ATR>(filter::ATRParams(atr_period, false));
     }
 
-    std::pair<double, int> initialize_with_history(const std::vector<BasicCandle>& history) override;
-    std::pair<double, int> update(const BasicCandle& candle) override;
-    std::pair<double, int> get_value() const override;
+    std::optional<std::pair<double, int>> initialize_with_history(const std::vector<BasicCandle>& history) override;
+    std::optional<std::pair<double, int>> update(const BasicCandle& candle) override;
+    std::optional<std::pair<double, int>> get_value() const override;
     
     // Convenience methods to get individual values
     double get_supertrend() const { return current_supertrend; }
@@ -49,9 +49,9 @@ public:
     bool is_downtrend() const { return current_direction == -1; }
 };
 
-inline std::pair<double, int> SUPERTREND::initialize_with_history(const std::vector<BasicCandle>& history) {
+inline std::optional<std::pair<double, int>> SUPERTREND::initialize_with_history(const std::vector<BasicCandle>& history) {
     if (history.size() < static_cast<size_t>(atr_period + 1)) {
-        return {0.0, 0};
+        return std::nullopt;
     }
     
     // Initialize ATR first
@@ -75,12 +75,16 @@ inline std::pair<double, int> SUPERTREND::initialize_with_history(const std::vec
         // Get ATR value by simulating the calculation up to this point
         ATR temp_atr(filter::ATRParams(atr_period, false));
         std::vector<BasicCandle> temp_history(history.begin(), history.begin() + i + 1);
-        double atr_value = temp_atr.initialize_with_history(temp_history);
+        std::optional<double> atr_value = temp_atr.initialize_with_history(temp_history);
+
+        if (!atr_value.has_value()) {
+            return std::nullopt; // ATR initialization failed
+        }
         
         // Calculate basic bands
-        basic_upper_bands[i] = hl2 + (multiplier * atr_value);
-        basic_lower_bands[i] = hl2 - (multiplier * atr_value);
-        
+        basic_upper_bands[i] = hl2 + (multiplier * atr_value.value());
+        basic_lower_bands[i] = hl2 - (multiplier * atr_value.value());
+
         // Calculate final bands
         if (i == atr_period) {
             // First calculation
@@ -108,7 +112,7 @@ inline std::pair<double, int> SUPERTREND::initialize_with_history(const std::vec
         current_supertrend = 0.0;
         current_direction = 0;
         is_initialized = false;
-        return {0.0, 0};
+        return std::make_optional(std::make_pair(0.0, 0));
     }
     
     // Determine initial trend direction
@@ -167,22 +171,26 @@ inline std::pair<double, int> SUPERTREND::initialize_with_history(const std::vec
     prev_direction = current_direction;
     
     is_initialized = true;
-    return {current_supertrend, current_direction};
+    return std::make_optional(std::make_pair(current_supertrend, current_direction));
 }
 
-inline std::pair<double, int> SUPERTREND::update(const BasicCandle& candle) {
+inline std::optional<std::pair<double, int>> SUPERTREND::update(const BasicCandle& candle) {
     if (!is_initialized) {
-        return {0.0, 0};
+        return std::nullopt;
     }
     
     // Update ATR
-    double atr_value = atr_calculator->update(candle);
-    
+    std::optional<double> atr_value = atr_calculator->update(candle);
+
+    if (!atr_value.has_value()) {
+        return std::nullopt; // ATR update failed
+    }
+
     // Calculate basic bands
     double hl2 = calculate_hl2(candle);
-    double basic_upper_band = hl2 + (multiplier * atr_value);
-    double basic_lower_band = hl2 - (multiplier * atr_value);
-    
+    double basic_upper_band = hl2 + (multiplier * atr_value.value());
+    double basic_lower_band = hl2 - (multiplier * atr_value.value());
+
     // Calculate final bands
     double final_upper_band = (basic_upper_band < prev_final_upper_band || 
                               prev_close > prev_final_upper_band) 
@@ -223,10 +231,10 @@ inline std::pair<double, int> SUPERTREND::update(const BasicCandle& candle) {
     prev_final_lower_band = final_lower_band;
     prev_supertrend = current_supertrend;
     prev_direction = current_direction;
-    
-    return {current_supertrend, current_direction};
+
+    return std::make_optional(std::make_pair(current_supertrend, current_direction));
 }
 
-inline std::pair<double, int> SUPERTREND::get_value() const {
-    return {current_supertrend, current_direction};
+inline std::optional<std::pair<double, int>> SUPERTREND::get_value() const {
+    return std::make_optional(std::make_pair(current_supertrend, current_direction));
 }
