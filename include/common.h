@@ -658,18 +658,11 @@ struct StrategyConfig {
     // New parameter for TP based on SL
     double tp_sl_ratio;
 
-/*     // New parameter for TP based on SuperTrend
-    int tp_supertrend_atr_period;
-    double tp_supertrend_multiplier; */
-
     // New parameters for TP based on ML/RL
     std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
     int rl_lookback_periods; // Number of historical candles to include in features
     double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
     double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
-
-    // New parameter for nth Heikin-Ashi take profit
-    int nth_heikin_ashi_count; // Number of opposite Heikin-Ashi candles to wait for
 
     // Risk management
     bool use_risk_based_sizing;
@@ -723,12 +716,8 @@ inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method
             return os << "ATR";
         case TakeProfitMethod::SLRatio:
             return os << "SLRatio";
-/*         case TakeProfitMethod::SuperTrend:
-            return os << "SuperTrend"; */
         case TakeProfitMethod::RL:
             return os << "RL";
-/*         case TakeProfitMethod::NthHeikinAshi:
-            return os << "NthHeikinAshi"; */
         default:
             return os << "Unknown(" << static_cast<int>(method) << ")";
     }
@@ -788,13 +777,6 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     
     // SL ratio for TP
     os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
-
-/*     // SuperTrend parameters for TP
-    os << "  TP SuperTrend ATR period: " << config.tp_supertrend_atr_period << "\n";
-    os << "  TP SuperTrend multiplier: " << config.tp_supertrend_multiplier << "\n"; */
-
-/*     // Nth Heikin-Ashi parameters for TP
-    os << "  Nth Heikin-Ashi count: " << config.nth_heikin_ashi_count << "\n"; */
     
     // Risk management
     os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";

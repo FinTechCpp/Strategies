@@ -367,87 +367,6 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     return nullptr;
 }
 
-/* std::unique_ptr<Signal> Strategy::check_supertrend_exit() {
-    // Check if SuperTrend is enabled and we have a pending open position
-    if(base_config.tp_method != TakeProfitMethod::SuperTrend || position_info.entry_price <= 0.0) {
-        // Insufficient data to calculate SuperTrend exit
-        return nullptr;
-    }
-
-    // Obtenir la bougie actuelle
-    const BasicCandle& latest_candle = candle_manager->get_latest_candle();
-    if (!latest_candle.date.is_valid()) 
-        return nullptr;
-
-    // Vérifier s'il y a eu une inversion de tendance
-    if (previous_supertrend_direction != 0 && current_supertrend_direction != previous_supertrend_direction) {
-        logger->log_general("Inversion SuperTrend détectée: " +
-                           std::to_string(previous_supertrend_direction) + " -> " +
-                           std::to_string(current_supertrend_direction) +
-                           " @ " + logger->fast_double_to_string(current_supertrend), LogLevel::INFO);
-
-        // Générer un signal de liquidation
-        auto signal = generate_liquidation_signal();
-
-        // Réinitialiser le suivi de position
-        previous_supertrend_direction = 0;
-
-        return signal;
-    }
-
-    // Mettre à jour la direction précédente
-    previous_supertrend_direction = current_supertrend_direction;
-
-    // Si aucune inversion, ne rien faire
-    return nullptr;
-}
-
-std::unique_ptr<Signal> Strategy::check_nth_heikin_ashi_exit() {
-    // Check if nth Heikin-Ashi TP is enabled and we have an open position
-    if (base_config.tp_method != TakeProfitMethod::NthHeikinAshi || position_info.entry_price <= 0.0) {
-        return nullptr;
-    }
-
-    // Get the latest Heikin-Ashi candle
-    if (candle_manager->size() == 0) return nullptr;
-
-    // Check if the current Heikin-Ashi candle is opposite to the trade direction
-    bool is_opposite_candle = false;
-
-    if (is_position_long) // For long positions, we look for red Heikin-Ashi candles
-        is_opposite_candle = candle_manager->is_latest_heikin_ashi_red();
-    else // For short positions, we look for green Heikin-Ashi candles
-        is_opposite_candle = candle_manager->is_latest_heikin_ashi_green();
-
-    // If this is an opposite candle, increment the counter
-    if (is_opposite_candle) {
-        opposite_heikin_ashi_count++;
-        
-        std::string candle_color = is_position_long ? "red" : "green";
-        logger->log_general("Opposite Heikin-Ashi candle detected (" + 
-                           candle_color + 
-                           "). Count: " + std::to_string(opposite_heikin_ashi_count) + 
-                           "/" + std::to_string(base_config.nth_heikin_ashi_count), 
-                           LogLevel::INFO);
-
-        // Check if we've reached the target count
-        if (opposite_heikin_ashi_count >= base_config.nth_heikin_ashi_count) {
-            logger->log_general("Nth Heikin-Ashi exit triggered: " + 
-                               std::to_string(base_config.nth_heikin_ashi_count) + 
-                               " opposite candles reached", LogLevel::INFO);
-
-            // Reset the counter and position tracking
-            opposite_heikin_ashi_count = 0;
-            is_position_long = false;
-
-            // Generate liquidation signal
-            return generate_liquidation_signal();
-        }
-    }
-
-    return nullptr;
-} */
-
 std::unique_ptr<Signal> Strategy::generate_buy_signal() {
     auto sig = std::make_unique<Signal>();
     sig->type = SignalType::BUY;
@@ -517,23 +436,6 @@ void Strategy::execute_long() {
     
     logger->log_signal("BUY", buy_price, buy_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
-    
-/*     // Marquer qu'une position est maintenant ouverte
-    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
-        // Store the current direction to track trend reversals
-        previous_supertrend_direction = current_supertrend_direction;
-        logger->log_general("SuperTrend TP activé: direction initiale=" + 
-                          std::to_string(current_supertrend_direction) + 
-                          ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
-    }
-
-    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
-        // Initialize nth Heikin-Ashi TP tracking for long position
-        opposite_heikin_ashi_count = 0;
-        is_position_long = true;
-        logger->log_general("Nth Heikin-Ashi TP activé pour position LONG: cherche " + 
-                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies rouges", LogLevel::DEBUG);
-    } */
             
     signal = generate_buy_signal();
 }
@@ -571,23 +473,6 @@ void Strategy::execute_short() {
     
     logger->log_signal("SELL", sell_price, sell_quantity);
     logger->log_sl_tp(stop_loss_distance, take_profit_distance);
-    
-/*     // Marquer qu'une position est maintenant ouverte
-    if (base_config.tp_method == TakeProfitMethod::SuperTrend) {
-        // Store the current direction to track trend reversals
-        previous_supertrend_direction = current_supertrend_direction;
-        logger->log_general("SuperTrend TP activé: direction initiale=" + 
-                          std::to_string(current_supertrend_direction) + 
-                          ", valeur=" + logger->fast_double_to_string(current_supertrend), LogLevel::DEBUG);
-    }
-
-    if (base_config.tp_method == TakeProfitMethod::NthHeikinAshi) {
-        // Initialize nth Heikin-Ashi TP tracking for short position
-        opposite_heikin_ashi_count = 0;
-        is_position_long = false;
-        logger->log_general("Nth Heikin-Ashi TP activé pour position SHORT: cherche " + 
-                          std::to_string(base_config.nth_heikin_ashi_count) + " bougies vertes", LogLevel::DEBUG);
-    } */
     
     signal = generate_sell_signal();
 }
@@ -675,22 +560,6 @@ void Strategy::execute() {
         signal = std::move(be_signal);
         return;
     }
-
-/*     // Check for SuperTrend exit signal if position is open
-    auto st_exit_signal = check_supertrend_exit();
-    if (st_exit_signal) {
-        logger->log_general("Signal de sortie SuperTrend généré");
-        signal = std::move(st_exit_signal);
-        return;
-    }
-
-    // Check for nth Heikin-Ashi exit signal if position is open
-    auto ha_exit_signal = check_nth_heikin_ashi_exit();
-    if (ha_exit_signal) {
-        logger->log_general("Signal de sortie nth Heikin-Ashi généré");
-        signal = std::move(ha_exit_signal);
-        return;
-    } */
     
     if (position_info.entry_price > 0.0 && execute_resale_filters()) {
         logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
@@ -734,9 +603,6 @@ Strategy::Strategy(const StrategyConfig& config)
 
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
-    
-/*     if (base_config.tp_method == TakeProfitMethod::SuperTrend) 
-        indicator_manager->registerSuperTrend(filter::SuperTrendParams(base_config.tp_supertrend_atr_period, base_config.tp_supertrend_multiplier)); */
     
     // Ajuster les paramètres du CandleManager en fonction de la période maximale requise
     int max_period = indicator_manager->getMaxRequiredPeriods();

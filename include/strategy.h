@@ -80,16 +80,6 @@ protected:
     
     // Cache pour le dernier trade
     double last_trade_pnl = 0.0;
-    
-/*     // SuperTrend pour TP - values updated by derived classes
-    int previous_supertrend_direction = 0;
-    double current_supertrend = 0.0;
-    int current_supertrend_direction = 0; */
-
-/*     // Nth Heikin-Ashi TP tracking
-    int opposite_heikin_ashi_count = 0;  // Counter for opposite Heikin-Ashi candles
-    bool is_position_long = false;       // Track whether current position is long or short */
-
 
     // Core strategy methods to implement in derived classes
     virtual void registerFiltersIndicators();
@@ -112,8 +102,6 @@ private:
     bool check_time();
     
     std::unique_ptr<Signal> check_break_even();
-/*     std::unique_ptr<Signal> check_supertrend_exit();
-    std::unique_ptr<Signal> check_nth_heikin_ashi_exit(); */
     std::unique_ptr<Signal> generate_buy_signal();
     std::unique_ptr<Signal> generate_sell_signal();
     std::unique_ptr<Signal> generate_liquidation_signal();
