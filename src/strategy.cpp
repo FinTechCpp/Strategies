@@ -433,11 +433,9 @@ void Strategy::execute_long() {
         reset();
         return;
     }
-    
-    logger->log_signal("BUY", buy_price, buy_quantity);
-    logger->log_sl_tp(stop_loss_distance, take_profit_distance);
-            
+      
     signal = generate_buy_signal();
+    logger->log_signal(*signal);
 }
 
 void Strategy::execute_short() {
@@ -471,10 +469,9 @@ void Strategy::execute_short() {
         return;
     }
     
-    logger->log_signal("SELL", sell_price, sell_quantity);
-    logger->log_sl_tp(stop_loss_distance, take_profit_distance);
     
     signal = generate_sell_signal();
+    logger->log_signal(*signal);
 }
 
 bool Strategy::execute_filters() {
@@ -523,6 +520,7 @@ void Strategy::execute() {
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         
         signal = generate_liquidation_signal();
+        logger->log_signal(*signal);
         return;
     }
 
@@ -539,6 +537,7 @@ void Strategy::execute() {
                           " - PnL actuel: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
         
         signal = generate_liquidation_signal();
+        logger->log_signal(*signal);
         return;
     }
 
@@ -547,6 +546,7 @@ void Strategy::execute() {
         logger->log_execution_step("Vérification horaires", false);
         
         signal = generate_liquidation_signal();
+        logger->log_signal(*signal);
         return;
     }
     logger->log_execution_step("Vérification horaires", true);
@@ -564,6 +564,7 @@ void Strategy::execute() {
     if (position_info.entry_price > 0.0 && execute_resale_filters()) {
         logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
         signal = generate_liquidation_signal();
+        logger->log_signal(*signal);
         return;
     }
     

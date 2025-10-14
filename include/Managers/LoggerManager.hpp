@@ -52,9 +52,8 @@ public:
     virtual void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) = 0;
     
     // Logs de signaux
-    virtual void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) = 0;
-    virtual void log_sl_tp(double sl_distance, double tp_distance, int level = LogLevel::INFO) = 0;
-    
+    virtual void log_signal(const Signal& signal, int level = LogLevel::INFO) = 0;
+
     // Logs d'exécution
     virtual void log_execution_step(const std::string& step, bool success, int level = LogLevel::INFO) = 0;
     virtual void log_execution_time(int64_t duration_us, int level = LogLevel::DEBUG) = 0;
@@ -267,13 +266,26 @@ public:
     }
     
     // Logs de signaux
-    void log_signal(const std::string& action, double price, double quantity, int level = LogLevel::INFO) override {
-        std::string msg = "Signal " + action + " généré: Prix=" + fast_double_to_string(price) + ", Quantité=" + fast_double_to_string(quantity);
-        add_log(LogCategory::SIGNAL, std::move(msg), level);
-    }
+    void log_signal(const Signal& signal, int level = LogLevel::INFO) override {
+        std::string action;
+        switch (signal.type) {
+            case SignalType::BUY: action = "ACHAT"; break;
+            case SignalType::SELL: action = "VENTE"; break;
+            case SignalType::LIQUIDATE: action = "LIQUIDATION"; break;
+            case SignalType::MOVE_SL: action = "DÉPLACEMENT SL"; break;
+            default: action = "INCONNU"; break;
+        }
 
-    void log_sl_tp(double sl_distance, double tp_distance, int level = LogLevel::INFO) override {
-        std::string msg = indent(1) + "SL=" + fast_double_to_string(sl_distance) + ", TP=" + fast_double_to_string(tp_distance);
+        std::string msg = "Signal " + action + " généré: Prix=" + fast_double_to_string(signal.price) + 
+                          ", Quantité=" + fast_double_to_string(signal.quantity);
+        
+        if (signal.take_profit > 0.0)
+            msg += ", TP=" + fast_double_to_string(signal.take_profit);
+        if (signal.stop_loss > 0.0)
+            msg += ", SL=" + fast_double_to_string(signal.stop_loss);
+        if (signal.new_sl > 0.0 && signal.type == SignalType::MOVE_SL)
+            msg += ", Nouveau SL=" + fast_double_to_string(signal.new_sl);
+
         add_log(LogCategory::SIGNAL, std::move(msg), level);
     }
     
@@ -415,8 +427,7 @@ public:
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
     void log_filter_result(const std::string&, bool, const std::string&, int) override {}
     void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) override {}
-    void log_signal(const std::string&, double, double, int) override {}
-    void log_sl_tp(double, double, int) override {}
+    void log_signal(const Signal& signal, int level = LogLevel::INFO) override {}
     void log_execution_step(const std::string&, bool, int) override {}
     void log_execution_time(int64_t, int) override {}
     void log_risk_calculation(double, double, int) override {}

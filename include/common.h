@@ -481,6 +481,15 @@ enum class SignalType {
     LIQUIDATE
 };
 
+// TODO mettre des std::optional
+struct Signal {
+    SignalType type;
+    double quantity = 0.0;
+    double price = 0.0;
+    double take_profit = 0.0;
+    double stop_loss = 0.0;
+    double new_sl = 0.0;  // For MOVE_SL action
+};
 
 struct Time {
     int hour = 0;

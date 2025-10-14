@@ -24,15 +24,6 @@ DateTime parse_iso_datetime(const std::string& iso_date);
 // Fonction pour obtenir le jour de la semaine (0=lundi, 6=dimanche)
 int get_day_of_week(const DateTime& date);
 
-struct Signal {
-    SignalType type;
-    double quantity = 0.0;
-    double price = 0.0;
-    double take_profit = 0.0;
-    double stop_loss = 0.0;
-    double new_sl = 0.0;  // For MOVE_SL action
-};
-
 class Strategy {
 public:
     Strategy(const StrategyConfig& config);
