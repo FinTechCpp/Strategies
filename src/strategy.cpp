@@ -592,8 +592,11 @@ Strategy::Strategy(const StrategyConfig& config)
     filters(config.filters),
     resale_filters(config.resale_filters)
 {
-    set_log_level(static_cast<int>(base_config.logLevel));
-    set_log_enabled(base_config.enable_logging);
+    if (LoggerFactory::isLoggingEnabled() != base_config.enable_logging) {
+        LoggerFactory::setLoggingEnabled(base_config.enable_logging);
+        logger = LoggerFactory::createLogger();
+    }
+    logger->set_verbosity(static_cast<int>(base_config.logLevel));
 
     if (base_config.tradeDirection == TradeDirection::NOTSET) {
         logger->log_general("La direction de la strategie n'est pas définie dans la configuration.", LogLevel::ERROR);

@@ -106,16 +106,4 @@ private:
     bool execute_filters();
     bool execute_resale_filters();
     void execute();
-
-    void set_log_level(int level) {
-        logger->set_verbosity(level);
-    }
-
-    void set_log_enabled(bool enabled) {
-        // Remplacer le logger si nécessaire
-        if (LoggerFactory::isLoggingEnabled() != enabled) {
-            LoggerFactory::setLoggingEnabled(enabled);
-            logger = LoggerFactory::createLogger();
-        }
-    }
 };
