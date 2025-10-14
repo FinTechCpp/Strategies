@@ -622,6 +622,18 @@ Strategy::Strategy(const StrategyConfig& config)
                        " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
 }
 
+void Strategy::log_configuration() {
+    // Générer la configuration complète
+    std::ostringstream config_stream;
+    config_stream << base_config;
+    std::string config_str = config_stream.str();
+    
+    // Envoyer directement via le callback sans passer par le buffer
+    // car cette méthode est appelée avant le premier update_candle
+    logger->log_general(config_str, LogLevel::INFO);
+    logger->finalize_and_send_logs();  // Forcer l'envoi immédiat
+}
+
 // Main update method
 Signal* Strategy::update_candle(const Candle& candle) {    
     logger->start_chrono();

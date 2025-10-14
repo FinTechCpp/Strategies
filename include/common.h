@@ -2,6 +2,7 @@
 
 #include <string>
 #include <sstream>
+#include <iomanip>
 #include <charconv>
 #include <array>
 #include <functional>
@@ -725,27 +726,42 @@ inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method
 
 // Overload of the stream operator for StrategyConfig
 inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) {
-    os << "StrategyConfig {\n";
-
-    os << "  Name: " << config.name << "\n";
-
-    // Log level
-    os << "  Log level: " << config.logLevel << "\n";
-    os << "  Enable logging: " << (config.enable_logging ? "Yes" : "No") << "\n";
-
-    os << "  Go Direction: " << (config.tradeDirection == TradeDirection::NOTSET ? "Not Set" : (config.tradeDirection == TradeDirection::LONG ? "LONG" : "SHORT")) << "\n";
-    for (const auto& filter : config.filters)
-        os << "  Filter: " << filter.description << "\n";
+    os << "\n╔══════════════════════════════════════════════════════╗\n";
+    os << "║            CONFIGURATION DE LA STRATÉGIE             ║\n";
+    os << "╚══════════════════════════════════════════════════════╝\n";
     
-    for (const auto& filter : config.resale_filters)
-        os << "  Resale Filter: " << filter.description << "\n";
-
-    // Time settings
-    os << "  Trading hours: " << config.trading_from.hour << ":" << config.trading_from.minute 
-       << " - " << config.trading_to.hour << ":" << config.trading_to.minute << "\n";
+    os << "GÉNÉRAL\n";
+    os << "  Nom: " << config.name << "\n";
+    os << "  Direction: " << (config.tradeDirection == TradeDirection::NOTSET ? "Non définie" : (config.tradeDirection == TradeDirection::LONG ? "LONG" : "SHORT")) << "\n";
+    os << "  Niveau de log: " << config.logLevel << "\n";
+    os << "  Logging activé: " << (config.enable_logging ? "Oui" : "Non") << "\n";
     
-    static const char* day_names[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
-    os << "  Trading days: ";
+    os << "\nFILTRES D'ENTRÉE\n";
+    if (config.filters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.filters)
+            os << "  • " << filter.description << "\n";
+    }
+    
+    os << "\nFILTRES DE SORTIE\n";
+    if (config.resale_filters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.resale_filters)
+            os << "  • " << filter.description << "\n";
+    }
+    
+    os << "\nHEURES DE TRADING\n";
+    os << "  Plage horaire: " 
+       << std::setfill('0') << std::setw(2) << config.trading_from.hour << ":" 
+       << std::setfill('0') << std::setw(2) << config.trading_from.minute 
+       << " - " 
+       << std::setfill('0') << std::setw(2) << config.trading_to.hour << ":" 
+       << std::setfill('0') << std::setw(2) << config.trading_to.minute << "\n";
+    
+    static const char* day_names[7] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"};
+    os << "  Jours actifs: ";
     bool first = true;
     for (size_t i = 0; i < 7; ++i) {
         if (config.trading_days_array[i]) {
@@ -754,56 +770,67 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
             first = false;
         }
     }
-    if (first) os << "None";
+    if (first) os << "Aucun";
     os << "\n";
-
-    os << "  Stop loss method: " << config.sl_method << "\n";
-    os << "  Take profit method: " << config.tp_method << "\n";
     
-    // SL/TP values
-    os << "  Take profit distance: " << config.take_profit_distance << "\n";
-    os << "  Stop loss distance: " << config.stop_loss_distance << "\n";
+    os << "\nSTOP LOSS & TAKE PROFIT\n";
+    os << "  Méthode SL: " << config.sl_method << "\n";
+    os << "  Méthode TP: " << config.tp_method << "\n";
     
-    // ATR parameters
-    os << "  ATR period: " << config.atr_period << "\n";
-    os << "  SL ATR multiplier: " << config.stop_loss_atr_multiplier << "\n";
-    os << "  TP ATR multiplier: " << config.take_profit_atr_multiplier << "\n";
-    os << "  Min SL distance: " << config.min_stop_loss_distance << "\n";
-    os << "  Min TP distance: " << config.min_take_profit_distance << "\n";
+    if (config.sl_method == StopLossMethod::Fixed) {
+        os << "  Distance SL fixe: " << config.stop_loss_distance << "\n";
+    } else if (config.sl_method == StopLossMethod::ATR) {
+        os << "  Période ATR: " << config.atr_period << "\n";
+        os << "  Multiplicateur ATR (SL): " << config.stop_loss_atr_multiplier << "\n";
+        os << "  Distance SL minimale: " << config.min_stop_loss_distance << "\n";
+    } else if (config.sl_method == StopLossMethod::MinMax) {
+        os << "  Périodes Min/Max: " << config.sl_minmax_periods << "\n";
+        os << "  Coefficient delta ATR: " << config.sl_minmax_delta_coef_atr << "\n";
+    }
     
-    // Min/Max parameters
-    os << "  SL Min/Max periods: " << config.sl_minmax_periods << "\n";
-    os << "  SL Min/Max delta coef ATR: " << config.sl_minmax_delta_coef_atr << "\n";
+    if (config.tp_method == TakeProfitMethod::Fixed) {
+        os << "  Distance TP fixe: " << config.take_profit_distance << "\n";
+    } else if (config.tp_method == TakeProfitMethod::ATR) {
+        os << "  Multiplicateur ATR (TP): " << config.take_profit_atr_multiplier << "\n";
+        os << "  Distance TP minimale: " << config.min_take_profit_distance << "\n";
+    } else if (config.tp_method == TakeProfitMethod::SLRatio) {
+        os << "  Ratio TP/SL: " << config.tp_sl_ratio << "\n";
+    }
     
-    // SL ratio for TP
-    os << "  TP = SL * ratio: " << config.tp_sl_ratio << "\n";
+    os << "\nGESTION DU RISQUE\n";
+    os << "  Sizing basé sur le risque: " << (config.use_risk_based_sizing ? "Oui" : "Non") << "\n";
+    if (config.use_risk_based_sizing) {
+        os << "  Risque par trade: " << config.risk_percentage << "%\n";
+    }
+    os << "  Capital: " << config.cash << "\n";
+    os << "  Levier maximum: " << config.leverage_limit << "\n";
     
-    // Risk management
-    os << "  Use risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
-    os << "  Risk percentage: " << config.risk_percentage << "%\n";
-    os << "  Leverage limit: " << config.leverage_limit << "\n";
-    os << "  Cash: " << config.cash << "\n";
+    os << "\nBREAK-EVEN\n";
+    os << "  Activé: " << (config.use_break_even ? "Oui" : "Non") << "\n";
+    if (config.use_break_even) {
+        os << "  Seuil: " << (config.break_even_threshold * 100) << "% du TP\n";
+        os << "  Offset: " << config.break_even_offset_per_mille << "‰\n";
+    }
     
-    // Break-even parameters
-    os << "  Use break-even: " << (config.use_break_even ? "Yes" : "No") << "\n";
-    os << "  Break-even threshold: " << config.break_even_threshold << "\n";
-    os << "  Break-even offset percentage: " << config.break_even_offset_per_mille << "%\n";
+    os << "\nLIMITES JOURNALIÈRES\n";
+    os << "  Perte max quotidienne: " << (config.use_daily_max_loss ? "Oui" : "Non");
+    if (config.use_daily_max_loss) {
+        os << " (" << config.daily_max_loss_percentage << "%)";
+    }
+    os << "\n";
     
-    // Daily maximum loss
-    os << "  Use daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No") << "\n";
-    os << "  Daily max loss %: " << config.daily_max_loss_percentage << "%\n";
-    // os << "  Daily max loss amount: " << config.daily_max_loss_amount << "\n";
+    os << "  Profit max quotidien: " << (config.use_daily_max_profit ? "Oui" : "Non");
+    if (config.use_daily_max_profit) {
+        os << " (" << config.daily_max_profit_percentage << "%)";
+    }
+    os << "\n";
     
-    // Daily maximum profit
-    os << "  Use daily max profit: " << (config.use_daily_max_profit ? "Yes" : "No") << "\n";
-    os << "  Daily max profit %: " << config.daily_max_profit_percentage << "%\n";
-    // os << "  Daily max profit amount: " << config.daily_max_profit_amount << "\n";
+    os << "  Drawdown max quotidien: " << (config.use_daily_max_drawdown ? "Oui" : "Non");
+    if (config.use_daily_max_drawdown) {
+        os << " (" << config.daily_max_drawdown_percentage << "%)";
+    }
+    os << "\n";
     
-    // Daily maximum drawdown
-    os << "  Use daily max drawdown: " << (config.use_daily_max_drawdown ? "Yes" : "No") << "\n";
-    os << "  Daily max drawdown %: " << config.daily_max_drawdown_percentage << "%\n";
-    // os << "  Daily max drawdown amount: " << config.daily_max_drawdown_amount << "\n";
-    
-    os << "}";
+    os << "════════════════════════════════════════════════════════";
     return os;
 }

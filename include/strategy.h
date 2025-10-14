@@ -45,6 +45,9 @@ public:
         logger->set_log_callback(callback);
     }
 
+    // Log the strategy configuration (call after set_log_callback)
+    void log_configuration();
+
 protected:
     StrategyConfig base_config;
     PositionInfo position_info;
