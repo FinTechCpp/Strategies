@@ -38,6 +38,9 @@ namespace filter {
         SUPERTREND_VALUE,
         SUPERTREND_DIRECTION,
         CCI,
+        MACD_HISTOGRAM,
+        MACD_LINE,
+        MACD_SIGNAL,
         PIVOT_POINT
     };
 
@@ -176,6 +179,87 @@ namespace filter {
         }
     };
 
+
+
+    // Paramètres pour MACD
+    enum class MACDSource {
+        CLOSE,
+        OPEN,
+        HIGH,
+        LOW
+    };
+
+    enum class MAType {
+        EMA,
+        SMA
+    };
+
+    enum class MACDSignalType {
+        MACD_LINE,
+        SIGNAL_LINE,
+        HISTOGRAM
+    };
+
+    // Result struct for MACD to be shared across modules
+    struct MACDResult {
+        double macdLine = 0.0;
+        double signalLine = 0.0;
+        double histogram = 0.0;
+
+        MACDResult() = default;
+        MACDResult(double m, double s, double h) : macdLine(m), signalLine(s), histogram(h) {}
+    };
+
+    struct MACDParams {
+        // Required
+        int fast;   // fast period 
+        int slow;   // slow period 
+        int signal; // signal period 
+
+        MACDSource source;
+
+        MAType osc_ma_type;
+        MAType signal_ma_type;
+
+        int signal_smoothing;
+
+        MACDParams(int fastPeriod = 12,
+                   int slowPeriod = 26,
+                   int signalPeriod = 9,
+                   MACDSource src = MACDSource::CLOSE,
+                   MAType oscType = MAType::EMA,
+                   MAType sigType = MAType::EMA,
+                   int sigSmoothing = 0)
+            : fast(fastPeriod),
+              slow(slowPeriod),
+              signal(signalPeriod),
+              source(std::move(src)),
+              osc_ma_type(std::move(oscType)),
+              signal_ma_type(std::move(sigType)),
+              signal_smoothing(sigSmoothing)
+        {}
+
+        bool operator==(const MACDParams& other) const {
+            return fast == other.fast &&
+                   slow == other.slow &&
+                   signal == other.signal &&
+                   source == other.source &&
+                   osc_ma_type == other.osc_ma_type &&
+                   signal_ma_type == other.signal_ma_type &&
+                   signal_smoothing == other.signal_smoothing;
+        }
+
+        bool operator<(const MACDParams& other) const {
+            if (fast != other.fast) return fast < other.fast;
+            if (slow != other.slow) return slow < other.slow;
+            if (signal != other.signal) return signal < other.signal;
+            if (source != other.source) return source < other.source;
+            if (osc_ma_type != other.osc_ma_type) return osc_ma_type < other.osc_ma_type;
+            if (signal_ma_type != other.signal_ma_type) return signal_ma_type < other.signal_ma_type;
+            return signal_smoothing < other.signal_smoothing;
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -195,6 +279,7 @@ namespace filter {
             ATRParams atrParams;
             SuperTrendParams supertrendParams;
             CCIParams cciParams;
+            MACDParams macdParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT
@@ -307,6 +392,7 @@ namespace filter {
             source.historicalOffset = offset;
             return source;
         }
+
         
         // Pour propriétés de bougie
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
@@ -445,31 +531,29 @@ namespace filter {
                 case ComparisonOperator::FALSE: opStr = "est faux"; break;
             }
 
+            // Décrire la logique temporelle
             std::string timeLogicStr;
-            if (lookbackPeriods == 1)
-                timeLogicStr = " (sur la periode courante)";
-            else {
-                switch (temporalLogic) {
-                    case TemporalLogic::ANY_OF:
-                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)";
-                    break;
-                    case TemporalLogic::ALL_OF:
-                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)";
-                    break;
-                }
+            if (temporalLogic == TemporalLogic::ANY_OF) {
+                timeLogicStr = " (au moins une période)";
+            } else {
+                timeLogicStr = " (toutes les périodes)";
+            }
+            if (lookbackPeriods > 1) {
+                timeLogicStr += " sur " + std::to_string(lookbackPeriods) + " périodes";
             }
 
-            std::string enabledStr;
-            if (!enabled)
-                enabledStr = "[Désactivé] ";
-
+            // Construire les descriptions gauche/droite
+            std::string leftDesc = ValueSource::description(leftValue);
             std::string rightDesc;
-            if (op == ComparisonOperator::TRUE || op == ComparisonOperator::FALSE)
-                rightDesc = "";
-            else
-                rightDesc = " " + ValueSource::description(rightValue);
+            if (op == ComparisonOperator::TRUE) {
+                rightDesc = "VRAI";
+            } else if (op == ComparisonOperator::FALSE) {
+                rightDesc = "FAUX";
+            } else {
+                rightDesc = ValueSource::description(rightValue);
+            }
 
-            return enabledStr + ValueSource::description(leftValue) + " " + opStr + rightDesc + timeLogicStr;
+            return leftDesc + " " + opStr + " " + rightDesc + timeLogicStr;
         }
     };
 }

@@ -68,7 +68,12 @@ private:
                     
                     case filter::IndicatorType::CCI:
                         return indicatorManager.getCCIValue(source.cciParams, offset);
-
+                    case filter::IndicatorType::MACD_HISTOGRAM:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).histogram;
+                    case filter::IndicatorType::MACD_LINE:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).macdLine;
+                    case filter::IndicatorType::MACD_SIGNAL:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).signalLine;
                     default:
                         if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;

@@ -70,6 +70,11 @@ void Strategy::registerFiltersIndicators() {
             case filter::IndicatorType::CCI:
                 indicator_manager->registerCCI(source.cciParams);
                 break;
+            case filter::IndicatorType::MACD_HISTOGRAM:
+            case filter::IndicatorType::MACD_LINE:
+            case filter::IndicatorType::MACD_SIGNAL:
+                indicator_manager->registerMACD(source.macdParams);
+                break;
             default:
                 break;
         }

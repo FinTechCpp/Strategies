@@ -15,6 +15,9 @@
 
 // template<typename> inline constexpr bool always_false_v = false;
 
+// Use shared MACDResult from filter namespace (defined in common.h)
+using MACDResult = filter::MACDResult;
+
 
 // Interface commune pour tous les gestionnaires d'indicateurs
 class IIndicatorHandlerBase {
@@ -44,7 +47,7 @@ public:
     bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) override {
         if (logger) logger->log_general("Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
         
-        std::optional<R> result = m_indicator->initialize_with_history(history);
+    std::optional<R> result = m_indicator->initialize_with_history(history);
         
         if (result.has_value()) {
             // Stocker la valeur initiale
@@ -52,7 +55,11 @@ public:
             m_history.push_back(result.value());
             
             if (logger) {
-                logger->log_indicator_value(m_indicator->get_name(), result.value());
+                if constexpr (std::is_same_v<R, MACDResult>) {
+                    logger->log_indicator_value(m_indicator->get_name(), result.value(), LogLevel::DEBUG);
+                } else {
+                    logger->log_indicator_value(m_indicator->get_name(), result.value());
+                }
             }
         } else if (logger) {
             logger->log_general("Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
@@ -73,7 +80,11 @@ public:
             }
             
             if (logger) {
-                logger->log_indicator_value(m_indicator->get_name(), result.value());
+                if constexpr (std::is_same_v<R, MACDResult>) {
+                    logger->log_indicator_value(m_indicator->get_name(), result.value(), LogLevel::DEBUG);
+                } else {
+                    logger->log_indicator_value(m_indicator->get_name(), result.value());
+                }
             }
         } else if (logger) {
             logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
@@ -127,6 +138,7 @@ private:
     std::map<filter::ATRParams, std::unique_ptr<IndicatorHandler<ATR, double>>> m_atrHandlers;
     std::map<filter::SuperTrendParams, std::unique_ptr<IndicatorHandler<SUPERTREND, std::pair<double, int>>>> m_supertrendHandlers;
     std::map<filter::CCIParams, std::unique_ptr<IndicatorHandler<CCI, double>>> m_cciHandlers;
+    std::map<filter::MACDParams, std::unique_ptr<IndicatorHandler<MACD, MACDResult>>> m_macdHandlers;
 
     // Liste de tous les handlers pour les opérations en masse
     std::vector<IIndicatorHandlerBase*> m_allHandlers;
@@ -288,6 +300,16 @@ public:
         m_cciHandlers[params] = std::move(handler);
     }
 
+    void registerMACD(const filter::MACDParams& params) {
+        if (m_macdHandlers.find(params) != m_macdHandlers.end()) {
+            return; // Déjà enregistré
+        }
+        
+        auto handler = std::make_unique<IndicatorHandler<MACD, MACDResult>>(params);
+        m_allHandlers.push_back(handler.get());
+        m_macdHandlers[params] = std::move(handler);
+    }
+
     // Méthodes d'accès aux valeurs avec valeurs par défaut
     double getEMAValue(const filter::EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
@@ -368,6 +390,19 @@ public:
         return 0.0;
     }
     
+    MACDResult getMACDValue(const filter::MACDParams& params, int offset = 0) const {
+        auto it = m_macdHandlers.find(params);
+        if (it != m_macdHandlers.end()) {
+            auto value = offset == 0 ? 
+                it->second->getCurrentValue() : 
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
+        }
+        return {0.0, 0.0, 0.0};
+    }
+
     // Méthodes d'accès direct aux indicateurs pour compatibilité
     std::shared_ptr<EMA> getEMACalculator(const filter::EMAParams& params) {
         auto it = m_emaHandlers.find(params);
@@ -428,6 +463,17 @@ public:
         auto it = m_cciHandlers.find(params);
         if (it != m_cciHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<CCI, double>*>(it->second.get());
+            if (handler) {
+                return handler->getIndicator();
+            }
+        }
+        return nullptr;
+    }
+
+    std::shared_ptr<MACD> getMACDCalculator(const filter::MACDParams& params) {
+        auto it = m_macdHandlers.find(params);
+        if (it != m_macdHandlers.end()) {
+            auto* handler = dynamic_cast<IndicatorHandler<MACD, MACDResult>*>(it->second.get());
             if (handler) {
                 return handler->getIndicator();
             }
