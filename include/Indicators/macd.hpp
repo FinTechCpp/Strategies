@@ -24,9 +24,9 @@
  * The constructor expects filter::MACDParams to contain at least:
  *   int fast, slow, signal;
  * and optionally:
- *   enum source; // open/high/low/close (case insensitive)
- *   enum osc_ma_type;     // EMA or SMA (case insensitive)
- *   enum signal_ma_type;  // EMA or SMA (case insensitive)
+ *   enum source; // open/high/low/close 
+ *   enum osc_ma_type;     // EMA or SMA 
+ *   enum signal_ma_type;  // EMA or SMA 
  *   int signal_smoothing;        // optional smoothing length for signal (if 0 -> use signal)
  *
  * If your filter::MACDParams uses different member names/types adapt the mapping below.

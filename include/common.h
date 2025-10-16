@@ -41,7 +41,10 @@ namespace filter {
         MACD_HISTOGRAM,
         MACD_LINE,
         MACD_SIGNAL,
-        PIVOT_POINT
+        PIVOT_POINT,
+        BB_UPPER,
+        BB_LOWER,
+        BB_PERCENT_B
     };
 
     // Propriétés de bougies
@@ -260,6 +263,46 @@ namespace filter {
         }
     };
 
+    // Paramètres pour BB
+    struct BBResult {
+        double middle;
+        double upper;
+        double lower;
+        double percentB; // (price - lower) / (upper - lower)
+        BBResult() : middle(0.0), upper(0.0), lower(0.0), percentB(0.0) {}
+        BBResult(double m, double u, double l, double p) : middle(m), upper(u), lower(l), percentB(p) {}
+    };
+
+    struct BBParams {
+        int period;
+        double stddev_multiplier;
+        int offset = 0; // décalage pour obtenir une valeur historique (0 = actuelle)
+
+        // Options supplémentaires
+        int source = 3;      // 0=Open, 1=High, 2=Low, 3=Close
+        int ma_type = 0;     // 0=SMA, 1=EMA
+
+        BBParams(int p = 20, double m = 2.0, int off = 0)
+            : period(p), stddev_multiplier(m), offset(off) {}
+
+        bool operator==(const BBParams& other) const {
+            return period == other.period &&
+                   std::abs(stddev_multiplier - other.stddev_multiplier) < 0.0001 &&
+                   offset == other.offset &&
+                   source == other.source &&
+                   ma_type == other.ma_type;
+        }
+
+        bool operator<(const BBParams& other) const {
+            if (period != other.period) return period < other.period;
+            if (std::abs(stddev_multiplier - other.stddev_multiplier) >= 0.0001)
+                return stddev_multiplier < other.stddev_multiplier;
+            if (offset != other.offset) return offset < other.offset;
+            if (source != other.source) return source < other.source;
+            return ma_type < other.ma_type;
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -280,6 +323,7 @@ namespace filter {
             SuperTrendParams supertrendParams;
             CCIParams cciParams;
             MACDParams macdParams;
+            BBParams bbParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT
@@ -393,7 +437,75 @@ namespace filter {
             return source;
         }
 
-        
+        // Pour MACD (histogramme)
+        static ValueSource MACDHistogram(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_HISTOGRAM;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            return source;
+        }
+
+        // Pour MACD (ligne)
+        static ValueSource MACDLine(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_LINE;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            return source;
+        }
+
+        // Pour MACD (ligne de signal)
+        static ValueSource MACDSignal(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_SIGNAL;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            return source;
+        }
+
+        // Pour Bollinger Bands (UPPER)
+        static ValueSource BollingerUpper(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_UPPER;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            return source;
+        }
+
+        // Pour Bollinger Bands (LOWER)
+        static ValueSource BollingerLower(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_LOWER;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            return source;
+        }
+
+        // Pour Bollinger Bands (%B)
+        static ValueSource BollingerPercentB(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_PERCENT_B;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            return source;
+        }
+
         // Pour propriétés de bougie
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
             ValueSource source;
@@ -460,7 +572,34 @@ namespace filter {
                         case IndicatorType::PIVOT_POINT:
                             desc = "Pivot Point";
                             break;
-                    }
+                        case IndicatorType::MACD_HISTOGRAM: 
+                            desc = "MACD Histogram(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::MACD_LINE: 
+                            desc = "MACD Line(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::MACD_SIGNAL: 
+                            desc = "MACD Signal(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::BB_UPPER:
+                            desc = "Bollinger Bands Upper(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;
+                        case IndicatorType::BB_LOWER:
+                            desc = "Bollinger Bands Lower(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;
+                        case IndicatorType::BB_PERCENT_B:   
+                            desc = "Bollinger Bands %B(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;                        
+                        }
                     break;
                     
                 case ValueCategory::CANDLE_PROPERTY:

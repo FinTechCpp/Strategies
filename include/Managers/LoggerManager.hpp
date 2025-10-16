@@ -45,6 +45,8 @@ public:
     virtual void log_indicator_value(const std::string& name, std::pair<double, double> values, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_value(const std::string& name, std::pair<double, int> values, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_value(const std::string& name, const filter::MACDResult& values, int level = LogLevel::DEBUG) = 0;
+    // Bollinger Bands result (middle, upper, lower)
+    virtual void log_indicator_value(const std::string& name, const filter::BBResult& values, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) = 0;
     
     // Logs de filtres
@@ -248,6 +250,11 @@ public:
         std::string msg = "Indicateur " + name + " = [macd=" + fast_double_to_string(values.macdLine) + ", signal=" + fast_double_to_string(values.signalLine) + ", hist=" + fast_double_to_string(values.histogram) + "]";
         add_log(LogCategory::INDICATOR, std::move(msg), level);
     }
+
+    void log_indicator_value(const std::string& name, const filter::BBResult& values, int level = LogLevel::DEBUG) override {
+        std::string msg = "Indicateur " + name + " = [middle=" + fast_double_to_string(values.middle) + ", upper=" + fast_double_to_string(values.upper) + ", lower=" + fast_double_to_string(values.lower) + "]";
+        add_log(LogCategory::INDICATOR, std::move(msg), level);
+    }
     
     void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) override {
         std::string status = result ? "VALIDÉ" : "REJETÉ";
@@ -431,6 +438,7 @@ public:
     void log_indicator_value(const std::string&, std::pair<double, double>, int) override {}
     void log_indicator_value(const std::string&, std::pair<double, int>, int) override {}
     void log_indicator_value(const std::string&, const filter::MACDResult&, int) override {}
+    void log_indicator_value(const std::string&, const filter::BBResult&, int) override {}
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
     void log_filter_result(const std::string&, bool, const std::string&, int) override {}
     void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) override {}

@@ -75,6 +75,11 @@ void Strategy::registerFiltersIndicators() {
             case filter::IndicatorType::MACD_SIGNAL:
                 indicator_manager->registerMACD(source.macdParams);
                 break;
+            case filter::IndicatorType::BB_UPPER:
+            case filter::IndicatorType::BB_LOWER:
+            case filter::IndicatorType::BB_PERCENT_B:
+                indicator_manager->registerBB(source.bbParams);
+                break;
             default:
                 break;
         }

@@ -74,6 +74,12 @@ private:
                         return indicatorManager.getMACDValue(source.macdParams, offset).macdLine;
                     case filter::IndicatorType::MACD_SIGNAL:
                         return indicatorManager.getMACDValue(source.macdParams, offset).signalLine;
+                    case filter::IndicatorType::BB_UPPER:
+                        return indicatorManager.getBBValue(source.bbParams, offset).upper;
+                    case filter::IndicatorType::BB_LOWER:
+                        return indicatorManager.getBBValue(source.bbParams, offset).lower;
+                    case filter::IndicatorType::BB_PERCENT_B:
+                        return indicatorManager.getBBValue(source.bbParams, offset).percentB;
                     default:
                         if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;

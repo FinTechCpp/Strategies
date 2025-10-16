@@ -17,7 +17,7 @@
 
 // Use shared MACDResult from filter namespace (defined in common.h)
 using MACDResult = filter::MACDResult;
-
+using BBResult = filter::BBResult;
 
 // Interface commune pour tous les gestionnaires d'indicateurs
 class IIndicatorHandlerBase {
@@ -139,6 +139,7 @@ private:
     std::map<filter::SuperTrendParams, std::unique_ptr<IndicatorHandler<SUPERTREND, std::pair<double, int>>>> m_supertrendHandlers;
     std::map<filter::CCIParams, std::unique_ptr<IndicatorHandler<CCI, double>>> m_cciHandlers;
     std::map<filter::MACDParams, std::unique_ptr<IndicatorHandler<MACD, MACDResult>>> m_macdHandlers;
+    std::map<filter::BBParams, std::unique_ptr<IndicatorHandler<BB, filter::BBResult>>> m_bbHandlers;
 
     // Liste de tous les handlers pour les opérations en masse
     std::vector<IIndicatorHandlerBase*> m_allHandlers;
@@ -270,9 +271,8 @@ public:
     }
     
     void registerATR(const filter::ATRParams& params) {
-        if (m_atrHandlers.find(params) != m_atrHandlers.end()) {
+        if (m_atrHandlers.find(params) != m_atrHandlers.end()) 
             return; // Déjà enregistré
-        }
         
         auto handler = std::make_unique<IndicatorHandler<ATR, double>>(params);
         m_allHandlers.push_back(handler.get());
@@ -280,9 +280,8 @@ public:
     }
     
     void registerSuperTrend(const filter::SuperTrendParams& params) {
-        if (m_supertrendHandlers.find(params) != m_supertrendHandlers.end()) {
+        if (m_supertrendHandlers.find(params) != m_supertrendHandlers.end()) 
             return; // Déjà enregistré
-        }
         
         auto handler = std::make_unique<IndicatorHandler<SUPERTREND, std::pair<double, int>>>(
             params);
@@ -291,23 +290,30 @@ public:
     }
     
     void registerCCI(const filter::CCIParams& params) {
-        if (m_cciHandlers.find(params) != m_cciHandlers.end()) {
+        if (m_cciHandlers.find(params) != m_cciHandlers.end()) 
             return; // Déjà enregistré
-        }
-        
+    
         auto handler = std::make_unique<IndicatorHandler<CCI, double>>(params);
         m_allHandlers.push_back(handler.get());
         m_cciHandlers[params] = std::move(handler);
     }
 
     void registerMACD(const filter::MACDParams& params) {
-        if (m_macdHandlers.find(params) != m_macdHandlers.end()) {
+        if (m_macdHandlers.find(params) != m_macdHandlers.end()) 
             return; // Déjà enregistré
-        }
         
         auto handler = std::make_unique<IndicatorHandler<MACD, MACDResult>>(params);
         m_allHandlers.push_back(handler.get());
         m_macdHandlers[params] = std::move(handler);
+    }
+
+    void registerBB(const filter::BBParams& params) {
+        if (m_bbHandlers.find(params) != m_bbHandlers.end()) 
+            return; // Déjà enregistré
+        
+        auto handler = std::make_unique<IndicatorHandler<BB, filter::BBResult>>(params);
+        m_allHandlers.push_back(handler.get());
+        m_bbHandlers[params] = std::move(handler);
     }
 
     // Méthodes d'accès aux valeurs avec valeurs par défaut
@@ -344,9 +350,8 @@ public:
                 it->second->getCurrentValue() : 
                 it->second->getHistoricalValue(offset);
                 
-            if (value.has_value()) {
-                return value.value();
-            }
+            if (value.has_value()) 
+                return value.value();    
         }
         return {0.0, 0.0};
     }
@@ -402,6 +407,20 @@ public:
         }
         return {0.0, 0.0, 0.0};
     }
+
+    BBResult getBBValue(const filter::BBParams& params, int offset = 0) const {
+        auto it = m_bbHandlers.find(params);
+        if (it != m_bbHandlers.end()) {
+            auto value = offset == 0 ? 
+                it->second->getCurrentValue() : 
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
+        }
+        return BBResult{};
+    }
+
 
     // Méthodes d'accès direct aux indicateurs pour compatibilité
     std::shared_ptr<EMA> getEMACalculator(const filter::EMAParams& params) {
@@ -474,6 +493,17 @@ public:
         auto it = m_macdHandlers.find(params);
         if (it != m_macdHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<MACD, MACDResult>*>(it->second.get());
+            if (handler) {
+                return handler->getIndicator();
+            }
+        }
+        return nullptr;
+    }
+
+    std::shared_ptr<BB> getBBCalculator(const filter::BBParams& params) {
+        auto it = m_bbHandlers.find(params);
+        if (it != m_bbHandlers.end()) {
+            auto* handler = dynamic_cast<IndicatorHandler<BB, filter::BBResult>*>(it->second.get());
             if (handler) {
                 return handler->getIndicator();
             }

@@ -8,5 +8,6 @@
 #include "Indicators/supertrend.hpp"
 #include "Indicators/cci.hpp"
 #include "Indicators/macd.hpp"
+#include "Indicators/bb.hpp"
 
 // Add new indicators here as needed
