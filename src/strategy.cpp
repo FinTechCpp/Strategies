@@ -568,13 +568,27 @@ void Strategy::execute() {
         return;
     }
     
-    if (!execute_filters()) {
-        logger->log_execution_step("Filtres", false);
-        logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
-        reset();
-        return;
+    // Utiliser ML ou filtres traditionnels selon la configuration
+    bool entry_signal_valid = false;
+    if (base_config.use_ml_entry) {
+        entry_signal_valid = execute_ml_filters();
+        if (!entry_signal_valid) {
+            logger->log_execution_step("Modèle ML", false);
+            logger->log_general("Modèle ML - Pas de signal d'entrée détecté", LogLevel::INFO);
+            reset();
+            return;
+        }
+        logger->log_execution_step("Modèle ML", true);
+    } else {
+        entry_signal_valid = execute_filters();
+        if (!entry_signal_valid) {
+            logger->log_execution_step("Filtres", false);
+            logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
+            reset();
+            return;
+        }
+        logger->log_execution_step("Filtres", true);
     }
-    logger->log_execution_step("Filtres", true);
     
     if (base_config.tradeDirection == TradeDirection::LONG) {
         execute_long();
@@ -608,10 +622,23 @@ Strategy::Strategy(const StrategyConfig& config)
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
     
+    // Charger le modèle ML si activé
+    if (base_config.use_ml_entry) {
+        if (!load_ml_model()) {
+            logger->log_general("Échec du chargement du modèle ML: " + base_config.ml_entry_model_path, LogLevel::ERROR);
+            throw std::runtime_error("Failed to load ML model for entry signals");
+        }
+        logger->log_general("Modèle ML chargé avec succès pour les signaux d'entrée", LogLevel::INFO);
+    }
+    
     // Ajuster les paramètres du CandleManager en fonction de la période maximale requise
     int max_period = indicator_manager->getMaxRequiredPeriods();
     if (base_config.sl_method == StopLossMethod::MinMax) 
         max_period = std::max(max_period, base_config.sl_minmax_periods);
+    
+    // Prendre en compte le lookback ML si activé
+    if (base_config.use_ml_entry)
+        max_period = std::max(max_period, base_config.ml_entry_lookback_periods);
     
     // Configurer le CandleManager avec une marge de sécurité
     // - hysteresis_threshold : max_period + 100 bougies de marge
@@ -677,3 +704,145 @@ double Strategy::price() const {
     return candle_manager->get_latest_candle().close;
 }
 
+// ============================================================================
+// Machine Learning Methods for Entry Signals
+// ============================================================================
+
+bool Strategy::load_ml_model() {
+    try {
+        ml_entry_model = std::make_unique<InferenceModel>();
+        bool loaded = ml_entry_model->load(base_config.ml_entry_model_path);
+        
+        if (!loaded || !ml_entry_model->initialized()) {
+            logger->log_general("Échec du chargement du modèle ML", LogLevel::ERROR);
+            return false;
+        }
+        
+        ml_model_loaded = true;
+        logger->log_general("Modèle ML chargé: " + base_config.ml_entry_model_path, LogLevel::INFO);
+        logger->log_general("Lookback periods: " + std::to_string(base_config.ml_entry_lookback_periods), LogLevel::INFO);
+        logger->log_general("Threshold: " + std::to_string(base_config.ml_entry_threshold), LogLevel::INFO);
+        logger->log_general("Normalisation: " + std::string(base_config.ml_entry_normalize ? "activée" : "désactivée"), LogLevel::INFO);
+        
+        return true;
+    } catch (const std::exception& e) {
+        logger->log_general("Exception lors du chargement du modèle ML: " + std::string(e.what()), LogLevel::ERROR);
+        return false;
+    }
+}
+
+std::vector<float> Strategy::prepare_ml_features() {
+    std::vector<float> features;
+    
+    // Vérifier qu'on a assez de bougies historiques
+    if (candle_manager->size() < static_cast<size_t>(base_config.ml_entry_lookback_periods)) {
+        logger->log_general(
+            "Pas assez de données historiques pour ML: " + std::to_string(candle_manager->size()) + 
+            " < " + std::to_string(base_config.ml_entry_lookback_periods), 
+            LogLevel::DEBUG
+        );
+        return features;  // Retourne un vecteur vide
+    }
+    
+    // Récupérer les N dernières bougies
+    auto recent_candles = candle_manager->get_last_candles(base_config.ml_entry_lookback_periods);
+    
+    // Construire le vecteur de features à partir des données OHLC
+    for (const auto& candle : recent_candles) {
+        if (base_config.ml_entry_normalize) {
+            features.push_back(candle.open);
+            features.push_back(candle.high);
+            features.push_back(candle.low);
+            features.push_back(candle.close);
+        } else {
+            features.push_back(static_cast<float>(candle.open));
+            features.push_back(static_cast<float>(candle.high));
+            features.push_back(static_cast<float>(candle.low));
+            features.push_back(static_cast<float>(candle.close));
+        }
+    }
+    
+    logger->log_general(
+        "Features ML préparées: " + std::to_string(features.size()) + " valeurs (" + 
+        std::to_string(recent_candles.size()) + " bougies × 4)", 
+        LogLevel::DEBUG
+    );
+    
+    return features;
+}
+
+int Strategy::interpret_ml_prediction(float prediction) {
+    // Interprétation de la sortie du modèle
+    // prediction > threshold => BUY (1)
+    // prediction < -threshold => SELL (2)  
+    // sinon => pas de signal (0)
+    
+    if (prediction > base_config.ml_entry_threshold) 
+        return 1;  // BUY
+    else if (prediction < -base_config.ml_entry_threshold) 
+        return 2;  // SELL
+    
+    return 0;  // Pas de signal
+}
+
+bool Strategy::execute_ml_filters() {
+    if (!ml_model_loaded) {
+        logger->log_general("Modèle ML non chargé", LogLevel::ERROR);
+        return false;
+    }
+    
+    // Préparer les features pour l'inférence
+    std::vector<float> features = prepare_ml_features();
+    
+    if (features.empty()) {
+        logger->log_general("Features ML vides, pas d'inférence possible", LogLevel::DEBUG);
+        return false;
+    }
+    
+        // Effectuer l'inférence
+        float prediction = ml_entry_model->predict(features);
+        
+        logger->log_general("Prédiction ML: " + std::to_string(prediction), LogLevel::DEBUG);
+        
+        // Interpréter la prédiction
+        int signal_type = interpret_ml_prediction(prediction);
+        
+        // Vérifier si le signal correspond à la direction de trading configurée
+        if (signal_type == 1) {  // BUY
+            if (base_config.tradeDirection == TradeDirection::LONG) {
+                logger->log_general(
+                    "Signal BUY détecté par ML (prédiction: " + std::to_string(prediction) + ")", 
+                    LogLevel::INFO
+                );
+                return true;
+            } else {
+                logger->log_general(
+                    "Signal BUY ignoré (direction=SHORT) - prédiction: " + std::to_string(prediction), 
+                    LogLevel::DEBUG
+                );
+                return false;
+            }
+        } else if (signal_type == 2) {  // SELL
+            if (base_config.tradeDirection == TradeDirection::SHORT) {
+                logger->log_general(
+                    "Signal SELL détecté par ML (prédiction: " + std::to_string(prediction) + ")", 
+                    LogLevel::INFO
+                );
+                return true;
+            } else {
+                logger->log_general(
+                    "Signal SELL ignoré (direction=LONG) - prédiction: " + std::to_string(prediction), 
+                    LogLevel::DEBUG
+                );
+                return false;
+            }
+        }
+        
+        // Pas de signal
+        logger->log_general(
+            "Pas de signal ML (prédiction: " + std::to_string(prediction) + 
+            ", threshold: ±" + std::to_string(base_config.ml_entry_threshold) + ")", 
+            LogLevel::DEBUG
+        );
+        return false;
+}

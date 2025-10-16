@@ -6,6 +6,7 @@
 #include "Managers/IndicatorManager.hpp"
 #include "Managers/FilterEvaluator.hpp"
 #include "LoggerFactory.h"
+#include "MachineLearning/InferenceModel.hpp"
 #include <string>
 #include <vector>
 #include <map>
@@ -75,6 +76,10 @@ protected:
     // Cache pour le dernier trade
     double last_trade_pnl = 0.0;
 
+    // Machine Learning for entry signals
+    std::unique_ptr<InferenceModel> ml_entry_model;
+    bool ml_model_loaded = false;
+
     // Core strategy methods to implement in derived classes
     virtual void registerFiltersIndicators();
     virtual void before() {}
@@ -106,4 +111,11 @@ private:
     bool execute_filters();
     bool execute_resale_filters();
     void execute();
+    
+    // ML-specific methods
+    bool load_ml_model();
+    std::vector<float> prepare_ml_features();
+    float normalize_price(double price);
+    int interpret_ml_prediction(float prediction);
+    bool execute_ml_filters();
 };

@@ -696,6 +696,13 @@ struct StrategyConfig {
     // Daily maximum drawdown
     bool use_daily_max_drawdown;
     double daily_max_drawdown_percentage;
+
+    // Machine Learning parameters for entry signals
+    bool use_ml_entry = false; // Use ML model instead of filters for entry signals
+    std::string ml_entry_model_path = "./models/entry_signals.onnx"; // Path to the entry ML model
+    int ml_entry_lookback_periods = 50; // Number of historical candles for ML features
+    float ml_entry_threshold = 0.5f; // Probability threshold for signal generation
+    bool ml_entry_normalize = true; // Normalize features (Z-score)
 };
 
 
