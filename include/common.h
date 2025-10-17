@@ -185,13 +185,6 @@ namespace filter {
 
 
     // Paramètres pour MACD
-    enum class MACDSource {
-        CLOSE,
-        OPEN,
-        HIGH,
-        LOW
-    };
-
     enum class MAType {
         EMA,
         SMA
@@ -219,7 +212,7 @@ namespace filter {
         int slow;   // slow period 
         int signal; // signal period 
 
-        MACDSource source;
+        PriceType source;
 
         MAType osc_ma_type;
         MAType signal_ma_type;
@@ -229,7 +222,7 @@ namespace filter {
         MACDParams(int fastPeriod = 12,
                    int slowPeriod = 26,
                    int signalPeriod = 9,
-                   MACDSource src = MACDSource::CLOSE,
+                   PriceType src = PriceType::CLOSE,
                    MAType oscType = MAType::EMA,
                    MAType sigType = MAType::EMA,
                    int sigSmoothing = 0)
