@@ -623,6 +623,7 @@ namespace filter {
         ValueSource leftValue;
         ValueSource rightValue;
         ComparisonOperator op;
+        double distance = 0.0;
         TemporalLogic temporalLogic = TemporalLogic::ALL_OF;
         int lookbackPeriods = 1;
         bool enabled = true;

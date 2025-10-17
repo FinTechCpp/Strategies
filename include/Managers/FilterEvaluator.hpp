@@ -127,20 +127,25 @@ private:
     }
 
     // Comparer deux valeurs selon l'opérateur spécifié
-    static bool compareValues(double left, double right, filter::ComparisonOperator op) {
+    static bool compareValues(double left, double right, filter::ComparisonOperator op, double threshold) {
+        double distance = left - right;
         switch (op) {
             case filter::ComparisonOperator::GREATER_THAN:
-                return left > right;
-                
+                // left is greater than right by more than threshold
+                return distance > threshold;
+
             case filter::ComparisonOperator::LESS_THAN:
-                return left < right;
-                
+                // right is greater than left by more than threshold
+                return distance < threshold;
+
             case filter::ComparisonOperator::GREATER_OR_EQUAL:
-                return left >= right;
-                
+                // left is greater or equal to right with at least threshold separation
+                return distance >= threshold;
+
             case filter::ComparisonOperator::LESS_OR_EQUAL:
-                return left <= right;
-                
+                // left is less or equal to right with at least threshold separation
+                return distance <= threshold;
+
             case filter::ComparisonOperator::EQUAL:
                 // Comparaison à epsilon près pour les flottants
                 return std::abs(left - right) < 0.00001;
@@ -203,11 +208,10 @@ private:
         double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
         double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
         
-        bool result = compareValues(leftValue, rightValue, filter.op);
+        bool result = compareValues(leftValue, rightValue, filter.op, filter.distance);
 
-        if (logger) {
+        if (logger) 
             logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
-        }
         
         return result;
     }
