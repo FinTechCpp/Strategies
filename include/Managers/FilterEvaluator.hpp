@@ -129,23 +129,23 @@ private:
 
     // Comparer deux valeurs selon l'opérateur spécifié
     static bool compareValues(double left, double right, filter::ComparisonOperator op, double threshold) {
-        double distance = left - right;
+        double offset = left - right;
         switch (op) {
             case filter::ComparisonOperator::GREATER_THAN:
                 // left is greater than right by more than threshold
-                return distance > threshold;
+                return offset > threshold;
 
             case filter::ComparisonOperator::LESS_THAN:
                 // right is greater than left by more than threshold
-                return distance < threshold;
+                return offset < threshold;
 
             case filter::ComparisonOperator::GREATER_OR_EQUAL:
                 // left is greater or equal to right with at least threshold separation
-                return distance >= threshold;
+                return offset >= threshold;
 
             case filter::ComparisonOperator::LESS_OR_EQUAL:
                 // left is less or equal to right with at least threshold separation
-                return distance <= threshold;
+                return offset <= threshold;
 
             case filter::ComparisonOperator::EQUAL:
                 // Comparaison à epsilon près pour les flottants
@@ -244,7 +244,7 @@ private:
         leftValue = applyTransform(leftValue, filter.leftValue, offset);
         rightValue = applyTransform(rightValue, filter.rightValue, offset);
         
-        bool result = compareValues(leftValue, rightValue, filter.op, filter.distance);
+        bool result = compareValues(leftValue, rightValue, filter.op, filter.offset);
 
         if (logger) 
             logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
