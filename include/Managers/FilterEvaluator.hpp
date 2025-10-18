@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <functional>
+#include <cmath>
 
 class FilterEvaluator {
 private:
@@ -217,6 +218,31 @@ private:
 
         double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
         double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
+
+        // Helper to apply transform to a ValueSource's value
+        auto applyTransform = [&](double value, const filter::ValueSource& src, int off) -> double {
+            switch (src.transform) {
+                case filter::TransformType::NONE:
+                    return value;
+                case filter::TransformType::LOG:
+                    return value > 0 ? std::log(value) : 0.0;
+                case filter::TransformType::EXP:
+                    return std::exp(value);
+                case filter::TransformType::DERIVATIVE: {
+                    // Compute finite-difference derivative (slope) over `lag` periods.
+                    // We use a backward difference here: (x(t) - x(t-lag)) / lag, which
+                    // corresponds to the average per-period change over the interval.
+                    int lag = 1; // TODO: make lag configurable
+                    double prev = getSourceValue(src, off + lag, candleManager, indicatorManager, logger);
+                    return (value - prev) / static_cast<double>(lag);
+                }
+            }
+            return value;
+        };
+
+   
+        leftValue = applyTransform(leftValue, filter.leftValue, offset);
+        rightValue = applyTransform(rightValue, filter.rightValue, offset);
         
         bool result = compareValues(leftValue, rightValue, filter.op, filter.distance);
 

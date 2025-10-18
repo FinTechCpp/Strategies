@@ -47,6 +47,14 @@ namespace filter {
         BB_PERCENT_B
     };
 
+    // Transformations pouvant être appliquées aux valeurs d'indicateur
+    enum class TransformType {
+        NONE,
+        LOG,
+        EXP,
+        DERIVATIVE
+    };
+
     // Propriétés de bougies
     enum class CandlePropertyType {
         HEIKIN_ASHI_IS_GREEN,
@@ -327,13 +335,17 @@ namespace filter {
         // Décalage pour les valeurs historiques
         int historicalOffset = 0;
 
+        // Transformation appliquée à la valeur (par défaut aucune)
+        TransformType transform = TransformType::NONE;
+
         // Explicit default constructor to initialize unions safely
         ValueSource()
             : category(ValueCategory::PRICE),
             priceType(PriceType::CLOSE),
             emaParams(0),
             constantValue(0.0),
-            historicalOffset(0)
+            historicalOffset(0),
+            transform(TransformType::NONE)
         {
         }
 
@@ -364,6 +376,7 @@ namespace filter {
             source.indicatorType = IndicatorType::EMA;
             source.emaParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -374,6 +387,7 @@ namespace filter {
             source.indicatorType = IndicatorType::RSI;
             source.rsiParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -386,6 +400,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -398,6 +413,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -409,6 +425,7 @@ namespace filter {
             source.atrParams.period = period;
             source.atrParams.useLog = useLog;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -420,6 +437,7 @@ namespace filter {
             source.supertrendParams.atrPeriod = atrPeriod;
             source.supertrendParams.multiplier = multiplier;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         // Pour CCI (valeur)
@@ -429,6 +447,7 @@ namespace filter {
             source.indicatorType = IndicatorType::CCI;
             source.cciParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -441,6 +460,7 @@ namespace filter {
             source.macdParams.slow = slow;
             source.macdParams.signal = signal;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -453,6 +473,7 @@ namespace filter {
             source.macdParams.slow = slow;
             source.macdParams.signal = signal;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -465,6 +486,7 @@ namespace filter {
             source.macdParams.slow = slow;
             source.macdParams.signal = signal;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -476,6 +498,7 @@ namespace filter {
             source.bbParams.period = period;
             source.bbParams.stddev_multiplier = stdDevMultiplier;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -487,6 +510,7 @@ namespace filter {
             source.bbParams.period = period;
             source.bbParams.stddev_multiplier = stdDevMultiplier;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -498,6 +522,7 @@ namespace filter {
             source.bbParams.period = period;
             source.bbParams.stddev_multiplier = stdDevMultiplier;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
 
@@ -513,7 +538,11 @@ namespace filter {
         // Méthode pour obtenir une description humaine lisible de la source
         static std::string description(const ValueSource& source) {
             std::string desc;
-            
+            // transformPrefix may be used for indicator descriptions; declare it
+            // here (outside the switch) to avoid crossing initialization when
+            // the compiler jumps between case labels.
+            std::string transformPrefix;
+
             switch (source.category) {
                 case ValueCategory::PRICE:
                     desc = "Prix ";
@@ -531,7 +560,17 @@ namespace filter {
                     desc = std::to_string(source.constantValue);
                     break;
                     
-                case ValueCategory::INDICATOR:
+                case ValueCategory::INDICATOR: {
+                    // If a transform is set, set the prefix to wrap the indicator
+                    // description. transformPrefix is declared above to avoid
+                    // switching initialization issues inside a switch-case.
+                    switch (source.transform) {
+                        case TransformType::NONE: transformPrefix = ""; break;
+                        case TransformType::LOG: transformPrefix = "log("; break;
+                        case TransformType::EXP: transformPrefix = "exp("; break;
+                        case TransformType::DERIVATIVE: transformPrefix = "derivative("; break;
+                    }
+
                     switch (source.indicatorType) {
                         case IndicatorType::EMA: 
                             desc = "EMA(" + std::to_string(source.emaParams.period) + ")"; 
@@ -592,9 +631,15 @@ namespace filter {
                             break;
                         case IndicatorType::BB_PERCENT_B:   
                             desc = "Bollinger Bands %B(" + std::to_string(source.bbParams.period) + "," +
-                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                                std::to_string(source.bbParams.stddev_multiplier) + ")"; 
                             break;                        
+                        default:
+                            break;
                         }
+                    // If we added a transformPrefix, wrap the description accordingly
+                    if (!transformPrefix.empty()) 
+                        desc = transformPrefix + desc + ")";
+                    }
                     break;
                     
                 case ValueCategory::CANDLE_PROPERTY:
@@ -612,12 +657,11 @@ namespace filter {
                     break;
             }
 
-            if (source.historicalOffset > 0) {
+            if (source.historicalOffset > 0) 
                 desc += " [T-" + std::to_string(source.historicalOffset) + "]";
-            }
             
             return desc;
-        }
+            }
     };
 
     // Structure pour un filtre complet
