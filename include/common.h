@@ -38,7 +38,21 @@ namespace filter {
         SUPERTREND_VALUE,
         SUPERTREND_DIRECTION,
         CCI,
-        PIVOT_POINT
+        MACD_HISTOGRAM,
+        MACD_LINE,
+        MACD_SIGNAL,
+        PIVOT_POINT,
+        BB_UPPER,
+        BB_LOWER,
+        BB_PERCENT_B
+    };
+
+    // Transformations pouvant être appliquées aux valeurs d'indicateur
+    enum class TransformType {
+        NONE,
+        LOG,
+        EXP,
+        DERIVATIVE
     };
 
     // Propriétés de bougies
@@ -61,6 +75,8 @@ namespace filter {
         LESS_OR_EQUAL,         // <=
         EQUAL,                 // ==
         NOT_EQUAL,             // !=
+        DISTANCE_LESS,         // |left - right| < threshold
+        DISTANCE_GREATER,      // |left - right| > threshold
         CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
         CROSSES_BELOW,         // Croisement à la baisse (période actuelle vs précédente)
         TRUE,                  // Racourci pour == Constante 1.0
@@ -176,6 +192,120 @@ namespace filter {
         }
     };
 
+
+
+    // Paramètres pour MACD
+    enum class MAType {
+        EMA,
+        SMA
+    };
+
+    enum class MACDSignalType {
+        MACD_LINE,
+        SIGNAL_LINE,
+        HISTOGRAM
+    };
+
+    // Result struct for MACD to be shared across modules
+    struct MACDResult {
+        double macdLine = 0.0;
+        double signalLine = 0.0;
+        double histogram = 0.0;
+
+        MACDResult() = default;
+        MACDResult(double m, double s, double h) : macdLine(m), signalLine(s), histogram(h) {}
+    };
+
+    struct MACDParams {
+        // Required
+        int fast;   // fast period 
+        int slow;   // slow period 
+        int signal; // signal period 
+
+        PriceType source;
+
+        MAType osc_ma_type;
+        MAType signal_ma_type;
+
+        int signal_smoothing;
+
+        MACDParams(int fastPeriod = 12,
+                   int slowPeriod = 26,
+                   int signalPeriod = 9,
+                   PriceType src = PriceType::CLOSE,
+                   MAType oscType = MAType::EMA,
+                   MAType sigType = MAType::EMA,
+                   int sigSmoothing = 0)
+            : fast(fastPeriod),
+              slow(slowPeriod),
+              signal(signalPeriod),
+              source(std::move(src)),
+              osc_ma_type(std::move(oscType)),
+              signal_ma_type(std::move(sigType)),
+              signal_smoothing(sigSmoothing)
+        {}
+
+        bool operator==(const MACDParams& other) const {
+            return fast == other.fast &&
+                   slow == other.slow &&
+                   signal == other.signal &&
+                   source == other.source &&
+                   osc_ma_type == other.osc_ma_type &&
+                   signal_ma_type == other.signal_ma_type &&
+                   signal_smoothing == other.signal_smoothing;
+        }
+
+        bool operator<(const MACDParams& other) const {
+            if (fast != other.fast) return fast < other.fast;
+            if (slow != other.slow) return slow < other.slow;
+            if (signal != other.signal) return signal < other.signal;
+            if (source != other.source) return source < other.source;
+            if (osc_ma_type != other.osc_ma_type) return osc_ma_type < other.osc_ma_type;
+            if (signal_ma_type != other.signal_ma_type) return signal_ma_type < other.signal_ma_type;
+            return signal_smoothing < other.signal_smoothing;
+        }
+    };
+
+    // Paramètres pour BB
+    struct BBResult {
+        double middle;
+        double upper;
+        double lower;
+        double percentB; // (price - lower) / (upper - lower)
+        BBResult() : middle(0.0), upper(0.0), lower(0.0), percentB(0.0) {}
+        BBResult(double m, double u, double l, double p) : middle(m), upper(u), lower(l), percentB(p) {}
+    };
+
+    struct BBParams {
+        int period;
+        double stddev_multiplier;
+        int offset = 0; // décalage pour obtenir une valeur historique (0 = actuelle)
+
+        // Options supplémentaires
+        int source = 3;      // 0=Open, 1=High, 2=Low, 3=Close
+        int ma_type = 0;     // 0=SMA, 1=EMA
+
+        BBParams(int p = 20, double m = 2.0, int off = 0)
+            : period(p), stddev_multiplier(m), offset(off) {}
+
+        bool operator==(const BBParams& other) const {
+            return period == other.period &&
+                   std::abs(stddev_multiplier - other.stddev_multiplier) < 0.0001 &&
+                   offset == other.offset &&
+                   source == other.source &&
+                   ma_type == other.ma_type;
+        }
+
+        bool operator<(const BBParams& other) const {
+            if (period != other.period) return period < other.period;
+            if (std::abs(stddev_multiplier - other.stddev_multiplier) >= 0.0001)
+                return stddev_multiplier < other.stddev_multiplier;
+            if (offset != other.offset) return offset < other.offset;
+            if (source != other.source) return source < other.source;
+            return ma_type < other.ma_type;
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -195,6 +325,8 @@ namespace filter {
             ATRParams atrParams;
             SuperTrendParams supertrendParams;
             CCIParams cciParams;
+            MACDParams macdParams;
+            BBParams bbParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT
@@ -203,13 +335,17 @@ namespace filter {
         // Décalage pour les valeurs historiques
         int historicalOffset = 0;
 
+        // Transformation appliquée à la valeur (par défaut aucune)
+        TransformType transform = TransformType::NONE;
+
         // Explicit default constructor to initialize unions safely
         ValueSource()
             : category(ValueCategory::PRICE),
             priceType(PriceType::CLOSE),
             emaParams(0),
             constantValue(0.0),
-            historicalOffset(0)
+            historicalOffset(0),
+            transform(TransformType::NONE)
         {
         }
 
@@ -240,6 +376,7 @@ namespace filter {
             source.indicatorType = IndicatorType::EMA;
             source.emaParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -250,6 +387,7 @@ namespace filter {
             source.indicatorType = IndicatorType::RSI;
             source.rsiParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -262,6 +400,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -274,6 +413,7 @@ namespace filter {
             source.stochParams.slowK = slowK;
             source.stochParams.slowD = slowD;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -285,6 +425,7 @@ namespace filter {
             source.atrParams.period = period;
             source.atrParams.useLog = useLog;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         
@@ -296,6 +437,7 @@ namespace filter {
             source.supertrendParams.atrPeriod = atrPeriod;
             source.supertrendParams.multiplier = multiplier;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
         // Pour CCI (valeur)
@@ -305,9 +447,85 @@ namespace filter {
             source.indicatorType = IndicatorType::CCI;
             source.cciParams.period = period;
             source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
             return source;
         }
-        
+
+        // Pour MACD (histogramme)
+        static ValueSource MACDHistogram(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_HISTOGRAM;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // Pour MACD (ligne)
+        static ValueSource MACDLine(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_LINE;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // Pour MACD (ligne de signal)
+        static ValueSource MACDSignal(int fast, int slow, int signal, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::MACD_SIGNAL;
+            source.macdParams.fast = fast;
+            source.macdParams.slow = slow;
+            source.macdParams.signal = signal;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // Pour Bollinger Bands (UPPER)
+        static ValueSource BollingerUpper(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_UPPER;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // Pour Bollinger Bands (LOWER)
+        static ValueSource BollingerLower(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_LOWER;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // Pour Bollinger Bands (%B)
+        static ValueSource BollingerPercentB(int period, double stdDevMultiplier, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::BB_PERCENT_B;
+            source.bbParams.period = period;
+            source.bbParams.stddev_multiplier = stdDevMultiplier;
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
         // Pour propriétés de bougie
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
             ValueSource source;
@@ -320,7 +538,11 @@ namespace filter {
         // Méthode pour obtenir une description humaine lisible de la source
         static std::string description(const ValueSource& source) {
             std::string desc;
-            
+            // transformPrefix may be used for indicator descriptions; declare it
+            // here (outside the switch) to avoid crossing initialization when
+            // the compiler jumps between case labels.
+            std::string transformPrefix;
+
             switch (source.category) {
                 case ValueCategory::PRICE:
                     desc = "Prix ";
@@ -338,7 +560,17 @@ namespace filter {
                     desc = std::to_string(source.constantValue);
                     break;
                     
-                case ValueCategory::INDICATOR:
+                case ValueCategory::INDICATOR: {
+                    // If a transform is set, set the prefix to wrap the indicator
+                    // description. transformPrefix is declared above to avoid
+                    // switching initialization issues inside a switch-case.
+                    switch (source.transform) {
+                        case TransformType::NONE: transformPrefix = ""; break;
+                        case TransformType::LOG: transformPrefix = "log("; break;
+                        case TransformType::EXP: transformPrefix = "exp("; break;
+                        case TransformType::DERIVATIVE: transformPrefix = "derivative("; break;
+                    }
+
                     switch (source.indicatorType) {
                         case IndicatorType::EMA: 
                             desc = "EMA(" + std::to_string(source.emaParams.period) + ")"; 
@@ -374,6 +606,39 @@ namespace filter {
                         case IndicatorType::PIVOT_POINT:
                             desc = "Pivot Point";
                             break;
+                        case IndicatorType::MACD_HISTOGRAM: 
+                            desc = "MACD Histogram(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::MACD_LINE: 
+                            desc = "MACD Line(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::MACD_SIGNAL: 
+                            desc = "MACD Signal(" + std::to_string(source.macdParams.fast) + "," +
+                                std::to_string(source.macdParams.slow) + "," +
+                                std::to_string(source.macdParams.signal) + ")";
+                            break;
+                        case IndicatorType::BB_UPPER:
+                            desc = "Bollinger Bands Upper(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;
+                        case IndicatorType::BB_LOWER:
+                            desc = "Bollinger Bands Lower(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;
+                        case IndicatorType::BB_PERCENT_B:   
+                            desc = "Bollinger Bands %B(" + std::to_string(source.bbParams.period) + "," +
+                                std::to_string(source.bbParams.stddev_multiplier) + ")"; 
+                            break;                        
+                        default:
+                            break;
+                        }
+                    // If we added a transformPrefix, wrap the description accordingly
+                    if (!transformPrefix.empty()) 
+                        desc = transformPrefix + desc + ")";
                     }
                     break;
                     
@@ -392,12 +657,11 @@ namespace filter {
                     break;
             }
 
-            if (source.historicalOffset > 0) {
+            if (source.historicalOffset > 0) 
                 desc += " [T-" + std::to_string(source.historicalOffset) + "]";
-            }
             
             return desc;
-        }
+            }
     };
 
     // Structure pour un filtre complet
@@ -405,6 +669,7 @@ namespace filter {
         ValueSource leftValue;
         ValueSource rightValue;
         ComparisonOperator op;
+        double offset = 0.0;
         TemporalLogic temporalLogic = TemporalLogic::ALL_OF;
         int lookbackPeriods = 1;
         bool enabled = true;
@@ -441,54 +706,61 @@ namespace filter {
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
                 case ComparisonOperator::CROSSES_ABOVE: opStr = "croise à la hausse"; break;
                 case ComparisonOperator::CROSSES_BELOW: opStr = "croise à la baisse"; break;
+                case ComparisonOperator::DISTANCE_LESS: opStr = "distance <"; break;
+                case ComparisonOperator::DISTANCE_GREATER: opStr = "distance >"; break;
                 case ComparisonOperator::TRUE: opStr = "est vrai"; break;
                 case ComparisonOperator::FALSE: opStr = "est faux"; break;
             }
 
+            // Décrire la logique temporelle
             std::string timeLogicStr;
-            if (lookbackPeriods == 1)
-                timeLogicStr = " (sur la periode courante)";
-            else {
-                switch (temporalLogic) {
-                    case TemporalLogic::ANY_OF:
-                    timeLogicStr = " (sur au moins 1 des " + std::to_string(lookbackPeriods) + " dernieres periodes)";
-                    break;
-                    case TemporalLogic::ALL_OF:
-                    timeLogicStr = " (sur toutes les " + std::to_string(lookbackPeriods) + " dernieres periodes)";
-                    break;
-                }
+            if (temporalLogic == TemporalLogic::ANY_OF) {
+                timeLogicStr = " (au moins une période)";
+            } else {
+                timeLogicStr = " (toutes les périodes)";
+            }
+            if (lookbackPeriods > 1) {
+                timeLogicStr += " sur " + std::to_string(lookbackPeriods) + " périodes";
             }
 
-            std::string enabledStr;
-            if (!enabled)
-                enabledStr = "[Désactivé] ";
-
+            // Construire les descriptions gauche/droite
+            std::string leftDesc = ValueSource::description(leftValue);
             std::string rightDesc;
-            if (op == ComparisonOperator::TRUE || op == ComparisonOperator::FALSE)
-                rightDesc = "";
-            else
-                rightDesc = " " + ValueSource::description(rightValue);
+            if (op == ComparisonOperator::TRUE) {
+                rightDesc = "VRAI";
+            } else if (op == ComparisonOperator::FALSE) {
+                rightDesc = "FAUX";
+            } else {
+                rightDesc = ValueSource::description(rightValue);
+            }
 
-            return enabledStr + ValueSource::description(leftValue) + " " + opStr + rightDesc + timeLogicStr;
+            return leftDesc + " " + opStr + " " + rightDesc + timeLogicStr;
         }
     };
 }
 
 enum class SignalType {
+    NONE,
     BUY,
     SELL,
+    // REBUY,
+    // RESALE,
     MOVE_SL,
     LIQUIDATE
 };
 
 // TODO mettre des std::optional
 struct Signal {
-    SignalType type;
+    SignalType type = SignalType::NONE;
+    // Pour BUY/SELL et REBUY/RESALE
     double quantity = 0.0;
+    // C'est pour definir le prix d'execution souhaite (ordre limit stop ou market mais devrait etre plus explicite)
     double price = 0.0;
+    // Pour BUY/SELL uniquement
     double take_profit = 0.0;
     double stop_loss = 0.0;
-    double new_sl = 0.0;  // For MOVE_SL action
+    // Pour MOVE_SL uniquement
+    double new_sl = 0.0;
 };
 
 struct Time {
@@ -507,7 +779,6 @@ struct Time {
         : hour(h), minute(m), second(s) {}
 };
 
-// TODO: could be shared with the Date class from backtestEngine
 struct DateTime {
     int year = 0;
     int month = 0;
@@ -622,7 +893,6 @@ enum class TakeProfitMethod {
 };
 
 enum class TradeDirection {
-    NOTSET,
     LONG,
     SHORT
 };
@@ -630,16 +900,18 @@ enum class TradeDirection {
 // On pourrait utiliser des union pour separer les paramettre des differents methodes de SL et TP
 struct StrategyConfig {
     std::string name;
-    TradeDirection tradeDirection = TradeDirection::NOTSET;
 
     // Logging
     bool enable_logging = true; // Enable or disable logging
     LogLevel logLevel = LogLevel::DEBUG;
 
-    // Filters
-    std::vector<filter::GenericFilter> filters;
-    // Filters that, when true, should trigger a liquidation (resale) of the open position
-    std::vector<filter::GenericFilter> resale_filters;
+    // Filters that, when true, should trigger a buy/sell signal (opening a position)
+    std::vector<filter::GenericFilter> buyFilters;
+    std::vector<filter::GenericFilter> sellFilters;
+
+    // Filters that, when true, should trigger a resale/rebuy signal (closing a position)
+    std::vector<filter::GenericFilter> resaleFilters;
+    std::vector<filter::GenericFilter> rebuyFilters;
 
     // Time settings
     Time trading_from;
@@ -748,26 +1020,41 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     
     os << "GÉNÉRAL\n";
     os << "  Nom: " << config.name << "\n";
-    os << "  Direction: " << (config.tradeDirection == TradeDirection::NOTSET ? "Non définie" : (config.tradeDirection == TradeDirection::LONG ? "LONG" : "SHORT")) << "\n";
     os << "  Niveau de log: " << config.logLevel << "\n";
     os << "  Logging activé: " << (config.enable_logging ? "Oui" : "Non") << "\n";
     
-    os << "\nFILTRES D'ENTRÉE\n";
-    if (config.filters.empty()) {
+    os << "\nFILTRES D'ACHAT\n";
+    if (config.buyFilters.empty()) {
         os << "  Aucun filtre\n";
     } else {
-        for (const auto& filter : config.filters)
+        for (const auto& filter : config.buyFilters)
             os << "  • " << filter.description << "\n";
     }
-    
-    os << "\nFILTRES DE SORTIE\n";
-    if (config.resale_filters.empty()) {
+
+    os << "\nFILTRES DE VENTE\n";
+    if (config.sellFilters.empty()) {
         os << "  Aucun filtre\n";
     } else {
-        for (const auto& filter : config.resale_filters)
+        for (const auto& filter : config.sellFilters)
             os << "  • " << filter.description << "\n";
     }
-    
+
+    os << "\nFILTRES DE REVENTE\n";
+    if (config.resaleFilters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.resaleFilters)
+            os << "  • " << filter.description << "\n";
+    }
+
+    os << "\nFILTRES DE RACHAT\n";
+    if (config.rebuyFilters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.rebuyFilters)
+            os << "  • " << filter.description << "\n";
+    }
+
     os << "\nHEURES DE TRADING\n";
     os << "  Plage horaire: " 
        << std::setfill('0') << std::setw(2) << config.trading_from.hour << ":" 

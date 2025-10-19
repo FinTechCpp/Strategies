@@ -30,13 +30,14 @@ public:
     Strategy(const StrategyConfig& config);
     virtual ~Strategy() = default;
     
-    // Main update method
-    Signal* update_candle(const Candle& candle);
+    // Main update method - returns a Signal object
+    Signal update_candle(const Candle& candle);
 
     void set_log_callback(std::function<void(const std::string&)> callback) {
         logger->set_log_callback(callback);
     }
 
+    // DEPRECATED pass the callback in the constructor then use it to log the configuration
     // Log the strategy configuration (call after set_log_callback)
     void log_configuration();
 
@@ -46,20 +47,13 @@ protected:
     std::unique_ptr<CandleManager> candle_manager;
     std::unique_ptr<IndicatorManager> indicator_manager;
     std::unique_ptr<ILogger> logger;
-    std::vector<filter::GenericFilter> filters;
-    // Filters that trigger liquidation when true
-    std::vector<filter::GenericFilter> resale_filters;
 
-    // Signal components
-    double buy_quantity = 0.0;
-    double buy_price = 0.0;
-    double sell_quantity = 0.0;
-    double sell_price = 0.0;
-    double take_profit_distance = 0.0;
-    double stop_loss_distance = 0.0;
-    
-    // Execution control
-    std::unique_ptr<Signal> signal;
+    // Filters that trigger a buy/sell signal (opening a position)
+    std::vector<filter::GenericFilter> buyFilters;
+    std::vector<filter::GenericFilter> sellFilters;
+    // Filters that trigger a resale/rebuy signal (closing a position)
+    std::vector<filter::GenericFilter> resaleFilters;
+    std::vector<filter::GenericFilter> rebuyFilters;
     
     // Cache for time checking
     DateTime last_check_date;
@@ -84,13 +78,13 @@ protected:
     virtual void registerFiltersIndicators();
     virtual void before() {}
     virtual void after() {}
-    virtual void go();
+    virtual Signal go(TradeDirection direction);
     
     double price() const;
 
 private:
     bool update_indicators();
-    double calculate_trade_risk(bool is_long);
+    double calculate_trade_risk(const Signal& signal);
     bool is_trade_risk_acceptable(double risk);
     bool is_daily_max_profit_reached();
     bool is_daily_drawdown_reached();
@@ -100,17 +94,13 @@ private:
     // Méthode pour vérifier si on est dans les horaires de trading
     bool check_time();
     
-    std::unique_ptr<Signal> check_break_even();
-    std::unique_ptr<Signal> generate_buy_signal();
-    std::unique_ptr<Signal> generate_sell_signal();
-    std::unique_ptr<Signal> generate_liquidation_signal();
+    std::optional<Signal> check_break_even();
+    Signal generate_liquidation_signal();
     
-    void reset();
-    void execute_long();
-    void execute_short();
-    bool execute_filters();
-    bool execute_resale_filters();
-    void execute();
+    std::optional<Signal> execute_long();
+    std::optional<Signal> execute_short();
+    bool executeFilters(std::vector<filter::GenericFilter>& filters);
+    Signal execute();
     
     // ML-specific methods
     bool load_ml_model();

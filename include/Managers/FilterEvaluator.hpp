@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <functional>
+#include <cmath>
 
 class FilterEvaluator {
 private:
@@ -68,7 +69,18 @@ private:
                     
                     case filter::IndicatorType::CCI:
                         return indicatorManager.getCCIValue(source.cciParams, offset);
-
+                    case filter::IndicatorType::MACD_HISTOGRAM:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).histogram;
+                    case filter::IndicatorType::MACD_LINE:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).macdLine;
+                    case filter::IndicatorType::MACD_SIGNAL:
+                        return indicatorManager.getMACDValue(source.macdParams, offset).signalLine;
+                    case filter::IndicatorType::BB_UPPER:
+                        return indicatorManager.getBBValue(source.bbParams, offset).upper;
+                    case filter::IndicatorType::BB_LOWER:
+                        return indicatorManager.getBBValue(source.bbParams, offset).lower;
+                    case filter::IndicatorType::BB_PERCENT_B:
+                        return indicatorManager.getBBValue(source.bbParams, offset).percentB;
                     default:
                         if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;
@@ -116,26 +128,41 @@ private:
     }
 
     // Comparer deux valeurs selon l'opérateur spécifié
-    static bool compareValues(double left, double right, filter::ComparisonOperator op) {
+    static bool compareValues(double left, double right, filter::ComparisonOperator op, double threshold) {
+        double offset = left - right;
         switch (op) {
             case filter::ComparisonOperator::GREATER_THAN:
-                return left > right;
-                
+                // left is greater than right by more than threshold
+                return offset > threshold;
+
             case filter::ComparisonOperator::LESS_THAN:
-                return left < right;
-                
+                // right is greater than left by more than threshold
+                return offset < threshold;
+
             case filter::ComparisonOperator::GREATER_OR_EQUAL:
-                return left >= right;
-                
+                // left is greater or equal to right with at least threshold separation
+                return offset >= threshold;
+
             case filter::ComparisonOperator::LESS_OR_EQUAL:
-                return left <= right;
-                
+                // left is less or equal to right with at least threshold separation
+                return offset <= threshold;
+
             case filter::ComparisonOperator::EQUAL:
                 // Comparaison à epsilon près pour les flottants
                 return std::abs(left - right) < 0.00001;
                 
             case filter::ComparisonOperator::NOT_EQUAL:
                 return std::abs(left - right) >= 0.00001;
+            
+            case filter::ComparisonOperator::DISTANCE_LESS: {
+                // absolute distance less than threshold
+                return std::abs(left - right) < threshold;
+            }
+
+            case filter::ComparisonOperator::DISTANCE_GREATER: {
+                // absolute distance greater than threshold
+                return std::abs(left - right) > threshold;
+            }
             
             case filter::ComparisonOperator::CROSSES_ABOVE:
             case filter::ComparisonOperator::CROSSES_BELOW:
@@ -191,12 +218,36 @@ private:
 
         double leftValue = getSourceValue(filter.leftValue, offset, candleManager, indicatorManager, logger);
         double rightValue = getSourceValue(filter.rightValue, offset, candleManager, indicatorManager, logger);
-        
-        bool result = compareValues(leftValue, rightValue, filter.op);
 
-        if (logger) {
+        // Helper to apply transform to a ValueSource's value
+        auto applyTransform = [&](double value, const filter::ValueSource& src, int off) -> double {
+            switch (src.transform) {
+                case filter::TransformType::NONE:
+                    return value;
+                case filter::TransformType::LOG:
+                    return value > 0 ? std::log(value) : 0.0;
+                case filter::TransformType::EXP:
+                    return std::exp(value);
+                case filter::TransformType::DERIVATIVE: {
+                    // Compute finite-difference derivative (slope) over `lag` periods.
+                    // We use a backward difference here: (x(t) - x(t-lag)) / lag, which
+                    // corresponds to the average per-period change over the interval.
+                    int lag = 1; // TODO: make lag configurable
+                    double prev = getSourceValue(src, off + lag, candleManager, indicatorManager, logger);
+                    return (value - prev) / static_cast<double>(lag);
+                }
+            }
+            return value;
+        };
+
+   
+        leftValue = applyTransform(leftValue, filter.leftValue, offset);
+        rightValue = applyTransform(rightValue, filter.rightValue, offset);
+        
+        bool result = compareValues(leftValue, rightValue, filter.op, filter.offset);
+
+        if (logger) 
             logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
-        }
         
         return result;
     }
