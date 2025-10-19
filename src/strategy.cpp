@@ -566,7 +566,7 @@ Signal Strategy::execute() {
 
 Strategy::Strategy(const StrategyConfig& config) 
     : base_config(config), 
-    logger(LoggerFactory::createLogger()),
+    logger(std::make_unique<NullLogger>()),
     indicator_manager(std::make_unique<IndicatorManager>()),
     candle_manager(std::make_unique<CandleManager>()),
     buyFilters(config.buyFilters),
@@ -574,11 +574,10 @@ Strategy::Strategy(const StrategyConfig& config)
     resaleFilters(config.resaleFilters),
     rebuyFilters(config.rebuyFilters)
 {
-    if (LoggerFactory::isLoggingEnabled() != base_config.enable_logging) {
-        LoggerFactory::setLoggingEnabled(base_config.enable_logging);
-        logger = LoggerFactory::createLogger();
+    if (base_config.enable_logging) {
+        logger = std::make_unique<LoggerManager>();
+        logger->set_verbosity(static_cast<int>(base_config.logLevel));
     }
-    logger->set_verbosity(static_cast<int>(base_config.logLevel));
 
     registerFiltersIndicators();
 

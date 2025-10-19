@@ -5,7 +5,6 @@
 #include "Managers/PositionManager.hpp"
 #include "Managers/IndicatorManager.hpp"
 #include "Managers/FilterEvaluator.hpp"
-#include "LoggerFactory.h"
 #include <string>
 #include <vector>
 #include <map>
