@@ -740,20 +740,27 @@ namespace filter {
 }
 
 enum class SignalType {
+    NONE,
     BUY,
     SELL,
+    // REBUY,
+    // RESALE,
     MOVE_SL,
     LIQUIDATE
 };
 
 // TODO mettre des std::optional
 struct Signal {
-    SignalType type;
+    SignalType type = SignalType::NONE;
+    // Pour BUY/SELL et REBUY/RESALE
     double quantity = 0.0;
+    // C'est pour definir le prix d'execution souhaite (ordre limit stop ou market mais devrait etre plus explicite)
     double price = 0.0;
+    // Pour BUY/SELL uniquement
     double take_profit = 0.0;
     double stop_loss = 0.0;
-    double new_sl = 0.0;  // For MOVE_SL action
+    // Pour MOVE_SL uniquement
+    double new_sl = 0.0;
 };
 
 struct Time {
@@ -772,7 +779,6 @@ struct Time {
         : hour(h), minute(m), second(s) {}
 };
 
-// TODO: could be shared with the Date class from backtestEngine
 struct DateTime {
     int year = 0;
     int month = 0;
@@ -887,7 +893,6 @@ enum class TakeProfitMethod {
 };
 
 enum class TradeDirection {
-    NOTSET,
     LONG,
     SHORT
 };
@@ -895,16 +900,18 @@ enum class TradeDirection {
 // On pourrait utiliser des union pour separer les paramettre des differents methodes de SL et TP
 struct StrategyConfig {
     std::string name;
-    TradeDirection tradeDirection = TradeDirection::NOTSET;
 
     // Logging
     bool enable_logging = true; // Enable or disable logging
     LogLevel logLevel = LogLevel::DEBUG;
 
-    // Filters
-    std::vector<filter::GenericFilter> filters;
-    // Filters that, when true, should trigger a liquidation (resale) of the open position
-    std::vector<filter::GenericFilter> resale_filters;
+    // Filters that, when true, should trigger a buy/sell signal (opening a position)
+    std::vector<filter::GenericFilter> buyFilters;
+    std::vector<filter::GenericFilter> sellFilters;
+
+    // Filters that, when true, should trigger a resale/rebuy signal (closing a position)
+    std::vector<filter::GenericFilter> resaleFilters;
+    std::vector<filter::GenericFilter> rebuyFilters;
 
     // Time settings
     Time trading_from;
@@ -1006,26 +1013,41 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     
     os << "GÉNÉRAL\n";
     os << "  Nom: " << config.name << "\n";
-    os << "  Direction: " << (config.tradeDirection == TradeDirection::NOTSET ? "Non définie" : (config.tradeDirection == TradeDirection::LONG ? "LONG" : "SHORT")) << "\n";
     os << "  Niveau de log: " << config.logLevel << "\n";
     os << "  Logging activé: " << (config.enable_logging ? "Oui" : "Non") << "\n";
     
-    os << "\nFILTRES D'ENTRÉE\n";
-    if (config.filters.empty()) {
+    os << "\nFILTRES D'ACHAT\n";
+    if (config.buyFilters.empty()) {
         os << "  Aucun filtre\n";
     } else {
-        for (const auto& filter : config.filters)
+        for (const auto& filter : config.buyFilters)
             os << "  • " << filter.description << "\n";
     }
-    
-    os << "\nFILTRES DE SORTIE\n";
-    if (config.resale_filters.empty()) {
+
+    os << "\nFILTRES DE VENTE\n";
+    if (config.sellFilters.empty()) {
         os << "  Aucun filtre\n";
     } else {
-        for (const auto& filter : config.resale_filters)
+        for (const auto& filter : config.sellFilters)
             os << "  • " << filter.description << "\n";
     }
-    
+
+    os << "\nFILTRES DE REVENTE\n";
+    if (config.resaleFilters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.resaleFilters)
+            os << "  • " << filter.description << "\n";
+    }
+
+    os << "\nFILTRES DE RACHAT\n";
+    if (config.rebuyFilters.empty()) {
+        os << "  Aucun filtre\n";
+    } else {
+        for (const auto& filter : config.rebuyFilters)
+            os << "  • " << filter.description << "\n";
+    }
+
     os << "\nHEURES DE TRADING\n";
     os << "  Plage horaire: " 
        << std::setfill('0') << std::setw(2) << config.trading_from.hour << ":" 

@@ -86,36 +86,44 @@ void Strategy::registerFiltersIndicators() {
     };
 
     // Parcourir tous les filtres et enregistrer directement les indicateurs nécessaires
-    for (const auto& filter : filters) {
+    for (const auto& filter : buyFilters) {
         registerIfNeeded(filter.leftValue);
         registerIfNeeded(filter.rightValue);
     }
-    // Parcourir les resale_filters et enregistrer les indicateurs qu'ils utilisent
-    for (const auto& rf : resale_filters) {
-        registerIfNeeded(rf.leftValue);
-        registerIfNeeded(rf.rightValue);
+    for (const auto& filter : sellFilters) {
+        registerIfNeeded(filter.leftValue);
+        registerIfNeeded(filter.rightValue);
+    }
+
+    for (const auto& filter : resaleFilters) {
+        registerIfNeeded(filter.leftValue);
+        registerIfNeeded(filter.rightValue);
+    }
+    for (const auto& filter : rebuyFilters) {
+        registerIfNeeded(filter.leftValue);
+        registerIfNeeded(filter.rightValue);
     }
 }
 
-void Strategy::go() {
+Signal Strategy::go(TradeDirection direction) {
     logger->log_general("Préparation d'un signal d'entrée", LogLevel::INFO);
 
     // Calculate Stop Loss
-    stop_loss_distance = PositionManager::calculateStopLoss(
+    double stop_loss = PositionManager::calculateStopLoss(
         base_config, 
         price(), 
         indicator_manager->getATRValue(filter::ATRParams(base_config.atr_period, true)), 
-        base_config.tradeDirection,
+        direction,
         *candle_manager, 
         logger.get()
     );
 
     // Calculate Take Profit
-    take_profit_distance = PositionManager::calculateTakeProfit(
+    double take_profit = PositionManager::calculateTakeProfit(
         base_config,
         price(),
         indicator_manager->getATRValue(filter::ATRParams(base_config.atr_period, true)),
-        stop_loss_distance,
+        stop_loss,
         *candle_manager,
         logger.get()
     );
@@ -124,18 +132,18 @@ void Strategy::go() {
     double quantity = PositionManager::calculatePositionSize(
         base_config,
         price(),
-        stop_loss_distance,
+        stop_loss,
         logger.get()
     );
+
+    Signal sig;
+    sig.type = direction == TradeDirection::LONG ? SignalType::BUY : SignalType::SELL;
+    sig.quantity = quantity;
+    sig.price = price();
+    sig.take_profit = take_profit;
+    sig.stop_loss = stop_loss;
     
-    if (base_config.tradeDirection == TradeDirection::LONG) {
-        buy_quantity = quantity;
-        buy_price = price();
-    }
-    else {
-        sell_quantity = quantity;
-        sell_price = price();
-    }
+    return sig;
 }
 
 bool Strategy::update_indicators()
@@ -174,18 +182,9 @@ bool Strategy::update_indicators()
 
 // Implementation of Strategy class methods
 // Calculate the potential risk of a trade in monetary value
-double Strategy::calculate_trade_risk(bool is_long) {
-    double position_value;
-    double risk_value;
-    
-    if (is_long) {
-        position_value = buy_quantity * buy_price;
-        risk_value = position_value * (stop_loss_distance / buy_price);
-    } else {
-        position_value = sell_quantity * sell_price;
-        risk_value = position_value * (stop_loss_distance / sell_price);
-    }
-    
+double Strategy::calculate_trade_risk(const Signal& signal) {
+    double position_value = signal.quantity * signal.price;
+    double risk_value = position_value * (signal.stop_loss / signal.price);
     return risk_value;
 }
 
@@ -337,16 +336,16 @@ bool Strategy::check_time() {
     return time_check;
 }
 
-std::unique_ptr<Signal> Strategy::check_break_even() {
+std::optional<Signal> Strategy::check_break_even() {
     if (!base_config.use_break_even || position_info.entry_price <= 0.0 || position_info.take_profit_price <= 0.0) {
         // Insufficient data to calculate break-even
-        return nullptr;
+        return std::nullopt;
     }
 
     // Get the latest candle
     const BasicCandle& latest_candle = candle_manager->get_latest_candle();
     if (!latest_candle.date.is_valid()) {
-        return nullptr;  // No valid candle
+        return std::nullopt;  // No valid candle
     }
 
     // Calculate the threshold price for break-even
@@ -367,69 +366,37 @@ std::unique_ptr<Signal> Strategy::check_break_even() {
     if (threshold_reached) {
         logger->log_general_BE_activated(position_sign, reference_price, break_even_price, base_config.break_even_threshold);
             
-        auto be_signal = std::make_unique<Signal>();
-        be_signal->type = SignalType::MOVE_SL;
-        be_signal->new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);
-        be_signal->price = break_even_price;
+        Signal be_signal;
+        be_signal.type = SignalType::MOVE_SL;
+        be_signal.new_sl = position_info.entry_price + position_info.entry_price * (base_config.break_even_offset_per_mille / 1000.0);
+        be_signal.price = break_even_price;
         return be_signal;
     }
 
-    return nullptr;
+    return std::nullopt;
 }
 
-std::unique_ptr<Signal> Strategy::generate_buy_signal() {
-    auto sig = std::make_unique<Signal>();
-    sig->type = SignalType::BUY;
-    sig->quantity = buy_quantity;
-    sig->price = buy_price;
-    sig->take_profit = take_profit_distance;
-    sig->stop_loss = stop_loss_distance;
+Signal Strategy::generate_liquidation_signal() {
+    Signal sig;
+    sig.type = SignalType::LIQUIDATE;
     return sig;
 }
 
-std::unique_ptr<Signal> Strategy::generate_sell_signal() {
-    auto sig = std::make_unique<Signal>();
-    sig->type = SignalType::SELL;
-    sig->quantity = sell_quantity;
-    sig->price = sell_price;
-    sig->take_profit = take_profit_distance;
-    sig->stop_loss = stop_loss_distance;
-    return sig;
-}
-
-std::unique_ptr<Signal> Strategy::generate_liquidation_signal() {
-    auto sig = std::make_unique<Signal>();
-    sig->type = SignalType::LIQUIDATE;
-    return sig;
-}
-
-void Strategy::reset() {
-    buy_quantity = 0.0;
-    buy_price = 0.0;
-    sell_quantity = 0.0;
-    sell_price = 0.0;
-    take_profit_distance = 0.0;
-    stop_loss_distance = 0.0;
-    signal = nullptr;
-}
-
-void Strategy::execute_long() {
-    go();
+std::optional<Signal> Strategy::execute_long() {
+    Signal signal = go(TradeDirection::LONG);
     
-    if (buy_quantity < 0.0 || buy_price <= 0.0) {
+    if (signal.quantity < 0.0 || signal.price <= 0.0) {
         logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
     }
 
-    if (buy_quantity == 0.0) {
+    if (signal.quantity == 0.0) {
         logger->log_general("Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
-        // If quantity is zero, we cannot proceed with the trade
-        reset();
-        return;
+        return std::nullopt;
     }
 
     // Calculate risk and check if it's acceptable
-    double risk = calculate_trade_risk(true);
+    double risk = calculate_trade_risk(signal);
     logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
@@ -440,31 +407,28 @@ void Strategy::execute_long() {
         logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
-        reset();
-        return;
+        return std::nullopt;
     }
       
-    signal = generate_buy_signal();
-    logger->log_signal(*signal);
+    logger->log_signal(signal);
+    return signal;
 }
 
-void Strategy::execute_short() {
-    go();
+std::optional<Signal> Strategy::execute_short() {
+    Signal signal = go(TradeDirection::SHORT);
     
-    if (sell_quantity < 0.0 || sell_price <= 0.0) {
+    if (signal.quantity < 0.0 || signal.price <= 0.0) {
         logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
     }
 
-    if (sell_quantity == 0.0) {
+    if (signal.quantity == 0.0) {
         logger->log_general("Quantité de vente nulle, trade annulé", LogLevel::WARNING);
-        // If quantity is zero, we cannot proceed with the trade
-        reset();
-        return;
+        return std::nullopt;
     }
 
     // Calculate risk and check if it's acceptable
-    double risk = calculate_trade_risk(false);
+    double risk = calculate_trade_risk(signal);
     logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
@@ -475,16 +439,15 @@ void Strategy::execute_short() {
         logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
-        reset();
-        return;
+        return std::nullopt;
     }
     
-    
-    signal = generate_sell_signal();
-    logger->log_signal(*signal);
+    logger->log_signal(signal);
+    return signal;
 }
 
-bool Strategy::execute_filters() {
+bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {
+    // Si empty soit toujours false soit toujours true
     if (filters.empty()) 
         return false; // No filters defined, never pass
 
@@ -494,18 +457,7 @@ bool Strategy::execute_filters() {
     return true;
 }
 
-bool Strategy::execute_resale_filters() {
-    if (resale_filters.empty()) 
-        return false; // No resale filters defined
-  
-    logger->log_general("Vérification des conditions de revente", LogLevel::INFO);
-    for (const auto& filter : resale_filters) 
-        if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
-            return false;
-    return true;
-}
-
-void Strategy::execute() {
+Signal Strategy::execute() {
     // Update daily PnL tracking
     update_daily_pnl_tracking();
 
@@ -515,8 +467,7 @@ void Strategy::execute() {
     // Update indicators
     if (!indicators_ready) {
         logger->log_execution_step("Indicateurs pas encore prêts", false);
-        reset();
-        return;
+        return Signal();  // Return empty signal
     }
     
     
@@ -529,9 +480,9 @@ void Strategy::execute() {
                           " >= " + logger->fast_double_to_string(max_profit_amount) + 
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         
-        signal = generate_liquidation_signal();
-        logger->log_signal(*signal);
-        return;
+        Signal signal = generate_liquidation_signal();
+        logger->log_signal(signal);
+        return signal;
     }
 
     // Check if daily max drawdown has been reached
@@ -546,18 +497,18 @@ void Strategy::execute() {
                           " - PnL max: " + logger->fast_double_to_string(daily_max_pnl) +
                           " - PnL actuel: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
         
-        signal = generate_liquidation_signal();
-        logger->log_signal(*signal);
-        return;
+        Signal signal = generate_liquidation_signal();
+        logger->log_signal(signal);
+        return signal;
     }
 
     // Time check
     if (!check_time()) {
         logger->log_execution_step("Vérification horaires", false);
         
-        signal = generate_liquidation_signal();
-        logger->log_signal(*signal);
-        return;
+        Signal signal = generate_liquidation_signal();
+        logger->log_signal(signal);
+        return signal;
     }
     logger->log_execution_step("Vérification horaires", true);
 
@@ -565,53 +516,58 @@ void Strategy::execute() {
     // Check for break-even signal before executing strategy
     auto be_signal = check_break_even();
     if (be_signal) {
-        logger->log_general("Signal de break-even généré: " + 
-                          logger->fast_double_to_string(be_signal->new_sl));
-        signal = std::move(be_signal);
-        return;
+        logger->log_general("Signal de break-even généré: " + logger->fast_double_to_string(be_signal->new_sl));
+        return *be_signal;
     }
-    
-    if (position_info.entry_price > 0.0 && execute_resale_filters()) {
-        logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
-        signal = generate_liquidation_signal();
-        logger->log_signal(*signal);
-        return;
+
+    if (position_info.entry_price > 0.0) {
+        // TODO il faut différencier les signaux de liquidation normaux et les signaux de rachat/revente
+        if (executeFilters(resaleFilters)) {
+            logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
+            Signal signal = generate_liquidation_signal();
+            logger->log_signal(signal);
+            return signal;
+        }
+
+        if (executeFilters(rebuyFilters)) {
+            logger->log_execution_step("Filtres de rachat passés - Génération du signal de liquidation", true);
+            Signal signal = generate_liquidation_signal();
+            logger->log_signal(signal);
+            return signal;
+        }
+
+        logger->log_execution_step("Position ouverte - Pas de nouveau signal généré", false);
+        return Signal();  // Return empty signal
     }
-    
-    if (!execute_filters()) {
-        logger->log_execution_step("Filtres", false);
-        logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
-        reset();
-        return;
+
+    if (executeFilters(buyFilters)) {
+        logger->log_execution_step("Filtres d'achat passés", true);
+        auto signal = execute_long();
+        return signal.value_or(Signal());
+    } else if (executeFilters(sellFilters)) {
+        logger->log_execution_step("Filtres de vente passés", true);
+        auto signal = execute_short();
+        return signal.value_or(Signal());
     }
-    logger->log_execution_step("Filtres", true);
-    
-    if (base_config.tradeDirection == TradeDirection::LONG) {
-        execute_long();
-    } else {
-        execute_short();
-    }
+
+    return Signal();  // Return empty signal
 }
 
 Strategy::Strategy(const StrategyConfig& config) 
     : base_config(config), 
-    signal(std::make_unique<Signal>()),
     logger(LoggerFactory::createLogger()),
     indicator_manager(std::make_unique<IndicatorManager>()),
     candle_manager(std::make_unique<CandleManager>()),
-    filters(config.filters),
-    resale_filters(config.resale_filters)
+    buyFilters(config.buyFilters),
+    sellFilters(config.sellFilters),
+    resaleFilters(config.resaleFilters),
+    rebuyFilters(config.rebuyFilters)
 {
     if (LoggerFactory::isLoggingEnabled() != base_config.enable_logging) {
         LoggerFactory::setLoggingEnabled(base_config.enable_logging);
         logger = LoggerFactory::createLogger();
     }
     logger->set_verbosity(static_cast<int>(base_config.logLevel));
-
-    if (base_config.tradeDirection == TradeDirection::NOTSET) {
-        logger->log_general("La direction de la strategie n'est pas définie dans la configuration.", LogLevel::ERROR);
-        throw std::invalid_argument("Direction of the strategy must be specified in StrategyConfig");
-    }
 
     registerFiltersIndicators();
 
@@ -649,7 +605,7 @@ void Strategy::log_configuration() {
 }
 
 // Main update method
-Signal* Strategy::update_candle(const Candle& candle) {    
+Signal Strategy::update_candle(const Candle& candle) {    
     logger->start_chrono();
 
     position_info = candle.position;
@@ -673,13 +629,13 @@ Signal* Strategy::update_candle(const Candle& candle) {
     // Add to buffer for historical calculations
     candle_manager->add_candle(candle.ohlc);
     
-    // Execute strategy
-    execute();
+    // Execute strategy and get signal
+    Signal signal = execute();
     after();
 
     logger->finalize_and_send_logs();
     
-    return signal.get();
+    return signal;
 }
 
 // Properties
