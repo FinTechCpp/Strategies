@@ -451,6 +451,17 @@ bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {
     if (filters.empty()) 
         return false; // No filters defined, never pass
 
+    // Si tous les filtres sont desactivés, toujours false
+    bool all_disabled = true;
+    for (const auto& filter : filters) {
+        if (filter.enabled) {
+            all_disabled = false;
+            break;
+        }
+    }
+    if (all_disabled)
+        return false;
+
     for (const auto& filter : filters) 
         if (!FilterEvaluator::evaluate(filter, *candle_manager, *indicator_manager, logger.get())) 
             return false;
@@ -590,6 +601,8 @@ Strategy::Strategy(const StrategyConfig& config)
     logger->log_general("CandleManager configuré: seuil=" + std::to_string(threshold) + 
                        ", cible=" + std::to_string(target) + 
                        " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
+
+    std::cout << config << std::endl;
 }
 
 void Strategy::log_configuration() {
