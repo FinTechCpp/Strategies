@@ -39,19 +39,15 @@ int get_day_of_week(const DateTime& date);
 
 class Strategy {
 public:
-    Strategy(const StrategyConfig& config);
+    Strategy(const StrategyConfig& config, std::function<void(const std::string&)> callback = nullptr);
     virtual ~Strategy() = default;
     
     // Main update method - returns a Signal object
     Signal update_candle(const Candle& candle);
+    
+    // Getter for strategy name
+    std::string getName() const { return base_config.name; }
 
-    void set_log_callback(std::function<void(const std::string&)> callback) {
-        logger->set_log_callback(callback);
-    }
-
-    // DEPRECATED pass the callback in the constructor then use it to log the configuration
-    // Log the strategy configuration (call after set_log_callback)
-    void log_configuration();
 
 protected:
     StrategyConfig base_config;

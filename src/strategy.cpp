@@ -564,7 +564,7 @@ Signal Strategy::execute() {
     return Signal();  // Return empty signal
 }
 
-Strategy::Strategy(const StrategyConfig& config) 
+Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::string&)> log_callback) 
     : base_config(config), 
     logger(std::make_unique<NullLogger>()),
     indicator_manager(std::make_unique<IndicatorManager>()),
@@ -574,6 +574,7 @@ Strategy::Strategy(const StrategyConfig& config)
     resaleFilters(config.resaleFilters),
     rebuyFilters(config.rebuyFilters)
 {
+    logger->set_log_callback(log_callback);
     if (base_config.enable_logging) {
         logger = std::make_unique<LoggerManager>();
         logger->set_verbosity(static_cast<int>(base_config.logLevel));
@@ -597,20 +598,26 @@ Strategy::Strategy(const StrategyConfig& config)
     STRATEGY_LOG(logger, log_general, "CandleManager configuré avec taille minimale: " + 
                        std::to_string(max_period) + " bougies", LogLevel::INFO);
 
-    std::cout << config << std::endl;
-}
-
-void Strategy::log_configuration() {
     // Générer la configuration complète
     std::ostringstream config_stream;
     config_stream << base_config;
     std::string config_str = config_stream.str();
-    
-    // Envoyer directement via le callback sans passer par le buffer
-    // car cette méthode est appelée avant le premier update_candle
+
     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
     STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
 }
+
+// void Strategy::log_configuration() {
+//     // Générer la configuration complète
+//     std::ostringstream config_stream;
+//     config_stream << base_config;
+//     std::string config_str = config_stream.str();
+    
+//     // Envoyer directement via le callback sans passer par le buffer
+//     // car cette méthode est appelée avant le premier update_candle
+//     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
+//     STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
+// }
 
 // Main update method
 Signal Strategy::update_candle(const Candle& candle) {    
