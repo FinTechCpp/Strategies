@@ -589,17 +589,13 @@ Strategy::Strategy(const StrategyConfig& config)
     if (base_config.sl_method == StopLossMethod::MinMax) 
         max_period = std::max(max_period, base_config.sl_minmax_periods);
     
-    // Configurer le CandleManager avec une marge de sécurité
-    // - hysteresis_threshold : max_period + 100 bougies de marge
-    // - clean_target_size : max_period (garde exactement ce qu'il faut)
-    // - max_buffer_size : max_period (pas utilisé vraiment mais cohérent)
-    size_t threshold = max_period + 100;
-    size_t target = max_period;
-    candle_manager->set_buffer_params(max_period, threshold, target);
+    // Configurer le CandleManager avec la taille minimale requise
+    // La méthode setMinimalBufferSize gère automatiquement les paramètres internes
+    // pour garantir un fonctionnement optimal et sûr
+    candle_manager->setMinimalBufferSize(max_period);
     
-    STRATEGY_LOG(logger, log_general, "CandleManager configuré: seuil=" + std::to_string(threshold) + 
-                       ", cible=" + std::to_string(target) + 
-                       " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
+    STRATEGY_LOG(logger, log_general, "CandleManager configuré avec taille minimale: " + 
+                       std::to_string(max_period) + " bougies", LogLevel::INFO);
 
     std::cout << config << std::endl;
 }
