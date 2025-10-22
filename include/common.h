@@ -951,6 +951,9 @@ struct StrategyConfig {
     double risk_percentage;
     double cash;
     double leverage_limit;
+    
+    // Capital allocation
+    double cash_allocation_percentage = 100.0; // Percentage of broker cash allocated to this strategy (default: 100%)
 
     // Break-even parameters
     bool use_break_even;
