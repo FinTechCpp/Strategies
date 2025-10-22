@@ -574,9 +574,8 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     resaleFilters(config.resaleFilters),
     rebuyFilters(config.rebuyFilters)
 {
-    logger->set_log_callback(log_callback);
     if (base_config.enable_logging) {
-        logger = std::make_unique<LoggerManager>();
+        logger = std::make_unique<LoggerManager>(log_callback);
         logger->set_verbosity(static_cast<int>(base_config.logLevel));
     }
 
@@ -605,19 +604,10 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
 
     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
     STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
-}
 
-// void Strategy::log_configuration() {
-//     // Générer la configuration complète
-//     std::ostringstream config_stream;
-//     config_stream << base_config;
-//     std::string config_str = config_stream.str();
-    
-//     // Envoyer directement via le callback sans passer par le buffer
-//     // car cette méthode est appelée avant le premier update_candle
-//     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
-//     STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
-// }
+    logger->log_general("Strategy initialized.");
+    logger->finalize_and_send_logs();
+}
 
 // Main update method
 Signal Strategy::update_candle(const Candle& candle) {    

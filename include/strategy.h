@@ -17,11 +17,7 @@
 #include <sstream>
 #include "Indicators/indicators.hpp"
 
-// Macro pour activer/désactiver les logs de la stratégie
-// Décommenter la ligne suivante pour désactiver complètement les logs en production
-#define STRATEGY_DISABLE_LOGGING
-
-#ifdef STRATEGY_DISABLE_LOGGING
+#ifdef DISABLE_LOGGING
     // En mode sans logging, toutes les appels sont remplacés par des no-ops
     #define STRATEGY_LOG(logger_ptr, method, ...) ((void)0)
     #define STRATEGY_LOG_VOID(logger_ptr, method) ((void)0)
