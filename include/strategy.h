@@ -19,7 +19,7 @@
 
 // Macro pour activer/désactiver les logs de la stratégie
 // Décommenter la ligne suivante pour désactiver complètement les logs en production
-#define STRATEGY_DISABLE_LOGGING
+//#define STRATEGY_DISABLE_LOGGING
 
 #ifdef STRATEGY_DISABLE_LOGGING
     // En mode sans logging, toutes les appels sont remplacés par des no-ops

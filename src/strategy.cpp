@@ -574,11 +574,11 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     resaleFilters(config.resaleFilters),
     rebuyFilters(config.rebuyFilters)
 {
-    logger->set_log_callback(log_callback);
     if (base_config.enable_logging) {
         logger = std::make_unique<LoggerManager>();
         logger->set_verbosity(static_cast<int>(base_config.logLevel));
     }
+    logger->set_log_callback(log_callback);
 
     registerFiltersIndicators();
 
