@@ -45,24 +45,18 @@ public:
     }
     
     bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) override {
-        if (logger) logger->log_general("Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
+        STRATEGY_LOG(logger, log_general, "Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
         
-    std::optional<R> result = m_indicator->initialize_with_history(history);
+        std::optional<R> result = m_indicator->initialize_with_history(history);
         
         if (result.has_value()) {
             // Stocker la valeur initiale
             m_history.clear();
             m_history.push_back(result.value());
-            
-            if (logger) {
-                if constexpr (std::is_same_v<R, MACDResult>) {
-                    logger->log_indicator_value(m_indicator->get_name(), result.value(), LogLevel::DEBUG);
-                } else {
-                    logger->log_indicator_value(m_indicator->get_name(), result.value());
-                }
-            }
-        } else if (logger) {
-            logger->log_general("Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
+
+            STRATEGY_LOG(logger, log_indicator_value, m_indicator->get_name(), result.value());
+        } else {
+            STRATEGY_LOG(logger, log_general, "Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
         }
         
         return result.has_value();
@@ -79,15 +73,9 @@ public:
                 m_history.pop_front();
             }
             
-            if (logger) {
-                if constexpr (std::is_same_v<R, MACDResult>) {
-                    logger->log_indicator_value(m_indicator->get_name(), result.value(), LogLevel::DEBUG);
-                } else {
-                    logger->log_indicator_value(m_indicator->get_name(), result.value());
-                }
-            }
-        } else if (logger) {
-            logger->log_general("Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
+            STRATEGY_LOG(logger, log_indicator_value, m_indicator->get_name(), result.value());
+        } else {
+            STRATEGY_LOG(logger, log_general, "Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
         }
         
         return result.has_value();
@@ -512,25 +500,23 @@ public:
     }
     
     // Méthodes de gestion en masse
-    bool initializeAll(const std::vector<BasicCandle>& history, ILogger* logger = nullptr) {
-        if (logger) logger->log_general("Initialisation de tous les indicateurs", LogLevel::DEBUG);
+    bool initializeAll(const std::vector<BasicCandle>& history, ILogger* logger) {
+        STRATEGY_LOG(logger, log_general, "Initialisation de tous les indicateurs", LogLevel::DEBUG);
         
         bool success = true;
         for (auto handler : m_allHandlers) {
             bool indSuccess = handler->initialize(history, logger);
             success = success && indSuccess;
         }
-        
-        if (logger) {
-            logger->log_general("Initialisation des indicateurs: " + 
-                std::string(success ? "TOUS INITIALISÉS AVEC SUCCÈS" : "CERTAINS ONT ÉCHOUÉ"), 
-                success ? LogLevel::INFO : LogLevel::WARNING);
-        }
+
+        STRATEGY_LOG(logger, log_general, "Initialisation des indicateurs: " + 
+            std::string(success ? "TOUS INITIALISÉS AVEC SUCCÈS" : "CERTAINS ONT ÉCHOUÉ"), 
+            success ? LogLevel::INFO : LogLevel::WARNING);
         
         return success;
     }
     
-    bool updateAll(const BasicCandle& candle, ILogger* logger = nullptr) {
+    bool updateAll(const BasicCandle& candle, ILogger* logger) {
         bool success = true;
         for (auto handler : m_allHandlers) {
             bool indSuccess = handler->update(candle, logger);

@@ -604,9 +604,6 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
 
     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
     STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
-
-    logger->log_general("Strategy initialized.");
-    logger->finalize_and_send_logs();
 }
 
 // Main update method

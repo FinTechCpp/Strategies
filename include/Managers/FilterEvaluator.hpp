@@ -11,7 +11,7 @@
 class FilterEvaluator {
 private:
     // Obtenir la valeur d'une source
-    static double getSourceValue(const filter::ValueSource& source, int additionalOffset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
+    static double getSourceValue(const filter::ValueSource& source, int additionalOffset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger) {
         int offset = source.historicalOffset + additionalOffset;
         BasicCandle candle = candleManager.get_last_candles(offset + 1)[0];
 
@@ -19,7 +19,7 @@ private:
             case filter::ValueCategory::PRICE: {
                 // Récupérer la bougie correspondante
                 if (candleManager.size() <= offset) {
-                    if (logger) logger->log_general("Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
+                    STRATEGY_LOG(logger, log_general, "Pas assez d'historique pour obtenir la valeur de prix", LogLevel::WARNING);
                     return 0.0;
                 }
 
@@ -82,14 +82,14 @@ private:
                     case filter::IndicatorType::BB_PERCENT_B:
                         return indicatorManager.getBBValue(source.bbParams, offset).percentB;
                     default:
-                        if (logger) logger->log_general("Type d'indicateur non supporté", LogLevel::ERROR);
+                        STRATEGY_LOG(logger, log_general, "Type d'indicateur non supporté", LogLevel::ERROR);
                         return 0.0;
                 }
             }
             
             case filter::ValueCategory::CANDLE_PROPERTY: {
                 if (candleManager.size() <= offset) {
-                    if (logger) logger->log_general("Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
+                    STRATEGY_LOG(logger, log_general, "Pas assez d'historique pour obtenir la propriété de bougie", LogLevel::WARNING);
                     return 0.0;
                 }
                 
@@ -178,7 +178,7 @@ private:
     }
 
     // Évaluer une condition de filtre à un offset donné
-    static bool evaluateCondition(const filter::GenericFilter& filter, int offset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
+    static bool evaluateCondition(const filter::GenericFilter& filter, int offset, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger) {
         // Traitement spécial pour les croisements en les décomposant en filtres unitaires
         if (filter.op == filter::ComparisonOperator::CROSSES_ABOVE || filter.op == filter::ComparisonOperator::CROSSES_BELOW) {
             // Créer deux filtres unitaires
@@ -246,15 +246,13 @@ private:
         
         bool result = compareValues(leftValue, rightValue, filter.op, filter.offset);
 
-        if (logger) 
-            logger->log_filter_result(filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
-        
+        STRATEGY_LOG(logger, log_filter_result, filter, leftValue, rightValue, result, offset, LogLevel::DEBUG);
         return result;
     }
 
 public:
     // Évaluer un filtre complet avec sa logique temporelle
-    static bool evaluate(const filter::GenericFilter& filter, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger = nullptr) {
+    static bool evaluate(const filter::GenericFilter& filter, const CandleManager& candleManager, const IndicatorManager& indicatorManager, ILogger* logger) {
         if (!filter.enabled) return true;
         
         switch (filter.temporalLogic) {

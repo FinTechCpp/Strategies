@@ -17,15 +17,7 @@
 #include <sstream>
 #include "Indicators/indicators.hpp"
 
-#ifdef DISABLE_LOGGING
-    // En mode sans logging, toutes les appels sont remplacés par des no-ops
-    #define STRATEGY_LOG(logger_ptr, method, ...) ((void)0)
-    #define STRATEGY_LOG_VOID(logger_ptr, method) ((void)0)
-#else
-    // En mode avec logging, les appels sont normaux
-    #define STRATEGY_LOG(logger_ptr, method, ...) (logger_ptr)->method(__VA_ARGS__)
-    #define STRATEGY_LOG_VOID(logger_ptr, method) (logger_ptr)->method()
-#endif
+
 
 // Fonction utilitaire pour parser une chaîne de date ISO
 DateTime parse_iso_datetime(const std::string& iso_date);
