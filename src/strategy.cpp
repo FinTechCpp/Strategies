@@ -580,6 +580,20 @@ Signal Strategy::execute() {
         return Signal();  // Return empty signal
     }
 
+    // If ML-entry is enabled, ask the ML model first for an entry signal.
+    if (base_config.use_ml_entry) {
+        int ml_signal = execute_ml_filters();
+        if (ml_signal == 1) { // BUY
+            STRATEGY_LOG(logger, log_execution_step, "Signal ML -> BUY", true);
+            auto signal = execute_long();
+            return signal.value_or(Signal());
+        } else if (ml_signal == 2) { // SELL
+            STRATEGY_LOG(logger, log_execution_step, "Signal ML -> SELL", true);
+            auto signal = execute_short();
+            return signal.value_or(Signal());
+        }
+    }
+
     if (executeFilters(buyFilters)) {
         STRATEGY_LOG(logger, log_execution_step, "Filtres d'achat passés", true);
         auto signal = execute_long();
@@ -764,7 +778,7 @@ int Strategy::interpret_ml_prediction(float prediction) {
     return 0;  // Pas de signal
 }
 
-bool Strategy::execute_ml_filters() {
+int Strategy::execute_ml_filters() {
     if (!ml_model_loaded) {
         logger->log_general("Modèle ML non chargé", LogLevel::ERROR);
         return false;
@@ -779,49 +793,32 @@ bool Strategy::execute_ml_filters() {
     }
     
         // Effectuer l'inférence
-        float prediction = ml_entry_model->predict(features);
+            float prediction = ml_entry_model->predict(features);
         
-        logger->log_general("Prédiction ML: " + std::to_string(prediction), LogLevel::DEBUG);
+            logger->log_general("Prédiction ML: " + std::to_string(prediction), LogLevel::DEBUG);
         
-        // Interpréter la prédiction
-        int signal_type = interpret_ml_prediction(prediction);
-        
-        // Vérifier si le signal correspond à la direction de trading configurée
-        if (signal_type == 1) {  // BUY
-            if (base_config.tradeDirection == TradeDirection::LONG) {
+            // Interpréter la prédiction
+            int signal_type = interpret_ml_prediction(prediction);
+
+            if (signal_type == 1) {
                 logger->log_general(
-                    "Signal BUY détecté par ML (prédiction: " + std::to_string(prediction) + ")", 
+                    "Signal BUY détecté par ML (prédiction: " + std::to_string(prediction) + ")",
                     LogLevel::INFO
                 );
-                return true;
-            } else {
+                return 1;
+            } else if (signal_type == 2) {
                 logger->log_general(
-                    "Signal BUY ignoré (direction=SHORT) - prédiction: " + std::to_string(prediction), 
-                    LogLevel::DEBUG
-                );
-                return false;
-            }
-        } else if (signal_type == 2) {  // SELL
-            if (base_config.tradeDirection == TradeDirection::SHORT) {
-                logger->log_general(
-                    "Signal SELL détecté par ML (prédiction: " + std::to_string(prediction) + ")", 
+                    "Signal SELL détecté par ML (prédiction: " + std::to_string(prediction) + ")",
                     LogLevel::INFO
                 );
-                return true;
-            } else {
-                logger->log_general(
-                    "Signal SELL ignoré (direction=LONG) - prédiction: " + std::to_string(prediction), 
-                    LogLevel::DEBUG
-                );
-                return false;
+                return 2;
             }
-        }
-        
-        // Pas de signal
-        logger->log_general(
-            "Pas de signal ML (prédiction: " + std::to_string(prediction) + 
-            ", threshold: ±" + std::to_string(base_config.ml_entry_threshold) + ")", 
-            LogLevel::DEBUG
-        );
-        return false;
+
+            // Pas de signal
+            logger->log_general(
+                "Pas de signal ML (prédiction: " + std::to_string(prediction) + 
+                ", threshold: ±" + std::to_string(base_config.ml_entry_threshold) + ")",
+                LogLevel::DEBUG
+            );
+            return 0;
 }

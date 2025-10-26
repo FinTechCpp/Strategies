@@ -105,5 +105,6 @@ private:
     std::vector<float> prepare_ml_features();
     float normalize_price(double price);
     int interpret_ml_prediction(float prediction);
-    bool execute_ml_filters();
+    // Executes ML entry model and returns: 0 = no signal, 1 = BUY, 2 = SELL
+    int execute_ml_filters();
 };
