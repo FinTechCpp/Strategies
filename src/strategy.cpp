@@ -308,30 +308,59 @@ bool Strategy::check_time() {
         last_check_date = current_date;
 
         weekday = get_day_of_week(current_date);
+    }
+
+    // Determine if the allowed trading window spans midnight (e.g. 22:00 -> 06:00)
+    bool spans_midnight = !(base_config.trading_from < base_config.trading_to);
+
+    bool after_start = false;
+    bool before_end = false;
+
+    if (!spans_midnight) {
+        // Normal window within the same day: trading_from < current_time < trading_to
+        after_start = (base_config.trading_from < current_time);
+        before_end = (current_time < base_config.trading_to);
+        time_check = after_start && before_end;
+    } else {
+        // Window spans midnight: allowed if current_time >= trading_from OR current_time < trading_to
+    // Use the inverse of operator< because operator>= may not be defined for Time
+    after_start = !(current_time < base_config.trading_from);
+        before_end = (current_time < base_config.trading_to);
+        time_check = after_start || before_end;
+    }
+
+    // When window spans midnight and we're before "trading_to" (i.e. after midnight),
+    // the active trading day is the previous calendar day. Use effective_weekday to
+    // check trading_days_array accordingly.
+    int effective_weekday = weekday;
+    if (spans_midnight && before_end) {
+        // previous day
+        effective_weekday = (weekday + 6) % 7;
+    }
+
+    // Decide which weekday to use for permission check:
+    // - If the window spans midnight and we are after midnight (before_end==true),
+    //   use the calendar weekday (`weekday`) so that a disabled calendar day
+    //   (e.g. Saturday) stops trading at midnight.
+    // - Otherwise use the effective_weekday (previous day when applicable).
+    if (spans_midnight && before_end) {
         weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
             STRATEGY_LOG(logger, log_time_check, false, weekday, false, current_time, LogLevel::INFO);
             return false;
         }
-    }
-
-    // Check trading hours on each candle
-    bool after_start = (base_config.trading_from < current_time);
-
-    bool before_end = (current_time < base_config.trading_to);
-
-    time_check = after_start && before_end;
-
-    if (!weekday_check) {
-        STRATEGY_LOG(logger, log_time_check, false, weekday, false, current_time, LogLevel::INFO);
-        return false;
-    }
-
-    if (!time_check) {
-        STRATEGY_LOG(logger, log_time_check, true, 0, false, current_time, LogLevel::INFO);
     } else {
-        STRATEGY_LOG(logger, log_time_check, true, 0, true, current_time, LogLevel::DEBUG);
+        weekday_check = base_config.trading_days_array[effective_weekday];
+        if (!weekday_check) {
+            STRATEGY_LOG(logger, log_time_check, false, effective_weekday, false, current_time, LogLevel::INFO);
+            return false;
+        }
     }
+
+    if (!time_check)
+        STRATEGY_LOG(logger, log_time_check, true, 0, false, current_time, LogLevel::INFO);
+    else
+        STRATEGY_LOG(logger, log_time_check, true, 0, true, current_time, LogLevel::DEBUG);
 
     return time_check;
 }
