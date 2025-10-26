@@ -1,3 +1,4 @@
 *.dll filter=lfs diff=lfs merge=lfs -text
 *.onnx filter=lfs diff=lfs merge=lfs -text
 *.so !filter !diff !merge
+models/rf_model.onnx -filter -diff -merge -text
