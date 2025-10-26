@@ -21,7 +21,6 @@ public:
     virtual ~ILogger() = default;
     
     // Configuration du logger
-    virtual void set_log_callback(std::function<void(const std::string&)> callback) = 0;
     virtual void set_enabled(bool state) = 0;
     virtual void set_verbosity(int level) = 0;
     virtual LogLevel get_verbosity() const = 0;
@@ -125,7 +124,7 @@ private:
     }
 
 public:
-    LoggerManager() {
+    LoggerManager(std::function<void(const std::string&)> callback) : callback(std::move(callback)) {
         // Préallouer la mémoire pour le buffer de message
         msgBuffer.reserve(256);
         
@@ -149,11 +148,6 @@ public:
         char buffer[64];
         auto [ptr, ec] = std::to_chars(buffer, buffer + sizeof(buffer), value);
         return std::string(buffer, ptr - buffer);
-    }
-
-    void set_log_callback(std::function<void(const std::string&)> callback)  override{
-        // Enregistrer le callback pour les logs
-        this->callback = std::move(callback);
     }
     
     // Configuration du logger
@@ -422,7 +416,6 @@ public:
 // Logger null qui ne fait rien (pour optimisation en mode backtest)
 class NullLogger : public ILogger {
 public:
-    void set_log_callback(std::function<void(const std::string&)>) override {}
     void set_enabled(bool) override {}
     void set_verbosity(int) override {}
     LogLevel get_verbosity() const override { return LogLevel::INFO; }

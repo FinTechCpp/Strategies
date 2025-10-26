@@ -77,29 +77,8 @@ inline std::optional<double> RSI::initialize_with_history(const std::vector<Basi
 inline std::optional<double> RSI::update(const BasicCandle& candle) {
     double price = candle.close;
 
-    if (!is_initialized) {
-        close_history.push_back(price);
-        
-        if (close_history.size() >= static_cast<size_t>(period + 1)) {
-            std::vector<BasicCandle> history;
-            history.reserve(close_history.size());
-            
-            for (double close : close_history) {
-                BasicCandle c;
-                c.close = close;
-                history.push_back(c);
-            }
-
-            return initialize_with_history(history);
-        }
-
-
-        if (!close_history.empty() && close_history.size() > 1) {
-            prev_close = close_history[close_history.size() - 2];
-        }
-        
+    if (!is_initialized)
         return std::nullopt; // Pas encore initialisé
-    }
     
     // Calculate current gain/loss
     double change = price - prev_close;
@@ -123,5 +102,8 @@ inline std::optional<double> RSI::update(const BasicCandle& candle) {
 }
 
 inline std::optional<double> RSI::get_value() const {
+    if (!is_initialized)
+        return std::nullopt;
+        
     return current_rsi;
 }

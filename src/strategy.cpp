@@ -106,7 +106,7 @@ void Strategy::registerFiltersIndicators() {
 }
 
 Signal Strategy::go(TradeDirection direction) {
-    logger->log_general("Préparation d'un signal d'entrée", LogLevel::INFO);
+    STRATEGY_LOG(logger, log_general, "Préparation d'un signal d'entrée", LogLevel::INFO);
 
     // Calculate Stop Loss
     double stop_loss = PositionManager::calculateStopLoss(
@@ -149,7 +149,7 @@ Signal Strategy::go(TradeDirection direction) {
 bool Strategy::update_indicators()
 {
     if (candle_manager->size() == 0) {
-        logger->log_general("candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
         return false;
     }
     
@@ -165,14 +165,14 @@ bool Strategy::update_indicators()
         
         if (available_candles < static_cast<size_t>(max_period)) {
             int remaining = max_period - static_cast<int>(available_candles);
-            logger->log_general("Historique insuffisant: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
+            STRATEGY_LOG(logger, log_general, "Historique insuffisant: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
                               "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
                               logger->fast_int_to_string(remaining) + " bougies)");
             return false;
         }
         
         auto candles = candle_manager->get_last_candles(candle_manager->size());
-        logger->log_general("Initialisation avec " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " bougies");
+        STRATEGY_LOG(logger, log_general, "Initialisation avec " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " bougies");
         return indicator_manager->initializeAll(candles, logger.get());
     }
     
@@ -255,7 +255,7 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed loss amount for this day
             double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
             
-            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
                               " - Perte max autorisée: " + logger->fast_double_to_string(max_loss_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_loss_percentage) + "%)", LogLevel::INFO);
         }
@@ -264,7 +264,7 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed profit amount for this day
             double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
             
-            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
                               " - Profit max autorisé: " + logger->fast_double_to_string(max_profit_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         }
@@ -273,7 +273,7 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed drawdown amount for this day
             double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
             
-            logger->log_general("Nouveau jour de trading: " + current_trading_day.to_string() + 
+            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
                               " - Drawdown max autorisé: " + logger->fast_double_to_string(max_drawdown_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)", LogLevel::INFO);
         }
@@ -287,7 +287,7 @@ void Strategy::update_daily_pnl_tracking() {
             daily_max_pnl = daily_pnl;
         
         
-        logger->log_general("P&L du trade: " + logger->fast_double_to_string(last_trade_pnl) + 
+        STRATEGY_LOG(logger, log_general, "P&L du trade: " + logger->fast_double_to_string(last_trade_pnl) + 
                           " - P&L journalier cumulé: " + logger->fast_double_to_string(daily_pnl) + 
                           " - P&L max journalier: " + logger->fast_double_to_string(daily_max_pnl), LogLevel::INFO);
 
@@ -308,30 +308,59 @@ bool Strategy::check_time() {
         last_check_date = current_date;
 
         weekday = get_day_of_week(current_date);
+    }
+
+    // Determine if the allowed trading window spans midnight (e.g. 22:00 -> 06:00)
+    bool spans_midnight = !(base_config.trading_from < base_config.trading_to);
+
+    bool after_start = false;
+    bool before_end = false;
+
+    if (!spans_midnight) {
+        // Normal window within the same day: trading_from < current_time < trading_to
+        after_start = (base_config.trading_from < current_time);
+        before_end = (current_time < base_config.trading_to);
+        time_check = after_start && before_end;
+    } else {
+        // Window spans midnight: allowed if current_time >= trading_from OR current_time < trading_to
+    // Use the inverse of operator< because operator>= may not be defined for Time
+    after_start = !(current_time < base_config.trading_from);
+        before_end = (current_time < base_config.trading_to);
+        time_check = after_start || before_end;
+    }
+
+    // When window spans midnight and we're before "trading_to" (i.e. after midnight),
+    // the active trading day is the previous calendar day. Use effective_weekday to
+    // check trading_days_array accordingly.
+    int effective_weekday = weekday;
+    if (spans_midnight && before_end) {
+        // previous day
+        effective_weekday = (weekday + 6) % 7;
+    }
+
+    // Decide which weekday to use for permission check:
+    // - If the window spans midnight and we are after midnight (before_end==true),
+    //   use the calendar weekday (`weekday`) so that a disabled calendar day
+    //   (e.g. Saturday) stops trading at midnight.
+    // - Otherwise use the effective_weekday (previous day when applicable).
+    if (spans_midnight && before_end) {
         weekday_check = base_config.trading_days_array[weekday];
         if (!weekday_check) {
-            logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
+            STRATEGY_LOG(logger, log_time_check, false, weekday, false, current_time, LogLevel::INFO);
+            return false;
+        }
+    } else {
+        weekday_check = base_config.trading_days_array[effective_weekday];
+        if (!weekday_check) {
+            STRATEGY_LOG(logger, log_time_check, false, effective_weekday, false, current_time, LogLevel::INFO);
             return false;
         }
     }
 
-    // Check trading hours on each candle
-    bool after_start = (base_config.trading_from < current_time);
-
-    bool before_end = (current_time < base_config.trading_to);
-
-    time_check = after_start && before_end;
-
-    if (!weekday_check) {
-        logger->log_time_check(false, weekday, false, current_time, LogLevel::INFO);
-        return false;
-    }
-
-    if (!time_check) {
-        logger->log_time_check(true, 0, false, current_time, LogLevel::INFO);
-    } else {
-        logger->log_time_check(true, 0, true, current_time, LogLevel::DEBUG);
-    }
+    if (!time_check)
+        STRATEGY_LOG(logger, log_time_check, true, 0, false, current_time, LogLevel::INFO);
+    else
+        STRATEGY_LOG(logger, log_time_check, true, 0, true, current_time, LogLevel::DEBUG);
 
     return time_check;
 }
@@ -364,7 +393,7 @@ std::optional<Signal> Strategy::check_break_even() {
 
 
     if (threshold_reached) {
-        logger->log_general_BE_activated(position_sign, reference_price, break_even_price, base_config.break_even_threshold);
+        STRATEGY_LOG(logger, log_general_BE_activated, position_sign, reference_price, break_even_price, base_config.break_even_threshold);
             
         Signal be_signal;
         be_signal.type = SignalType::MOVE_SL;
@@ -386,31 +415,31 @@ std::optional<Signal> Strategy::execute_long() {
     Signal signal = go(TradeDirection::LONG);
     
     if (signal.quantity < 0.0 || signal.price <= 0.0) {
-        logger->log_general("Paramètres d'achat incorrects", LogLevel::ERROR);
+        STRATEGY_LOG(logger, log_general, "Paramètres d'achat incorrects", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
     }
 
     if (signal.quantity == 0.0) {
-        logger->log_general("Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
         return std::nullopt;
     }
 
     // Calculate risk and check if it's acceptable
     double risk = calculate_trade_risk(signal);
-    logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
+    STRATEGY_LOG(logger, log_risk_calculation, risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
         // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
-        logger->log_general("Trade LONG rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        STRATEGY_LOG(logger, log_general, "Trade LONG rejeté: risque excessif", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_filter_result, "Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
         return std::nullopt;
     }
       
-    logger->log_signal(signal);
+    STRATEGY_LOG(logger, log_signal, signal);
     return signal;
 }
 
@@ -418,31 +447,31 @@ std::optional<Signal> Strategy::execute_short() {
     Signal signal = go(TradeDirection::SHORT);
     
     if (signal.quantity < 0.0 || signal.price <= 0.0) {
-        logger->log_general("Paramètres de vente incorrects", LogLevel::ERROR);
+        STRATEGY_LOG(logger, log_general, "Paramètres de vente incorrects", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
     }
 
     if (signal.quantity == 0.0) {
-        logger->log_general("Quantité de vente nulle, trade annulé", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "Quantité de vente nulle, trade annulé", LogLevel::WARNING);
         return std::nullopt;
     }
 
     // Calculate risk and check if it's acceptable
     double risk = calculate_trade_risk(signal);
-    logger->log_risk_calculation(risk, (risk / base_config.cash) * 100.0);
+    STRATEGY_LOG(logger, log_risk_calculation, risk, (risk / base_config.cash) * 100.0);
     
     if (base_config.use_daily_max_loss && !is_trade_risk_acceptable(risk)) {
         // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
-        logger->log_general("Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
-        logger->log_filter_result("Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
+        STRATEGY_LOG(logger, log_general, "Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_filter_result, "Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
                               ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
                               ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
         return std::nullopt;
     }
     
-    logger->log_signal(signal);
+    STRATEGY_LOG(logger, log_signal, signal);
     return signal;
 }
 
@@ -477,31 +506,31 @@ Signal Strategy::execute() {
 
     // Update indicators
     if (!indicators_ready) {
-        logger->log_execution_step("Indicateurs pas encore prêts", false);
+        STRATEGY_LOG(logger, log_execution_step, "Indicateurs pas encore prêts", false);
         return Signal();  // Return empty signal
     }
     
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
-        logger->log_execution_step("Profit max journalier atteint", false);
+        STRATEGY_LOG(logger, log_execution_step, "Profit max journalier atteint", false);
         double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
-        logger->log_general("Profit maximum journalier atteint: " + 
+        STRATEGY_LOG(logger, log_general, "Profit maximum journalier atteint: " + 
                           logger->fast_double_to_string(daily_pnl) + 
                           " >= " + logger->fast_double_to_string(max_profit_amount) + 
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         
         Signal signal = generate_liquidation_signal();
-        logger->log_signal(signal);
+        STRATEGY_LOG(logger, log_signal, signal);
         return signal;
     }
 
     // Check if daily max drawdown has been reached
     if (is_daily_drawdown_reached()) {
-        logger->log_execution_step("Drawdown max journalier atteint", false);
+        STRATEGY_LOG(logger, log_execution_step, "Drawdown max journalier atteint", false);
         double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
         double current_drawdown = daily_max_pnl - daily_pnl;
-        logger->log_general("Drawdown maximum journalier atteint: " + 
+        STRATEGY_LOG(logger, log_general, "Drawdown maximum journalier atteint: " + 
                           logger->fast_double_to_string(current_drawdown) + 
                           " >= " + logger->fast_double_to_string(max_drawdown_amount) + 
                           " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)" +
@@ -509,55 +538,64 @@ Signal Strategy::execute() {
                           " - PnL actuel: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
         
         Signal signal = generate_liquidation_signal();
-        logger->log_signal(signal);
+        STRATEGY_LOG(logger, log_signal, signal);
         return signal;
     }
 
     // Time check
     if (!check_time()) {
-        logger->log_execution_step("Vérification horaires", false);
+        STRATEGY_LOG(logger, log_execution_step, "Vérification horaires", false);
         
         Signal signal = generate_liquidation_signal();
-        logger->log_signal(signal);
+        STRATEGY_LOG(logger, log_signal, signal);
         return signal;
     }
-    logger->log_execution_step("Vérification horaires", true);
+    STRATEGY_LOG(logger, log_execution_step, "Vérification horaires", true);
 
 
     // Check for break-even signal before executing strategy
     auto be_signal = check_break_even();
     if (be_signal) {
-        logger->log_general("Signal de break-even généré: " + logger->fast_double_to_string(be_signal->new_sl));
+        STRATEGY_LOG(logger, log_general, "Signal de break-even généré: " + logger->fast_double_to_string(be_signal->new_sl));
         return *be_signal;
     }
-    
-    if (position_info.entry_price > 0.0 && execute_resale_filters()) {
-        logger->log_execution_step("Filtres de revente passés - Génération du signal de liquidation", true);
-        signal = generate_liquidation_signal();
-        logger->log_signal(*signal);
-        return;
+
+    if (position_info.entry_price > 0.0) {
+        // TODO il faut différencier les signaux de liquidation normaux et les signaux de rachat/revente
+        if (executeFilters(resaleFilters)) {
+            STRATEGY_LOG(logger, log_execution_step, "Filtres de revente passés - Génération du signal de liquidation", true);
+            Signal signal = generate_liquidation_signal();
+            STRATEGY_LOG(logger, log_signal, signal);
+            return signal;
+        }
+
+        if (executeFilters(rebuyFilters)) {
+            STRATEGY_LOG(logger, log_execution_step, "Filtres de rachat passés - Génération du signal de liquidation", true);
+            Signal signal = generate_liquidation_signal();
+            STRATEGY_LOG(logger, log_signal, signal);
+            return signal;
+        }
+
+        STRATEGY_LOG(logger, log_execution_step, "Position ouverte - Pas de nouveau signal généré", false);
+        return Signal();  // Return empty signal
     }
-    
-    if (!execute_filters()) {
-        logger->log_execution_step("Filtres", false);
-        logger->log_general("Filtres non passés - Pas de signal généré", LogLevel::INFO);
-        reset();
-        return;
-    }
-    logger->log_execution_step("Filtres", true);
-    
-    if (base_config.tradeDirection == TradeDirection::LONG) {
-        execute_long();
-    } else {
-        execute_short();
+
+    if (executeFilters(buyFilters)) {
+        STRATEGY_LOG(logger, log_execution_step, "Filtres d'achat passés", true);
+        auto signal = execute_long();
+        return signal.value_or(Signal());
+    } else if (executeFilters(sellFilters)) {
+        STRATEGY_LOG(logger, log_execution_step, "Filtres de vente passés", true);
+        auto signal = execute_short();
+        return signal.value_or(Signal());
     }
 
     return Signal();  // Return empty signal
 }
 
-Strategy::Strategy(const StrategyConfig& config) 
+Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::string&)> log_callback) 
     : base_config(config), 
-    logger(LoggerFactory::createLogger()),
+    logger(std::make_unique<NullLogger>()),
     indicator_manager(std::make_unique<IndicatorManager>()),
     candle_manager(std::make_unique<CandleManager>()),
     buyFilters(config.buyFilters),
@@ -565,11 +603,10 @@ Strategy::Strategy(const StrategyConfig& config)
     resaleFilters(config.resaleFilters),
     rebuyFilters(config.rebuyFilters)
 {
-    if (LoggerFactory::isLoggingEnabled() != base_config.enable_logging) {
-        LoggerFactory::setLoggingEnabled(base_config.enable_logging);
-        logger = LoggerFactory::createLogger();
+    if (base_config.enable_logging) {
+        logger = std::make_unique<LoggerManager>(log_callback);
+        logger->set_verbosity(static_cast<int>(base_config.logLevel));
     }
-    logger->set_verbosity(static_cast<int>(base_config.logLevel));
 
     registerFiltersIndicators();
 
@@ -590,48 +627,34 @@ Strategy::Strategy(const StrategyConfig& config)
     if (base_config.sl_method == StopLossMethod::MinMax) 
         max_period = std::max(max_period, base_config.sl_minmax_periods);
     
-    // Prendre en compte le lookback ML si activé
-    if (base_config.use_ml_entry)
-        max_period = std::max(max_period, base_config.ml_entry_lookback_periods);
+    // Configurer le CandleManager avec la taille minimale requise
+    // La méthode setMinimalBufferSize gère automatiquement les paramètres internes
+    // pour garantir un fonctionnement optimal et sûr
+    candle_manager->setMinimalBufferSize(max_period);
     
-    // Configurer le CandleManager avec une marge de sécurité
-    // - hysteresis_threshold : max_period + 100 bougies de marge
-    // - clean_target_size : max_period (garde exactement ce qu'il faut)
-    // - max_buffer_size : max_period (pas utilisé vraiment mais cohérent)
-    size_t threshold = max_period + 100;
-    size_t target = max_period;
-    candle_manager->set_buffer_params(max_period, threshold, target);
-    
-    logger->log_general("CandleManager configuré: seuil=" + std::to_string(threshold) + 
-                       ", cible=" + std::to_string(target) + 
-                       " (période max requise: " + std::to_string(max_period) + ")", LogLevel::INFO);
+    STRATEGY_LOG(logger, log_general, "CandleManager configuré avec taille minimale: " + 
+                       std::to_string(max_period) + " bougies", LogLevel::INFO);
 
-    std::cout << config << std::endl;
-}
-
-void Strategy::log_configuration() {
     // Générer la configuration complète
     std::ostringstream config_stream;
     config_stream << base_config;
     std::string config_str = config_stream.str();
-    
-    // Envoyer directement via le callback sans passer par le buffer
-    // car cette méthode est appelée avant le premier update_candle
-    logger->log_general(config_str, LogLevel::INFO);
-    logger->finalize_and_send_logs();  // Forcer l'envoi immédiat
+
+    STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
+    STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
 }
 
 // Main update method
 Signal Strategy::update_candle(const Candle& candle) {    
-    logger->start_chrono();
+    STRATEGY_LOG_VOID(logger, start_chrono);
 
     position_info = candle.position;
 
     // Update logger with the current candle
-    logger->set_current_candle(candle);
-    logger->clear();  // Clear previous logs
+    STRATEGY_LOG(logger, set_current_candle, candle);
+    STRATEGY_LOG_VOID(logger, clear);  // Clear previous logs
 
-    logger->log_general("OHLC: " + 
+    STRATEGY_LOG(logger, log_general, "OHLC: " + 
         logger->fast_double_to_string(candle.ohlc.open) + "/" + 
         logger->fast_double_to_string(candle.ohlc.high) + "/" + 
         logger->fast_double_to_string(candle.ohlc.low) + "/" + 
@@ -640,7 +663,7 @@ Signal Strategy::update_candle(const Candle& candle) {
     // Store the last trade P&L if provided in candle
     if (position_info.closed_trade_pnl != 0.0) {
         last_trade_pnl = position_info.closed_trade_pnl;
-        logger->log_general("PnL du trade fermé: " + logger->fast_double_to_string(last_trade_pnl));
+        STRATEGY_LOG(logger, log_general, "PnL du trade fermé: " + logger->fast_double_to_string(last_trade_pnl));
     }
 
     // Add to buffer for historical calculations
@@ -650,7 +673,7 @@ Signal Strategy::update_candle(const Candle& candle) {
     Signal signal = execute();
     after();
 
-    logger->finalize_and_send_logs();
+    STRATEGY_LOG_VOID(logger, finalize_and_send_logs);
     
     return signal;
 }
