@@ -989,6 +989,17 @@ struct StrategyConfig {
     int ml_entry_lookback_periods = 50; // Number of historical candles for ML features
     float ml_entry_threshold = 0.5f; // Probability threshold for signal generation
     bool ml_entry_normalize = true; // Normalize features (Z-score)
+    
+    // ML Feature configuration - liste des indicateurs à utiliser comme features
+    struct MLFeatureConfig {
+        filter::IndicatorType type;
+        std::string parameters; // Paramètres de l'indicateur en format JSON ou string
+        
+        bool operator==(const MLFeatureConfig& other) const {
+            return type == other.type && parameters == other.parameters;
+        }
+    };
+    std::vector<MLFeatureConfig> ml_entry_features; // Liste des features à calculer pour le ML
 };
 
 
@@ -1147,6 +1158,27 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
         os << " (" << config.daily_max_drawdown_percentage << "%)";
     }
     os << "\n";
+    
+    os << "\nMACHINE LEARNING\n";
+    os << "  Modèle ML activé: " << (config.use_ml_entry ? "Oui" : "Non") << "\n";
+    if (config.use_ml_entry) {
+        os << "  Chemin du modèle: " << config.ml_entry_model_path << "\n";
+        os << "  Périodes lookback: " << config.ml_entry_lookback_periods << "\n";
+        os << "  Seuil de prédiction: ±" << config.ml_entry_threshold << "\n";
+        os << "  Normalisation: " << (config.ml_entry_normalize ? "Oui" : "Non") << "\n";
+        if (!config.ml_entry_features.empty()) {
+            os << "  Features configurées: " << config.ml_entry_features.size() << "\n";
+            for (size_t i = 0; i < config.ml_entry_features.size(); ++i) {
+                os << "    " << (i + 1) << ". Indicateur type " << static_cast<int>(config.ml_entry_features[i].type);
+                if (!config.ml_entry_features[i].parameters.empty() && config.ml_entry_features[i].parameters != "default") {
+                    os << " (" << config.ml_entry_features[i].parameters << ")";
+                }
+                os << "\n";
+            }
+        } else {
+            os << "  Features: OHLC par défaut\n";
+        }
+    }
     
     os << "════════════════════════════════════════════════════════";
     return os;
