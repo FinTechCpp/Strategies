@@ -952,7 +952,7 @@ struct StrategyConfig {
     double tp_sl_ratio;
 
     // New parameters for TP based on ML/RL
-    std::string rl_model_path = "./models/general_tp_model_lookback_150.onnx"; // Path to the ML model
+    std::string rl_model_path; // Path to the ML model
     int rl_lookback_periods; // Number of historical candles to include in features
     double rl_tp_max_multiplier; // Maximum TP distance as multiple of SL distance
     double rl_tp_min_multiplier; // Minimum TP distance as multiple of SL distance
@@ -985,18 +985,64 @@ struct StrategyConfig {
 
     // Machine Learning parameters for entry signals
     bool use_ml_entry = false; // Use ML model instead of filters for entry signals
-    std::string ml_entry_model_path = "./models/entry_signals.onnx"; // Path to the entry ML model
-    int ml_entry_lookback_periods = 50; // Number of historical candles for ML features
-    float ml_entry_threshold = 0.5f; // Probability threshold for signal generation
-    bool ml_entry_normalize = true; // Normalize features (Z-score)
-    
+    std::string ml_entry_model_path; // Path to the entry ML model
+    int ml_entry_lookback_periods; // Number of historical candles for ML features
+    float ml_entry_threshold; // Probability threshold for signal generation
+    bool ml_entry_normalize; // Normalize features (Z-score)
+
     // ML Feature configuration - liste des indicateurs à utiliser comme features
     struct MLFeatureConfig {
         filter::IndicatorType type;
-        std::string parameters; // Paramètres de l'indicateur en format JSON ou string
+        filter::TransformType transform = filter::TransformType::NONE;
+        std::string custom_name; // Optional custom name for the feature
+        
+        // Indicator-specific parameters (union-like approach - only relevant fields are used)
+        struct IndicatorParams {
+            // Generic single period (EMA, RSI, ATR, CCI)
+            int period;
+            
+            // For indicators with multiplier (SuperTrend, Bollinger Bands)
+            double multiplier;
+            
+            // Stochastic-specific
+            int k_period;
+            int d_period;
+            int smooth;
+            
+            // MACD-specific
+            int fast_period;
+            int slow_period ;
+            int signal_period;
+            
+            IndicatorParams() = default;
+        } params;
+        
+        // Composite feature configuration (for features like BB_WIDTH = distance(BB_UPPER, BB_LOWER))
+        bool is_composite = false;
+        filter::ComparisonOperator composite_operation = filter::ComparisonOperator::GREATER_THAN;
+        filter::IndicatorType composite_right_type = filter::IndicatorType::EMA;
+        IndicatorParams composite_right_params;
+        
+        MLFeatureConfig() : type(filter::IndicatorType::EMA) {}
         
         bool operator==(const MLFeatureConfig& other) const {
-            return type == other.type && parameters == other.parameters;
+            if (type != other.type || transform != other.transform || custom_name != other.custom_name)
+                return false;
+            if (is_composite != other.is_composite)
+                return false;
+            if (is_composite) {
+                return composite_operation == other.composite_operation &&
+                       composite_right_type == other.composite_right_type;
+            }
+            // For simple features, compare relevant params based on indicator type
+            return params.period == other.params.period &&
+                   params.multiplier == other.params.multiplier &&
+                   params.k_period == other.params.k_period &&
+                   params.d_period == other.params.d_period &&
+                   params.smooth == other.params.smooth &&
+                   params.fast_period == other.params.fast_period &&
+                   params.slow_period == other.params.slow_period &&
+                   params.signal_period == other.params.signal_period;
         }
     };
     std::vector<MLFeatureConfig> ml_entry_features; // Liste des features à calculer pour le ML
@@ -1169,10 +1215,21 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
         if (!config.ml_entry_features.empty()) {
             os << "  Features configurées: " << config.ml_entry_features.size() << "\n";
             for (size_t i = 0; i < config.ml_entry_features.size(); ++i) {
-                os << "    " << (i + 1) << ". Indicateur type " << static_cast<int>(config.ml_entry_features[i].type);
-                if (!config.ml_entry_features[i].parameters.empty() && config.ml_entry_features[i].parameters != "default") {
-                    os << " (" << config.ml_entry_features[i].parameters << ")";
+                const auto& feature = config.ml_entry_features[i];
+                os << "    " << (i + 1) << ". ";
+                
+                // Display custom name if available
+                if (!feature.custom_name.empty()) {
+                    os << feature.custom_name;
+                } else {
+                    os << "Indicateur type " << static_cast<int>(feature.type);
                 }
+                
+                // Display transform if not NONE
+                if (feature.transform != filter::TransformType::NONE) {
+                    os << " [transform=" << static_cast<int>(feature.transform) << "]";
+                }
+                
                 os << "\n";
             }
         } else {
