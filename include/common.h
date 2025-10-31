@@ -55,7 +55,9 @@ namespace filter {
         PIVOT_POINT,
         BB_UPPER,
         BB_LOWER,
-        BB_PERCENT_B
+        BB_PERCENT_B,
+        TIME_SIN,           // Encodage cyclique du temps (sin)
+        TIME_COS            // Encodage cyclique du temps (cos)
     };
 
     // Transformations pouvant être appliquées aux valeurs d'indicateur
@@ -317,6 +319,24 @@ namespace filter {
         }
     };
 
+    // Paramètres pour TimeCyclic (encodage cyclique du temps)
+    struct TimeCyclicParams {
+        // Pas de paramètres nécessaires pour l'instant
+        // Le calcul est basé uniquement sur le timestamp de la bougie
+        
+        TimeCyclicParams() = default;
+        
+        bool operator==(const TimeCyclicParams& other) const {
+            (void)other; // Évite warning unused parameter
+            return true; // Tous les TimeCyclic sont identiques
+        }
+        
+        bool operator<(const TimeCyclicParams& other) const {
+            (void)other; // Évite warning unused parameter
+            return false; // Pas d'ordre entre instances identiques
+        }
+    };
+
     // Structure unifiée pour une source de valeur
     struct ValueSource {
         ValueCategory category;
@@ -338,6 +358,7 @@ namespace filter {
             CCIParams cciParams;
             MACDParams macdParams;
             BBParams bbParams;
+            TimeCyclicParams timeCyclicParams;
         };
 
         // Valeur constante si la catégorie est CONSTANT

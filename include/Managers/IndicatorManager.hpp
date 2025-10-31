@@ -128,6 +128,7 @@ private:
     std::map<filter::CCIParams, std::unique_ptr<IndicatorHandler<CCI, double>>> m_cciHandlers;
     std::map<filter::MACDParams, std::unique_ptr<IndicatorHandler<MACD, MACDResult>>> m_macdHandlers;
     std::map<filter::BBParams, std::unique_ptr<IndicatorHandler<BB, filter::BBResult>>> m_bbHandlers;
+    std::map<filter::TimeCyclicParams, std::unique_ptr<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>> m_timeCyclicHandlers;
 
     // Liste de tous les handlers pour les opérations en masse
     std::vector<IIndicatorHandlerBase*> m_allHandlers;
@@ -304,6 +305,15 @@ public:
         m_bbHandlers[params] = std::move(handler);
     }
 
+    void registerTimeCyclic(const filter::TimeCyclicParams& params = filter::TimeCyclicParams()) {
+        if (m_timeCyclicHandlers.find(params) != m_timeCyclicHandlers.end()) 
+            return; // Déjà enregistré
+        
+        auto handler = std::make_unique<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>(params);
+        m_allHandlers.push_back(handler.get());
+        m_timeCyclicHandlers[params] = std::move(handler);
+    }
+
     // Méthodes d'accès aux valeurs avec valeurs par défaut
     double getEMAValue(const filter::EMAParams& params, int offset = 0) const {
         auto it = m_emaHandlers.find(params);
@@ -409,6 +419,19 @@ public:
         return BBResult{};
     }
 
+    std::pair<double, double> getTimeCyclicValue(const filter::TimeCyclicParams& params = filter::TimeCyclicParams(), int offset = 0) const {
+        auto it = m_timeCyclicHandlers.find(params);
+        if (it != m_timeCyclicHandlers.end()) {
+            auto value = offset == 0 ? 
+                it->second->getCurrentValue() : 
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
+        }
+        return {0.0, 0.0};
+    }
+
 
     // Méthodes d'accès direct aux indicateurs pour compatibilité
     std::shared_ptr<EMA> getEMACalculator(const filter::EMAParams& params) {
@@ -492,6 +515,17 @@ public:
         auto it = m_bbHandlers.find(params);
         if (it != m_bbHandlers.end()) {
             auto* handler = dynamic_cast<IndicatorHandler<BB, filter::BBResult>*>(it->second.get());
+            if (handler) {
+                return handler->getIndicator();
+            }
+        }
+        return nullptr;
+    }
+
+    std::shared_ptr<TIMECYCLIC> getTimeCyclicCalculator(const filter::TimeCyclicParams& params = filter::TimeCyclicParams()) {
+        auto it = m_timeCyclicHandlers.find(params);
+        if (it != m_timeCyclicHandlers.end()) {
+            auto* handler = dynamic_cast<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>*>(it->second.get());
             if (handler) {
                 return handler->getIndicator();
             }

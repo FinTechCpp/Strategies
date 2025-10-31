@@ -9,5 +9,6 @@
 #include "Indicators/cci.hpp"
 #include "Indicators/macd.hpp"
 #include "Indicators/bb.hpp"
+#include "Indicators/timeCyclic.hpp"
 
 // Add new indicators here as needed
