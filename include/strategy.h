@@ -19,12 +19,10 @@
 #include <sstream>
 #include "Indicators/indicators.hpp"
 
-
-
-// Fonction utilitaire pour parser une chaîne de date ISO
+// Utility function to parse an ISO date string
 DateTime parse_iso_datetime(const std::string& iso_date);
 
-// Fonction pour obtenir le jour de la semaine (0=lundi, 6=dimanche)
+// Function to get the day of the week (0=Monday, 6=Sunday)
 int get_day_of_week(const DateTime& date);
 
 class Strategy {
@@ -59,13 +57,13 @@ protected:
     int weekday = -1;
     bool time_check = false;
 
-    // Suivi des pertes journalières
+    // Daily PnL tracking
     DateTime current_trading_day;
     double daily_pnl = 0.0;
     double daily_max_pnl = 0.0;  // Track the highest PnL reached during the day
     bool trading_suspended_for_day = false;
     
-    // Cache pour le dernier trade
+    // Cache for the last trade
     double last_trade_pnl = 0.0;
 
     // Machine Learning for entry signals
@@ -89,7 +87,7 @@ private:
     bool is_new_trading_day();
     void update_daily_pnl_tracking();
 
-    // Méthode pour vérifier si on est dans les horaires de trading
+    // Method to check if we are within trading hours
     bool check_time();
     
     std::optional<Signal> check_break_even();

@@ -78,7 +78,7 @@ inline std::optional<double> RSI::update(const BasicCandle& candle) {
     double price = candle.close;
 
     if (!is_initialized)
-        return std::nullopt; // Pas encore initialisé
+        return std::nullopt; // Not initialized yet
     
     // Calculate current gain/loss
     double change = price - prev_close;

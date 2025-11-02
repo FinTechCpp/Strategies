@@ -9,18 +9,18 @@
 #endif
 
 /**
- * @brief Encodage cyclique du temps (heure du jour) en sin/cos
+ * @brief Cyclic encoding of time (hour of the day) in sin/cos
  * 
- * Transforme l'heure du jour en coordonnées polaires pour capturer
- * la nature cyclique du temps (0h = 24h).
+ * Transforms the hour of the day into polar coordinates to capture
+ * the cyclic nature of time (0h = 24h).
  * 
- * Formule:
+ * Formula:
  *   - sin_value = sin(2π * hour / 24)
  *   - cos_value = cos(2π * hour / 24)
  * 
- * Exemple d'utilisation en ML:
- *   - Permet au modèle de comprendre que 23h et 1h sont proches
- *   - Capture les patterns horaires (volatilité, volume, etc.)
+ * Example of use in ML:
+ *   - Allows the model to understand that 23h and 1h are close
+ *   - Captures hourly patterns (volatility, volume, etc.)
  */
 class TIMECYCLIC : public IncrementalIndicator<std::pair<double, double>> {
 private:
@@ -28,9 +28,9 @@ private:
     std::pair<double, double> m_currentValue; // {sin, cos}
 
     /**
-     * @brief Extrait l'heure en décimal depuis un DateTime
-     * @param dt DateTime de la bougie
-     * @return Heure du jour en décimal (0.0 - 23.999...)
+     * @brief Extracts the hour in decimal from a DateTime
+     * @param dt DateTime of the candle
+     * @return Hour of the day in decimal (0.0 - 23.999...)
      */
     double getHourOfDay(const DateTime& dt) const {
         double hour = dt.time.hour;
@@ -41,8 +41,8 @@ private:
     }
 
     /**
-     * @brief Calcule les valeurs sin/cos pour une heure donnée
-     * @param hour Heure du jour (0-24)
+     * @brief Calculates the sin/cos values for a given hour
+     * @param hour Hour of the day (0-24)
      * @return {sin_value, cos_value}
      */
     std::pair<double, double> calculateCyclic(double hour) const {
@@ -57,13 +57,13 @@ public:
         , m_currentValue({0.0, 0.0})
     {}
 
-    // Implémentation des méthodes virtuelles pures de IncrementalIndicator
+    // Implementation of the pure virtual methods of IncrementalIndicator
     std::optional<std::pair<double, double>> initialize_with_history(const std::vector<BasicCandle>& history) override {
         if (history.empty()) {
             return std::nullopt;
         }
 
-        // Initialiser avec la dernière bougie
+        // Initialize with the last candle
         const auto& lastCandle = history.back();
         double hour = getHourOfDay(lastCandle.date);
         m_currentValue = calculateCyclic(hour);
@@ -86,7 +86,7 @@ public:
         return m_currentValue;
     }
 
-    // Méthodes d'accès individuelles pour faciliter l'utilisation
+    // Individual access methods to facilitate usage
     double getSinValue() const {
         return m_currentValue.first;
     }

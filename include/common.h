@@ -10,26 +10,26 @@
 
 
 #ifdef DISABLE_LOGGING
-    // En mode sans logging, toutes les appels sont remplacés par des no-ops
+    // In no-logging mode, all calls are replaced by no-ops
     #define STRATEGY_LOG(logger_ptr, method, ...) ((void)0)
     #define STRATEGY_LOG_VOID(logger_ptr, method) ((void)0)
 #else
-    // En mode avec logging, les appels sont normaux
+    // In logging mode, calls are normal
     #define STRATEGY_LOG(logger_ptr, method, ...) (logger_ptr)->method(__VA_ARGS__)
     #define STRATEGY_LOG_VOID(logger_ptr, method) (logger_ptr)->method()
 #endif
 
 
 namespace filter {
-    // Types de valeurs disponibles pour la comparaison
+    // Types of values available for comparison
     enum class ValueCategory {
-        PRICE,              // Prix de la bougie
-        INDICATOR,          // Indicateur technique
-        CONSTANT,           // Valeur constante
-        CANDLE_PROPERTY     // Propriété spécifique de bougie
+        PRICE,              // Candle price
+        INDICATOR,          // Technical indicator
+        CONSTANT,           // Constant value
+        CANDLE_PROPERTY     // Specific candle property
     };
 
-    // Types de prix disponibles
+    // Available price types
     enum class PriceType {
         CLOSE,
         OPEN,
@@ -39,7 +39,7 @@ namespace filter {
         MEDIAN      // (High + Low) / 2
     };
 
-    // Types d'indicateurs disponibles
+    // Available indicator types
     enum class IndicatorType {
         EMA,
         RSI,
@@ -56,11 +56,11 @@ namespace filter {
         BB_UPPER,
         BB_LOWER,
         BB_PERCENT_B,
-        TIME_SIN,           // Encodage cyclique du temps (sin)
-        TIME_COS            // Encodage cyclique du temps (cos)
+        TIME_SIN,           // Cyclical time encoding (sin)
+        TIME_COS            // Cyclical time encoding (cos)
     };
 
-    // Transformations pouvant être appliquées aux valeurs d'indicateur
+    // Transformations that can be applied to indicator values
     enum class TransformType {
         NONE,
         LOG,
@@ -68,7 +68,7 @@ namespace filter {
         DERIVATIVE
     };
 
-    // Propriétés de bougies
+    // Candle properties
     enum class CandlePropertyType {
         HEIKIN_ASHI_IS_GREEN,
         HEIKIN_ASHI_IS_RED,
@@ -80,7 +80,7 @@ namespace filter {
         RANGE            // High - Low
     };
 
-    // Types d'opérateurs de comparaison
+    // Types of comparison operators
     enum class ComparisonOperator {
         GREATER_THAN,          // >
         LESS_THAN,             // <
@@ -90,21 +90,21 @@ namespace filter {
         NOT_EQUAL,             // !=
         DISTANCE_LESS,         // |left - right| < threshold
         DISTANCE_GREATER,      // |left - right| > threshold
-        CROSSES_ABOVE,         // Croisement à la hausse (période actuelle vs précédente)
-        CROSSES_BELOW,         // Croisement à la baisse (période actuelle vs précédente)
-        TRUE,                  // Racourci pour == Constante 1.0
-        FALSE                  // Racourci pour == Constante 0.0
+        CROSSES_ABOVE,         // Crosses above (current vs previous period)
+        CROSSES_BELOW,         // Crosses below (current vs previous period)
+        TRUE,                  // Shortcut for == Constant 1.0
+        FALSE                  // Shortcut for == Constant 0.0
     };
 
-    // Type de logique temporelle
+    // Type of temporal logic
     enum class TemporalLogic {
-        ANY_OF,           // Au moins une période (OR)
-        ALL_OF,           // Toutes les périodes (AND)
+        ANY_OF,           // At least one period (OR)
+        ALL_OF,           // All periods (AND)
     };
 
 
-    // TODO : il faut peut etre ajouter une relation d'ordre pour pouvoir les mettre dans une map
-    // Paramètres pour EMA
+    // TODO: maybe add an ordering relation so they can be put into a map
+    // Parameters for EMA
     struct EMAParams {
         int period;
 
@@ -119,7 +119,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour RSI
+    // Parameters for RSI
     struct RSIParams {
         int period;
 
@@ -134,7 +134,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour Stochastique
+    // Parameters for Stochastic
     struct StochasticParams {
         int fastK;
         int slowK;
@@ -155,7 +155,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour ATR
+    // Parameters for ATR
     struct ATRParams {
         int period;
         bool useLog = false;
@@ -172,7 +172,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour SuperTrend
+    // Parameters for SuperTrend
     struct SuperTrendParams {
         int atrPeriod;
         double multiplier;
@@ -190,7 +190,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour CCI
+    // Parameters for CCI
     struct CCIParams {
         int period;
         
@@ -207,7 +207,7 @@ namespace filter {
 
 
 
-    // Paramètres pour MACD
+    // Parameters for MACD
     enum class MAType {
         EMA,
         SMA
@@ -279,7 +279,7 @@ namespace filter {
         }
     };
 
-    // Paramètres pour BB
+    // Parameters for BB
     struct BBResult {
         double middle;
         double upper;
@@ -292,9 +292,9 @@ namespace filter {
     struct BBParams {
         int period;
         double stddev_multiplier;
-        int offset = 0; // décalage pour obtenir une valeur historique (0 = actuelle)
+        int offset = 0; // offset to get historical value (0 = current)
 
-        // Options supplémentaires
+        // Additional options
         int source = 3;      // 0=Open, 1=High, 2=Low, 3=Close
         int ma_type = 0;     // 0=SMA, 1=EMA
 
@@ -319,36 +319,36 @@ namespace filter {
         }
     };
 
-    // Paramètres pour TimeCyclic (encodage cyclique du temps)
+    // Parameters for TimeCyclic (cyclical time encoding)
     struct TimeCyclicParams {
-        // Pas de paramètres nécessaires pour l'instant
-        // Le calcul est basé uniquement sur le timestamp de la bougie
+        // No parameters needed for now
+        // Calculation is based only on candle timestamp
         
         TimeCyclicParams() = default;
         
         bool operator==(const TimeCyclicParams& other) const {
-            (void)other; // Évite warning unused parameter
-            return true; // Tous les TimeCyclic sont identiques
+            (void)other; // Avoid unused parameter warning
+            return true; // All TimeCyclic instances are identical
         }
         
         bool operator<(const TimeCyclicParams& other) const {
-            (void)other; // Évite warning unused parameter
-            return false; // Pas d'ordre entre instances identiques
+            (void)other; // Avoid unused parameter warning
+            return false; // No order between identical instances
         }
     };
 
-    // Structure unifiée pour une source de valeur
+    // Unified structure for a value source
     struct ValueSource {
         ValueCategory category;
 
-        // Sous-types spécifiques à la catégorie
+        // Specific subtypes per category
         union {
             PriceType priceType;
             IndicatorType indicatorType;
             CandlePropertyType candlePropertyType;
         };
 
-        // Paramètres spécifiques aux indicateurs
+        // Indicator-specific parameters
         union {
             EMAParams emaParams;
             RSIParams rsiParams;
@@ -361,13 +361,13 @@ namespace filter {
             TimeCyclicParams timeCyclicParams;
         };
 
-        // Valeur constante si la catégorie est CONSTANT
+        // Constant value if category is CONSTANT
         double constantValue = 0.0;
 
-        // Décalage pour les valeurs historiques
+        // Offset for historical values
         int historicalOffset = 0;
 
-        // Transformation appliquée à la valeur (par défaut aucune)
+        // Transform applied to the value (default none)
         TransformType transform = TransformType::NONE;
 
         // Explicit default constructor to initialize unions safely
@@ -381,10 +381,10 @@ namespace filter {
         {
         }
 
-        // Constructeurs spécifiques pour chaque catégorie
-        // TODO remplacer les constructeur avec les structure de params
+        // Specific constructors for each category
+        // TODO replace constructors with params structures
         
-        // Pour le prix
+        // For price
         static ValueSource Price(PriceType type, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::PRICE;
@@ -393,7 +393,7 @@ namespace filter {
             return source;
         }
         
-        // Pour une constante
+        // For a constant
         static ValueSource Constant(double value) {
             ValueSource source;
             source.category = ValueCategory::CONSTANT;
@@ -401,7 +401,7 @@ namespace filter {
             return source;
         }
         
-        // Pour EMA
+        // For EMA
         static ValueSource EMA(int period, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -412,7 +412,7 @@ namespace filter {
             return source;
         }
         
-        // Pour RSI
+        // For RSI
         static ValueSource RSI(int period, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -423,7 +423,7 @@ namespace filter {
             return source;
         }
         
-        // Pour Stochastique K
+        // For Stochastic K
         static ValueSource StochasticK(int fastK, int slowK, int slowD, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -436,7 +436,7 @@ namespace filter {
             return source;
         }
         
-        // Pour Stochastique D
+        // For Stochastic D
         static ValueSource StochasticD(int fastK, int slowK, int slowD, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -449,7 +449,7 @@ namespace filter {
             return source;
         }
         
-        // Pour ATR
+        // For ATR
         static ValueSource ATR(int period, bool useLog = true, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -461,7 +461,7 @@ namespace filter {
             return source;
         }
         
-        // Pour SuperTrend (valeur)
+        // For SuperTrend (value)
         static ValueSource SuperTrend(int atrPeriod, double multiplier, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -472,7 +472,7 @@ namespace filter {
             source.transform = TransformType::NONE;
             return source;
         }
-        // Pour CCI (valeur)
+        // For CCI (value)
         static ValueSource CCI(int period, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -483,7 +483,7 @@ namespace filter {
             return source;
         }
 
-        // Pour MACD (histogramme)
+        // For MACD (histogram)
         static ValueSource MACDHistogram(int fast, int slow, int signal, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -496,7 +496,7 @@ namespace filter {
             return source;
         }
 
-        // Pour MACD (ligne)
+        // For MACD (line)
         static ValueSource MACDLine(int fast, int slow, int signal, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -509,7 +509,7 @@ namespace filter {
             return source;
         }
 
-        // Pour MACD (ligne de signal)
+        // For MACD (signal line)
         static ValueSource MACDSignal(int fast, int slow, int signal, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -522,7 +522,7 @@ namespace filter {
             return source;
         }
 
-        // Pour Bollinger Bands (UPPER)
+        // For Bollinger Bands (UPPER)
         static ValueSource BollingerUpper(int period, double stdDevMultiplier, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -534,7 +534,7 @@ namespace filter {
             return source;
         }
 
-        // Pour Bollinger Bands (LOWER)
+        // For Bollinger Bands (LOWER)
         static ValueSource BollingerLower(int period, double stdDevMultiplier, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -546,7 +546,7 @@ namespace filter {
             return source;
         }
 
-        // Pour Bollinger Bands (%B)
+        // For Bollinger Bands (%B)
         static ValueSource BollingerPercentB(int period, double stdDevMultiplier, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::INDICATOR;
@@ -558,7 +558,7 @@ namespace filter {
             return source;
         }
 
-        // Pour propriétés de bougie
+        // For candle properties
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
             ValueSource source;
             source.category = ValueCategory::CANDLE_PROPERTY;
@@ -567,7 +567,7 @@ namespace filter {
             return source;
         }
 
-        // Méthode pour obtenir une description humaine lisible de la source
+        // Method to get a human-readable description of the source
         static std::string description(const ValueSource& source) {
             std::string desc;
             // transformPrefix may be used for indicator descriptions; declare it
@@ -577,14 +577,14 @@ namespace filter {
 
             switch (source.category) {
                 case ValueCategory::PRICE:
-                    desc = "Prix ";
+                    desc = "Price ";
                     switch (source.priceType) {
-                        case PriceType::CLOSE: desc += "Cloture"; break;
-                        case PriceType::OPEN: desc += "Ouverture"; break;
-                        case PriceType::HIGH: desc += "Haut"; break;
-                        case PriceType::LOW: desc += "Bas"; break;
-                        case PriceType::TYPICAL: desc += "Typique"; break;
-                        case PriceType::MEDIAN: desc += "Médian"; break;
+                        case PriceType::CLOSE: desc += "Close"; break;
+                        case PriceType::OPEN: desc += "Open"; break;
+                        case PriceType::HIGH: desc += "High"; break;
+                        case PriceType::LOW: desc += "Low"; break;
+                        case PriceType::TYPICAL: desc += "Typical"; break;
+                        case PriceType::MEDIAN: desc += "Median"; break;
                     }
                     break;
                     
@@ -611,12 +611,12 @@ namespace filter {
                             desc = "RSI(" + std::to_string(source.rsiParams.period) + ")"; 
                             break;
                         case IndicatorType::STOCHASTIC_K: 
-                            desc = "Stochastique K(" + std::to_string(source.stochParams.fastK) + "," + 
+                            desc = "Stochastic K(" + std::to_string(source.stochParams.fastK) + "," + 
                                 std::to_string(source.stochParams.slowK) + "," + 
                                 std::to_string(source.stochParams.slowD) + ")";
                             break;
                         case IndicatorType::STOCHASTIC_D: 
-                            desc = "Stochastique D(" + std::to_string(source.stochParams.fastK) + "," + 
+                            desc = "Stochastic D(" + std::to_string(source.stochParams.fastK) + "," + 
                                 std::to_string(source.stochParams.slowK) + "," + 
                                 std::to_string(source.stochParams.slowD) + ")";
                             break;
@@ -675,16 +675,16 @@ namespace filter {
                     break;
                     
                 case ValueCategory::CANDLE_PROPERTY:
-                    desc = "Bougie ";
+                    desc = "Candle ";
                     switch (source.candlePropertyType) {
-                        case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Verte"; break;
-                        case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Rouge"; break;
-                        case CandlePropertyType::IS_GREEN: desc += "Est Verte"; break;
-                        case CandlePropertyType::IS_RED: desc += "Est Rouge"; break;
-                        case CandlePropertyType::BODY_SIZE: desc += "Taille Corps"; break;
-                        case CandlePropertyType::UPPER_SHADOW_SIZE: desc += "Ombre Haute"; break;
-                        case CandlePropertyType::LOWER_SHADOW_SIZE: desc += "Ombre Basse"; break;
-                        case CandlePropertyType::RANGE: desc += "Étendue"; break;
+                        case CandlePropertyType::HEIKIN_ASHI_IS_GREEN: desc += "Heikin-Ashi Green"; break;
+                        case CandlePropertyType::HEIKIN_ASHI_IS_RED: desc += "Heikin-Ashi Red"; break;
+                        case CandlePropertyType::IS_GREEN: desc += "Is Green"; break;
+                        case CandlePropertyType::IS_RED: desc += "Is Red"; break;
+                        case CandlePropertyType::BODY_SIZE: desc += "Body Size"; break;
+                        case CandlePropertyType::UPPER_SHADOW_SIZE: desc += "Upper Shadow Size"; break;
+                        case CandlePropertyType::LOWER_SHADOW_SIZE: desc += "Lower Shadow Size"; break;
+                        case CandlePropertyType::RANGE: desc += "Range"; break;
                     }
                     break;
             }
@@ -696,7 +696,7 @@ namespace filter {
             }
     };
 
-    // Structure pour un filtre complet
+    // Structure for a complete filter
     struct GenericFilter {
         ValueSource leftValue;
         ValueSource rightValue;
@@ -709,7 +709,7 @@ namespace filter {
 
         GenericFilter() = default;
                 
-        // Constructeur pratique pour les cas courants
+        // Convenience constructor for common cases
         GenericFilter(ValueSource left, 
                     ComparisonOperator comp, 
                     ValueSource right,
@@ -722,11 +722,11 @@ namespace filter {
             lookbackPeriods(periods),
             enabled(true) {
             
-            // Générer une description automatique si aucune n'est fournie
+            // Generate an automatic description if none is provided
             description = autoGenerateDescription();
         }
         
-        // Génère une description lisible du filtre
+        // Generate a human-readable description of the filter
         std::string autoGenerateDescription() const {
             std::string opStr;
             switch (op) {
@@ -736,32 +736,32 @@ namespace filter {
                 case ComparisonOperator::LESS_OR_EQUAL: opStr = "<="; break;
                 case ComparisonOperator::EQUAL: opStr = "="; break;
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
-                case ComparisonOperator::CROSSES_ABOVE: opStr = "croise à la hausse"; break;
-                case ComparisonOperator::CROSSES_BELOW: opStr = "croise à la baisse"; break;
+                case ComparisonOperator::CROSSES_ABOVE: opStr = "crosses above"; break;
+                case ComparisonOperator::CROSSES_BELOW: opStr = "crosses below"; break;
                 case ComparisonOperator::DISTANCE_LESS: opStr = "distance <"; break;
                 case ComparisonOperator::DISTANCE_GREATER: opStr = "distance >"; break;
-                case ComparisonOperator::TRUE: opStr = "est vrai"; break;
-                case ComparisonOperator::FALSE: opStr = "est faux"; break;
+                case ComparisonOperator::TRUE: opStr = "is true"; break;
+                case ComparisonOperator::FALSE: opStr = "is false"; break;
             }
 
-            // Décrire la logique temporelle
+            // Describe temporal logic
             std::string timeLogicStr;
             if (temporalLogic == TemporalLogic::ANY_OF) {
-                timeLogicStr = " (au moins une période)";
+                timeLogicStr = " (at least one period)";
             } else {
-                timeLogicStr = " (toutes les périodes)";
+                timeLogicStr = " (all periods)";
             }
             if (lookbackPeriods > 1) {
-                timeLogicStr += " sur " + std::to_string(lookbackPeriods) + " périodes";
+                timeLogicStr += " over " + std::to_string(lookbackPeriods) + " periods";
             }
 
-            // Construire les descriptions gauche/droite
+            // Build left/right descriptions
             std::string leftDesc = ValueSource::description(leftValue);
             std::string rightDesc;
             if (op == ComparisonOperator::TRUE) {
-                rightDesc = "VRAI";
+                rightDesc = "TRUE";
             } else if (op == ComparisonOperator::FALSE) {
-                rightDesc = "FAUX";
+                rightDesc = "FALSE";
             } else {
                 rightDesc = ValueSource::description(rightValue);
             }
@@ -781,17 +781,17 @@ enum class SignalType {
     LIQUIDATE
 };
 
-// TODO mettre des std::optional
+ // TODO use std::optional
 struct Signal {
     SignalType type = SignalType::NONE;
-    // Pour BUY/SELL et REBUY/RESALE
+    // For BUY/SELL and REBUY/RESALE
     double quantity = 0.0;
-    // C'est pour definir le prix d'execution souhaite (ordre limit stop ou market mais devrait etre plus explicite)
+    // This is to define the desired execution price (limit/stop/market but should be more explicit)
     double price = 0.0;
-    // Pour BUY/SELL uniquement
+    // For BUY/SELL only
     double take_profit = 0.0;
     double stop_loss = 0.0;
-    // Pour MOVE_SL uniquement
+    // For MOVE_SL only
     double new_sl = 0.0;
 };
 
@@ -929,7 +929,7 @@ enum class TradeDirection {
     SHORT
 };
 
-// On pourrait utiliser des union pour separer les paramettre des differents methodes de SL et TP
+// We could use unions to separate parameters of different SL and TP methods
 struct StrategyConfig {
     std::string name;
 
@@ -1011,7 +1011,7 @@ struct StrategyConfig {
     float ml_entry_threshold; // Probability threshold for signal generation
     bool ml_entry_normalize; // Normalize features (Z-score)
 
-    // ML Feature configuration - liste des indicateurs à utiliser comme features
+    // ML Feature configuration - list of indicators to use as features
     struct MLFeatureConfig {
         filter::IndicatorType type;
         filter::TransformType transform = filter::TransformType::NONE;
@@ -1066,7 +1066,7 @@ struct StrategyConfig {
                    params.signal_period == other.params.signal_period;
         }
     };
-    std::vector<MLFeatureConfig> ml_entry_features; // Liste des features à calculer pour le ML
+    std::vector<MLFeatureConfig> ml_entry_features; // List of features to compute for ML
 };
 
 
@@ -1086,7 +1086,7 @@ inline std::ostream& operator<<(std::ostream& os, const StopLossMethod& method) 
     }
 }
 
-// Overload the << operator for StopLossMethod
+// Overload the << operator for TakeProfitMethod
 inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method) {
     switch (method) {
         case TakeProfitMethod::Unset:
@@ -1107,56 +1107,56 @@ inline std::ostream& operator<<(std::ostream& os, const TakeProfitMethod& method
 // Overload of the stream operator for StrategyConfig
 inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) {
     os << "\n╔══════════════════════════════════════════════════════╗\n";
-    os << "║            CONFIGURATION DE LA STRATÉGIE             ║\n";
+    os << "║              STRATEGY CONFIGURATION                  ║\n";
     os << "╚══════════════════════════════════════════════════════╝\n";
     
-    os << "GÉNÉRAL\n";
-    os << "  Nom: " << config.name << "\n";
-    os << "  Niveau de log: " << config.logLevel << "\n";
-    os << "  Logging activé: " << (config.enable_logging ? "Oui" : "Non") << "\n";
+    os << "GENERAL\n";
+    os << "  Name: " << config.name << "\n";
+    os << "  Log level: " << config.logLevel << "\n";
+    os << "  Logging enabled: " << (config.enable_logging ? "Yes" : "No") << "\n";
     
-    os << "\nFILTRES D'ACHAT\n";
+    os << "\nBUY FILTERS\n";
     if (config.buyFilters.empty()) {
-        os << "  Aucun filtre\n";
+        os << "  No filters\n";
     } else {
         for (const auto& filter : config.buyFilters)
             os << "  • " << filter.description << "\n";
     }
 
-    os << "\nFILTRES DE VENTE\n";
+    os << "\nSELL FILTERS\n";
     if (config.sellFilters.empty()) {
-        os << "  Aucun filtre\n";
+        os << "  No filters\n";
     } else {
         for (const auto& filter : config.sellFilters)
             os << "  • " << filter.description << "\n";
     }
 
-    os << "\nFILTRES DE REVENTE\n";
+    os << "\nRESALE FILTERS\n";
     if (config.resaleFilters.empty()) {
-        os << "  Aucun filtre\n";
+        os << "  No filters\n";
     } else {
         for (const auto& filter : config.resaleFilters)
             os << "  • " << filter.description << "\n";
     }
 
-    os << "\nFILTRES DE RACHAT\n";
+    os << "\nREBUY FILTERS\n";
     if (config.rebuyFilters.empty()) {
-        os << "  Aucun filtre\n";
+        os << "  No filters\n";
     } else {
         for (const auto& filter : config.rebuyFilters)
             os << "  • " << filter.description << "\n";
     }
 
-    os << "\nHEURES DE TRADING\n";
-    os << "  Plage horaire: " 
+    os << "\nTRADING HOURS\n";
+    os << "  Time range: " 
        << std::setfill('0') << std::setw(2) << config.trading_from.hour << ":" 
        << std::setfill('0') << std::setw(2) << config.trading_from.minute 
        << " - " 
        << std::setfill('0') << std::setw(2) << config.trading_to.hour << ":" 
        << std::setfill('0') << std::setw(2) << config.trading_to.minute << "\n";
     
-    static const char* day_names[7] = {"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"};
-    os << "  Jours actifs: ";
+    static const char* day_names[7] = {"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"};
+    os << "  Active days: ";
     bool first = true;
     for (size_t i = 0; i < 7; ++i) {
         if (config.trading_days_array[i]) {
@@ -1165,76 +1165,76 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
             first = false;
         }
     }
-    if (first) os << "Aucun";
+    if (first) os << "None";
     os << "\n";
     
     os << "\nSTOP LOSS & TAKE PROFIT\n";
-    os << "  Méthode SL: " << config.sl_method << "\n";
-    os << "  Méthode TP: " << config.tp_method << "\n";
+    os << "  SL Method: " << config.sl_method << "\n";
+    os << "  TP Method: " << config.tp_method << "\n";
     
     if (config.sl_method == StopLossMethod::Fixed) {
-        os << "  Distance SL fixe: " << config.stop_loss_distance << "\n";
+        os << "  Fixed SL distance: " << config.stop_loss_distance << "\n";
     } else if (config.sl_method == StopLossMethod::ATR) {
-        os << "  Période ATR: " << config.atr_period << "\n";
-        os << "  Multiplicateur ATR (SL): " << config.stop_loss_atr_multiplier << "\n";
-        os << "  Distance SL minimale: " << config.min_stop_loss_distance << "\n";
+        os << "  ATR period: " << config.atr_period << "\n";
+        os << "  ATR multiplier (SL): " << config.stop_loss_atr_multiplier << "\n";
+        os << "  Minimum SL distance: " << config.min_stop_loss_distance << "\n";
     } else if (config.sl_method == StopLossMethod::MinMax) {
-        os << "  Périodes Min/Max: " << config.sl_minmax_periods << "\n";
-        os << "  Coefficient delta ATR: " << config.sl_minmax_delta_coef_atr << "\n";
+        os << "  Min/Max periods: " << config.sl_minmax_periods << "\n";
+        os << "  ATR delta coefficient: " << config.sl_minmax_delta_coef_atr << "\n";
     }
     
     if (config.tp_method == TakeProfitMethod::Fixed) {
-        os << "  Distance TP fixe: " << config.take_profit_distance << "\n";
+        os << "  Fixed TP distance: " << config.take_profit_distance << "\n";
     } else if (config.tp_method == TakeProfitMethod::ATR) {
-        os << "  Multiplicateur ATR (TP): " << config.take_profit_atr_multiplier << "\n";
-        os << "  Distance TP minimale: " << config.min_take_profit_distance << "\n";
+        os << "  ATR multiplier (TP): " << config.take_profit_atr_multiplier << "\n";
+        os << "  Minimum TP distance: " << config.min_take_profit_distance << "\n";
     } else if (config.tp_method == TakeProfitMethod::SLRatio) {
-        os << "  Ratio TP/SL: " << config.tp_sl_ratio << "\n";
+        os << "  TP/SL Ratio: " << config.tp_sl_ratio << "\n";
     }
     
-    os << "\nGESTION DU RISQUE\n";
-    os << "  Sizing basé sur le risque: " << (config.use_risk_based_sizing ? "Oui" : "Non") << "\n";
+    os << "\nRISK MANAGEMENT\n";
+    os << "  Risk-based sizing: " << (config.use_risk_based_sizing ? "Yes" : "No") << "\n";
     if (config.use_risk_based_sizing) {
-        os << "  Risque par trade: " << config.risk_percentage << "%\n";
+        os << "  Risk per trade: " << config.risk_percentage << "%\n";
     }
     os << "  Capital: " << config.cash << "\n";
-    os << "  Levier maximum: " << config.leverage_limit << "\n";
+    os << "  Max leverage: " << config.leverage_limit << "\n";
     
     os << "\nBREAK-EVEN\n";
-    os << "  Activé: " << (config.use_break_even ? "Oui" : "Non") << "\n";
+    os << "  Enabled: " << (config.use_break_even ? "Yes" : "No") << "\n";
     if (config.use_break_even) {
-        os << "  Seuil: " << (config.break_even_threshold * 100) << "% du TP\n";
+        os << "  Threshold: " << (config.break_even_threshold * 100) << "% of TP\n";
         os << "  Offset: " << config.break_even_offset_per_mille << "‰\n";
     }
     
-    os << "\nLIMITES JOURNALIÈRES\n";
-    os << "  Perte max quotidienne: " << (config.use_daily_max_loss ? "Oui" : "Non");
+    os << "\nDAILY LIMITS\n";
+    os << "  Daily max loss: " << (config.use_daily_max_loss ? "Yes" : "No");
     if (config.use_daily_max_loss) {
         os << " (" << config.daily_max_loss_percentage << "%)";
     }
     os << "\n";
     
-    os << "  Profit max quotidien: " << (config.use_daily_max_profit ? "Oui" : "Non");
+    os << "  Daily max profit: " << (config.use_daily_max_profit ? "Yes" : "No");
     if (config.use_daily_max_profit) {
         os << " (" << config.daily_max_profit_percentage << "%)";
     }
     os << "\n";
     
-    os << "  Drawdown max quotidien: " << (config.use_daily_max_drawdown ? "Oui" : "Non");
+    os << "  Daily max drawdown: " << (config.use_daily_max_drawdown ? "Yes" : "No");
     if (config.use_daily_max_drawdown) {
         os << " (" << config.daily_max_drawdown_percentage << "%)";
     }
     os << "\n";
     
     os << "\nMACHINE LEARNING\n";
-    os << "  Modèle ML activé: " << (config.use_ml_entry ? "Oui" : "Non") << "\n";
+    os << "  ML model enabled: " << (config.use_ml_entry ? "Yes" : "No") << "\n";
     if (config.use_ml_entry) {
-        os << "  Chemin du modèle: " << config.ml_entry_model_path << "\n";
-        os << "  Périodes lookback: " << config.ml_entry_lookback_periods << "\n";
-        os << "  Seuil de prédiction: ±" << config.ml_entry_threshold << "\n";
-        os << "  Normalisation: " << (config.ml_entry_normalize ? "Oui" : "Non") << "\n";
+        os << "  Model path: " << config.ml_entry_model_path << "\n";
+        os << "  Lookback periods: " << config.ml_entry_lookback_periods << "\n";
+        os << "  Prediction threshold: ±" << config.ml_entry_threshold << "\n";
+        os << "  Normalization: " << (config.ml_entry_normalize ? "Yes" : "No") << "\n";
         if (!config.ml_entry_features.empty()) {
-            os << "  Features configurées: " << config.ml_entry_features.size() << "\n";
+            os << "  Configured features: " << config.ml_entry_features.size() << "\n";
             for (size_t i = 0; i < config.ml_entry_features.size(); ++i) {
                 const auto& feature = config.ml_entry_features[i];
                 os << "    " << (i + 1) << ". ";
@@ -1243,7 +1243,7 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
                 if (!feature.custom_name.empty()) {
                     os << feature.custom_name;
                 } else {
-                    os << "Indicateur type " << static_cast<int>(feature.type);
+                    os << "Indicator type " << static_cast<int>(feature.type);
                 }
                 
                 // Display transform if not NONE
@@ -1254,7 +1254,7 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
                 os << "\n";
             }
         } else {
-            os << "  Features: OHLC par défaut\n";
+            os << "  Features: default OHLC\n";
         }
     }
     

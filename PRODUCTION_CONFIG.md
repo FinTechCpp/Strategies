@@ -1,71 +1,71 @@
-# Exemple de Configuration pour Production
+# Example of Configuration for Production
 
-## Pour une version optimisée sans logs
+## For an Optimized Version Without Logs
 
-Si vous souhaitez compiler une version de production **sans aucun overhead de logging**, suivez ces étapes :
+If you want to compile a production version **without any logging overhead**, follow these steps:
 
-### 1. Modifier le fichier `strategy.h`
+### 1. Modify the `strategy.h` file
 
-Dans `ThirdParty/Strategies/include/strategy.h`, décommentez la ligne suivante :
+In `ThirdParty/Strategies/include/strategy.h`, uncomment the following line:
 
 ```cpp
-// Avant (mode développement - avec logs)
+// Before (development mode - with logs)
 // #define STRATEGY_DISABLE_LOGGING
 
-// Après (mode production - sans logs)
+// After (production mode - without logs)
 #define STRATEGY_DISABLE_LOGGING
 ```
 
-### 2. Recompiler en mode release
+### 2. Recompile in release mode
 
 ```bash
 ./build_and_run.sh --clean --no-run
 ```
 
-### 3. Résultat attendu
+### 3. Expected Result
 
-Avec `STRATEGY_DISABLE_LOGGING` activé :
-- **Aucun** appel aux méthodes de logging n'est compilé
-- **Aucune** construction de chaînes de log
-- **Aucun** overhead de performance
-- Le code généré est optimal
+With `STRATEGY_DISABLE_LOGGING` enabled, the compiled binary will have:
+- **None** of the logging method calls compiled
+- **None** of the log string constructions
+- **None** overhead of performance
+- The generated code is optimal
 
-### 4. Vérification
+### 4. Verification
 
-Vous pouvez vérifier l'impact en compilant avec et sans le define, puis en comparant :
+You can verify the impact by compiling with and without the define, and then comparing:
 
 ```bash
-# Taille du binaire
+# Binary size
 ls -lh build-release/backtestApp/backtestapp
 
-# Performances avec un profiler
+# Performance with a profiler
 perf stat ./build-release/backtestApp/backtestapp
 ```
 
-### Benchmark attendu
+### Expected Benchmark
 
 | Configuration | Overhead | Notes |
 |--------------|----------|-------|
-| Logs activés (utilisateur) | ~100% | Construction complète des logs |
-| Logs désactivés (utilisateur) | ~5-10% | Appels de fonction vides |
-| `STRATEGY_DISABLE_LOGGING` | **0%** | Aucun code de logging compilé |
+| Logs activated (user) | ~100% | Construction complete of logs |
+| Logs deactivated (user) | ~5-10% | calls function empty |
+| `STRATEGY_DISABLE_LOGGING` | **0%** | no code logging compiled |
 
-## Configuration recommandée
+## Recommended Configuration
 
-### Développement
+### Development
 ```cpp
 // #define STRATEGY_DISABLE_LOGGING
 ```
-- Garde tous les logs pour le debug
-- Permet le profiling et l'analyse
+- keep all logs for debugging
+- Allows profiling and analysis
 
 ### Production / Release
 ```cpp
 #define STRATEGY_DISABLE_LOGGING
 ```
-- Performance maximale
-- Binaire optimisé
-- Pas de risque de fuite d'informations via les logs
+- Performance maximized
+- Binary optimized
+- No risk of information leakage via logs
 
 ### Benchmark / Profiling
-Alternez entre les deux modes pour mesurer l'impact exact des logs sur vos cas d'usage spécifiques.
+Switch between the two modes to measure the exact impact of logs on your specific use cases.

@@ -1,101 +1,101 @@
-# Optimisation des Logs de la Stratégie
+# Optimization of strategy logs
 
-## Vue d'ensemble
+## Overview
 
-Ce système permet de désactiver complètement les appels aux méthodes de logging au moment de la compilation, éliminant ainsi l'overhead des appels de fonction même lorsque les logs sont désactivés.
+This system allows for the complete disabling of logging method calls at compile time, thereby eliminating the overhead of function calls even when logging is disabled. This is particularly useful in production environments where performance is critical, and logging is not required.
 
 ## Configuration
 
-### Activer/Désactiver les logs
+### Enable/Disable Logging
 
-Dans le fichier `include/strategy.h`, vous trouverez la définition suivante :
+In the file `include/strategy.h`, you will find the following definition:
 
 ```cpp
-// Macro pour activer/désactiver les logs de la stratégie
-// Décommenter la ligne suivante pour désactiver complètement les logs en production
+// Macro for enabling/disabling strategy logging
+// Uncomment the following line to completely disable logging in production
 // #define STRATEGY_DISABLE_LOGGING
 ```
 
-**Pour désactiver les logs en production :**
+**To disable logging in production:**
 ```cpp
 #define STRATEGY_DISABLE_LOGGING
 ```
 
-**Pour activer les logs (mode par défaut) :**
+**To enable logging (default mode):**
 ```cpp
 // #define STRATEGY_DISABLE_LOGGING
 ```
 
-## Macros disponibles
+## Available Macros
 
 ### STRATEGY_LOG
-Utilisée pour les appels de méthodes avec des paramètres :
+Used for method calls with parameters:
 ```cpp
-STRATEGY_LOG(logger, log_general, "Message de log", LogLevel::INFO);
+STRATEGY_LOG(logger, log_general, "Log message", LogLevel::INFO);
 STRATEGY_LOG(logger, log_signal, signal);
 ```
 
 ### STRATEGY_LOG_VOID
-Utilisée pour les appels de méthodes sans paramètres :
+Used for method calls without parameters:
 ```cpp
 STRATEGY_LOG_VOID(logger, start_chrono);
 STRATEGY_LOG_VOID(logger, clear);
 ```
 
-## Comportement
+## Behavior
 
-### Mode avec logging (par défaut)
-- Tous les appels aux méthodes de logging sont exécutés normalement
-- Les logs sont générés selon la configuration de l'utilisateur
-- Légère overhead due aux appels de fonction
+### Mode with logging (default)
+  - Every call to logging methods is executed normally
+- Logs are generated as expected
+  - Slight overhead due to function calls
 
-### Mode sans logging (STRATEGY_DISABLE_LOGGING défini)
-- **Tous les appels sont remplacés par `((void)0)` au moment de la compilation**
-- Aucun code de logging n'est généré dans le binaire
-- **Overhead nul** : aucun appel de fonction, aucune construction de chaîne
-- Optimisation maximale pour la production
+### Mode without logging (STRATEGY_DISABLE_LOGGING defined)
+- **All calls are replaced with `((void)0)` at compile time**
+- No logging code is generated in the binary
+- **Zero overhead**: no function calls, no string construction
+- Maximum optimization for production
 
-## Avantages
+## Advantages
 
-1. **Performance optimale en production** : Zero overhead quand les logs sont désactivés
-2. **Code propre** : Pas besoin de `#ifdef` partout dans le code
-3. **Flexibilité** : Un simple `#define` pour basculer entre les modes
-4. **Sécurité** : Les erreurs de typage sont détectées à la compilation même en mode sans logging
+1. **Performance optimal in production** : Zero overhead when logs are disabled
+2. **Code clean** : No need for `#ifdef` everywhere in the code
+3. **Flexibility** : a simple `#define` to switch between modes
+4. **Safety** : Type errors are caught at compile time even in no-logging mode
 
-## Utilisation typique
+## Typical Usage
 
-### Développement et Debug
-Laisser le logging activé (défaut) :
+### Development and Debug
+Leave logging enabled (default):
 ```cpp
 // #define STRATEGY_DISABLE_LOGGING
 ```
 
-### Production et Release
-Activer la désactivation complète :
+### Production and Release
+Activate full disabling:
 ```cpp
 #define STRATEGY_DISABLE_LOGGING
 ```
 
-### Benchmark et Profiling
-Comparer les performances avec et sans logging pour mesurer l'impact précis.
+### Benchmark and Profiling
+Compare performance with and without logging to measure the precise impact.
 
-## Migration du code existant
+## Migration of Existing Code
 
-Remplacer :
+Replace :
 ```cpp
 logger->log_general("Message");
 logger->start_chrono();
 ```
 
-Par :
+With :
 ```cpp
 STRATEGY_LOG(logger, log_general, "Message");
 STRATEGY_LOG_VOID(logger, start_chrono);
 ```
 
-## Notes techniques
+## Technical Notes
 
-- Les macros utilisent `((void)0)` qui est complètement éliminé par le compilateur
-- Les arguments des macros ne sont même pas évalués en mode désactivé
-- Cela permet d'éviter la construction de chaînes coûteuses (comme les `fast_double_to_string`)
-- Le code reste type-safe grâce au mécanisme de macros variadic
+- Macros use `((void)0)` which is completely eliminated by the compiler
+- Arguments of macros are not even evaluated in deactivated mode
+- Cela enables to avoid the construction of costly strings (like `fast_double_to_string`)
+- Code remains type-safe thanks to the variadic macro mechanism

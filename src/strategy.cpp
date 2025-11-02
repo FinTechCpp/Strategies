@@ -1,6 +1,6 @@
 #include "strategy.h"
 
-// Utilitary function to parse ISO 8601 date strings
+// Utility function to parse ISO 8601 date strings
 DateTime parse_iso_datetime(const std::string& iso_date) {
     DateTime result;
     
@@ -43,7 +43,7 @@ int get_day_of_week(const DateTime& date) {
 }
 
 void Strategy::registerFiltersIndicators() {
-    // Fonction helper pour enregistrer un indicateur une seule fois
+    // Helper function to register an indicator only once
     auto registerIfNeeded = [this](const filter::ValueSource& source) {
         if (source.category != filter::ValueCategory::INDICATOR) {
             return;
@@ -85,7 +85,7 @@ void Strategy::registerFiltersIndicators() {
         }
     };
 
-    // Parcourir tous les filtres et enregistrer directement les indicateurs nécessaires
+    // Iterate all filters and register required indicators directly
     for (const auto& filter : buyFilters) {
         registerIfNeeded(filter.leftValue);
         registerIfNeeded(filter.rightValue);
@@ -106,7 +106,7 @@ void Strategy::registerFiltersIndicators() {
 }
 
 Signal Strategy::go(TradeDirection direction) {
-    STRATEGY_LOG(logger, log_general, "Préparation d'un signal d'entrée", LogLevel::INFO);
+    STRATEGY_LOG(logger, log_general, "Preparing an entry signal", LogLevel::INFO);
 
     // Calculate Stop Loss
     double stop_loss = PositionManager::calculateStopLoss(
@@ -149,15 +149,15 @@ Signal Strategy::go(TradeDirection direction) {
 bool Strategy::update_indicators()
 {
     if (candle_manager->size() == 0) {
-        STRATEGY_LOG(logger, log_general, "candle_manager vide, impossible de mettre à jour les indicateurs", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "candle_manager empty, cannot update indicators", LogLevel::WARNING);
         return false;
     }
     
     if (indicator_manager->needsInitialization()) {
-        // Obtenir automatiquement la période maximale nécessaire
+        // Automatically obtain the maximum required period
         int max_period = indicator_manager->getMaxRequiredPeriods();
         
-        // Prendre en compte également la période pour le Stop Loss si nécessaire
+        // Also consider the period for Stop Loss if needed
         if (base_config.sl_method == StopLossMethod::MinMax) 
             max_period = std::max(max_period, base_config.sl_minmax_periods);
         
@@ -165,18 +165,18 @@ bool Strategy::update_indicators()
         
         if (available_candles < static_cast<size_t>(max_period)) {
             int remaining = max_period - static_cast<int>(available_candles);
-            STRATEGY_LOG(logger, log_general, "Historique insuffisant: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
-                              "/" + logger->fast_int_to_string(max_period) + " bougies (manque " + 
-                              logger->fast_int_to_string(remaining) + " bougies)");
+            STRATEGY_LOG(logger, log_general, "Insufficient history: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
+                              "/" + logger->fast_int_to_string(max_period) + " candles (missing " + 
+                              logger->fast_int_to_string(remaining) + " candles)");
             return false;
         }
         
         auto candles = candle_manager->get_last_candles(candle_manager->size());
-        STRATEGY_LOG(logger, log_general, "Initialisation avec " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " bougies");
+        STRATEGY_LOG(logger, log_general, "Initialization with " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " candles");
         return indicator_manager->initializeAll(candles, logger.get());
     }
     
-    // Mise à jour simple avec la dernière bougie
+    // Simple update with the latest candle
     return indicator_manager->updateAll(candle_manager->get_latest_candle(), logger.get());
 }
 
@@ -188,7 +188,7 @@ double Strategy::calculate_trade_risk(const Signal& signal) {
     return risk_value;
 }
 
-// Check is if the trade risk is acceptable based on daily max loss
+// Check if the trade risk is acceptable based on daily max loss
 bool Strategy::is_trade_risk_acceptable(double risk) {
     if (!base_config.use_daily_max_loss) {
         return true;  // If the limit is not enabled, all trades are acceptable
@@ -255,8 +255,8 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed loss amount for this day
             double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
             
-            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
-                              " - Perte max autorisée: " + logger->fast_double_to_string(max_loss_amount) + 
+            STRATEGY_LOG(logger, log_general, "New trading day: " + current_trading_day.to_string() + 
+                              " - Max allowed loss: " + logger->fast_double_to_string(max_loss_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_loss_percentage) + "%)", LogLevel::INFO);
         }
 
@@ -264,8 +264,8 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed profit amount for this day
             double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
             
-            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
-                              " - Profit max autorisé: " + logger->fast_double_to_string(max_profit_amount) + 
+            STRATEGY_LOG(logger, log_general, "New trading day: " + current_trading_day.to_string() + 
+                              " - Max allowed profit: " + logger->fast_double_to_string(max_profit_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
         }
 
@@ -273,8 +273,8 @@ void Strategy::update_daily_pnl_tracking() {
             // Calculate the maximum allowed drawdown amount for this day
             double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
             
-            STRATEGY_LOG(logger, log_general, "Nouveau jour de trading: " + current_trading_day.to_string() + 
-                              " - Drawdown max autorisé: " + logger->fast_double_to_string(max_drawdown_amount) + 
+            STRATEGY_LOG(logger, log_general, "New trading day: " + current_trading_day.to_string() + 
+                              " - Max allowed drawdown: " + logger->fast_double_to_string(max_drawdown_amount) + 
                               " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)", LogLevel::INFO);
         }
     }
@@ -287,9 +287,9 @@ void Strategy::update_daily_pnl_tracking() {
             daily_max_pnl = daily_pnl;
         
         
-        STRATEGY_LOG(logger, log_general, "P&L du trade: " + logger->fast_double_to_string(last_trade_pnl) + 
-                          " - P&L journalier cumulé: " + logger->fast_double_to_string(daily_pnl) + 
-                          " - P&L max journalier: " + logger->fast_double_to_string(daily_max_pnl), LogLevel::INFO);
+        STRATEGY_LOG(logger, log_general, "Trade P&L: " + logger->fast_double_to_string(last_trade_pnl) + 
+                          " - Accumulated daily P&L: " + logger->fast_double_to_string(daily_pnl) + 
+                          " - Daily max P&L: " + logger->fast_double_to_string(daily_max_pnl), LogLevel::INFO);
 
         last_trade_pnl = 0.0;
     }
@@ -415,12 +415,12 @@ std::optional<Signal> Strategy::execute_long() {
     Signal signal = go(TradeDirection::LONG);
     
     if (signal.quantity < 0.0 || signal.price <= 0.0) {
-        STRATEGY_LOG(logger, log_general, "Paramètres d'achat incorrects", LogLevel::ERROR);
+        STRATEGY_LOG(logger, log_general, "Buy parameters incorrect", LogLevel::ERROR);
         throw std::runtime_error("Buy parameters not properly set");
     }
 
     if (signal.quantity == 0.0) {
-        STRATEGY_LOG(logger, log_general, "Quantité d'achat nulle, trade annulé", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "Buy quantity zero, trade cancelled", LogLevel::WARNING);
         return std::nullopt;
     }
 
@@ -432,10 +432,10 @@ std::optional<Signal> Strategy::execute_long() {
         // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
-        STRATEGY_LOG(logger, log_general, "Trade LONG rejeté: risque excessif", LogLevel::WARNING);
-        STRATEGY_LOG(logger, log_filter_result, "Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
-                              ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
-                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
+        STRATEGY_LOG(logger, log_general, "LONG trade rejected: excessive risk", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_filter_result, "Risk limit", false, "Calculated risk: " + logger->fast_double_to_string(risk) + 
+                              ", Daily PnL: " + logger->fast_double_to_string(daily_pnl) + 
+                              ", Max limit: " + logger->fast_double_to_string(-max_loss_amount));
         return std::nullopt;
     }
       
@@ -447,12 +447,12 @@ std::optional<Signal> Strategy::execute_short() {
     Signal signal = go(TradeDirection::SHORT);
     
     if (signal.quantity < 0.0 || signal.price <= 0.0) {
-        STRATEGY_LOG(logger, log_general, "Paramètres de vente incorrects", LogLevel::ERROR);
+        STRATEGY_LOG(logger, log_general, "Sell parameters incorrect", LogLevel::ERROR);
         throw std::runtime_error("Sell parameters not properly set");
     }
 
     if (signal.quantity == 0.0) {
-        STRATEGY_LOG(logger, log_general, "Quantité de vente nulle, trade annulé", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_general, "Sell quantity zero, trade cancelled", LogLevel::WARNING);
         return std::nullopt;
     }
 
@@ -464,10 +464,10 @@ std::optional<Signal> Strategy::execute_short() {
         // The trade is too risky compared to our daily limit
         double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
         
-        STRATEGY_LOG(logger, log_general, "Trade SHORT rejeté: risque excessif", LogLevel::WARNING);
-        STRATEGY_LOG(logger, log_filter_result, "Limite de risque", false, "Risque calculé: " + logger->fast_double_to_string(risk) + 
-                              ", PnL journalier: " + logger->fast_double_to_string(daily_pnl) + 
-                              ", Limite max: " + logger->fast_double_to_string(-max_loss_amount));
+        STRATEGY_LOG(logger, log_general, "SHORT trade rejected: excessive risk", LogLevel::WARNING);
+        STRATEGY_LOG(logger, log_filter_result, "Risk limit", false, "Calculated risk: " + logger->fast_double_to_string(risk) + 
+                              ", Daily PnL: " + logger->fast_double_to_string(daily_pnl) + 
+                              ", Max limit: " + logger->fast_double_to_string(-max_loss_amount));
         return std::nullopt;
     }
     
@@ -476,11 +476,11 @@ std::optional<Signal> Strategy::execute_short() {
 }
 
 bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {
-    // Si empty soit toujours false soit toujours true
+    // If empty, always false
     if (filters.empty()) 
         return false; // No filters defined, never pass
 
-    // Si tous les filtres sont desactivés, toujours false
+    // If all filters are disabled, always false
     bool all_disabled = true;
     for (const auto& filter : filters) {
         if (filter.enabled) {
@@ -506,16 +506,16 @@ Signal Strategy::execute() {
 
     // Update indicators
     if (!indicators_ready) {
-        STRATEGY_LOG(logger, log_execution_step, "Indicateurs pas encore prêts", false);
+        STRATEGY_LOG(logger, log_execution_step, "Indicators not ready yet", false);
         return Signal();  // Return empty signal
     }
     
     
     // Check if daily max profit has been reached
     if (is_daily_max_profit_reached()) {
-        STRATEGY_LOG(logger, log_execution_step, "Profit max journalier atteint", false);
+        STRATEGY_LOG(logger, log_execution_step, "Daily max profit reached", false);
         double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
-        STRATEGY_LOG(logger, log_general, "Profit maximum journalier atteint: " + 
+        STRATEGY_LOG(logger, log_general, "Daily maximum profit reached: " + 
                           logger->fast_double_to_string(daily_pnl) + 
                           " >= " + logger->fast_double_to_string(max_profit_amount) + 
                           " (" + logger->fast_double_to_string(base_config.daily_max_profit_percentage) + "%)", LogLevel::INFO);
@@ -527,15 +527,15 @@ Signal Strategy::execute() {
 
     // Check if daily max drawdown has been reached
     if (is_daily_drawdown_reached()) {
-        STRATEGY_LOG(logger, log_execution_step, "Drawdown max journalier atteint", false);
+        STRATEGY_LOG(logger, log_execution_step, "Daily max drawdown reached", false);
         double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
         double current_drawdown = daily_max_pnl - daily_pnl;
-        STRATEGY_LOG(logger, log_general, "Drawdown maximum journalier atteint: " + 
+        STRATEGY_LOG(logger, log_general, "Daily maximum drawdown reached: " + 
                           logger->fast_double_to_string(current_drawdown) + 
                           " >= " + logger->fast_double_to_string(max_drawdown_amount) + 
                           " (" + logger->fast_double_to_string(base_config.daily_max_drawdown_percentage) + "%)" +
-                          " - PnL max: " + logger->fast_double_to_string(daily_max_pnl) +
-                          " - PnL actuel: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
+                          " - Max PnL: " + logger->fast_double_to_string(daily_max_pnl) +
+                          " - Current PnL: " + logger->fast_double_to_string(daily_pnl), LogLevel::INFO);
         
         Signal signal = generate_liquidation_signal();
         STRATEGY_LOG(logger, log_signal, signal);
@@ -544,39 +544,39 @@ Signal Strategy::execute() {
 
     // Time check
     if (!check_time()) {
-        STRATEGY_LOG(logger, log_execution_step, "Vérification horaires", false);
+        STRATEGY_LOG(logger, log_execution_step, "Time check", false);
         
         Signal signal = generate_liquidation_signal();
         STRATEGY_LOG(logger, log_signal, signal);
         return signal;
     }
-    STRATEGY_LOG(logger, log_execution_step, "Vérification horaires", true);
+    STRATEGY_LOG(logger, log_execution_step, "Time check", true);
 
 
     // Check for break-even signal before executing strategy
     auto be_signal = check_break_even();
     if (be_signal) {
-        STRATEGY_LOG(logger, log_general, "Signal de break-even généré: " + logger->fast_double_to_string(be_signal->new_sl));
+        STRATEGY_LOG(logger, log_general, "Break-even signal generated: " + logger->fast_double_to_string(be_signal->new_sl));
         return *be_signal;
     }
 
     if (position_info.entry_price > 0.0) {
-        // TODO il faut différencier les signaux de liquidation normaux et les signaux de rachat/revente
+        // TODO differentiate normal liquidation signals and rebuy/resale signals
         if (executeFilters(resaleFilters)) {
-            STRATEGY_LOG(logger, log_execution_step, "Filtres de revente passés - Génération du signal de liquidation", true);
+            STRATEGY_LOG(logger, log_execution_step, "Resale filters passed - generating liquidation signal", true);
             Signal signal = generate_liquidation_signal();
             STRATEGY_LOG(logger, log_signal, signal);
             return signal;
         }
 
         if (executeFilters(rebuyFilters)) {
-            STRATEGY_LOG(logger, log_execution_step, "Filtres de rachat passés - Génération du signal de liquidation", true);
+            STRATEGY_LOG(logger, log_execution_step, "Rebuy filters passed - generating liquidation signal", true);
             Signal signal = generate_liquidation_signal();
             STRATEGY_LOG(logger, log_signal, signal);
             return signal;
         }
 
-        STRATEGY_LOG(logger, log_execution_step, "Position ouverte - Pas de nouveau signal généré", false);
+        STRATEGY_LOG(logger, log_execution_step, "Position open - no new signal generated", false);
         return Signal();  // Return empty signal
     }
 
@@ -584,22 +584,22 @@ Signal Strategy::execute() {
     if (base_config.use_ml_entry) {
         int ml_signal = execute_ml_filters();
         if (ml_signal == 1) { // BUY
-            STRATEGY_LOG(logger, log_execution_step, "Signal ML -> BUY", true);
+            STRATEGY_LOG(logger, log_execution_step, "ML signal -> BUY", true);
             auto signal = execute_long();
             return signal.value_or(Signal());
         } else if (ml_signal == 2) { // SELL
-            STRATEGY_LOG(logger, log_execution_step, "Signal ML -> SELL", true);
+            STRATEGY_LOG(logger, log_execution_step, "ML signal -> SELL", true);
             auto signal = execute_short();
             return signal.value_or(Signal());
         }
     }
 
     if (executeFilters(buyFilters)) {
-        STRATEGY_LOG(logger, log_execution_step, "Filtres d'achat passés", true);
+        STRATEGY_LOG(logger, log_execution_step, "Buy filters passed", true);
         auto signal = execute_long();
         return signal.value_or(Signal());
     } else if (executeFilters(sellFilters)) {
-        STRATEGY_LOG(logger, log_execution_step, "Filtres de vente passés", true);
+        STRATEGY_LOG(logger, log_execution_step, "Sell filters passed", true);
         auto signal = execute_short();
         return signal.value_or(Signal());
     }
@@ -627,35 +627,35 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
     
-    // Charger le modèle ML si activé
+    // Load ML model if enabled
     if (base_config.use_ml_entry) {
         if (!load_ml_model()) {
-            logger->log_general("Échec du chargement du modèle ML: " + base_config.ml_entry_model_path, LogLevel::ERROR);
+            logger->log_general("Failed to load ML model: " + base_config.ml_entry_model_path, LogLevel::ERROR);
             throw std::runtime_error("Failed to load ML model for entry signals");
         }
-        logger->log_general("Modèle ML chargé avec succès pour les signaux d'entrée", LogLevel::INFO);
+        logger->log_general("ML model loaded successfully for entry signals", LogLevel::INFO);
     }
     
-    // Ajuster les paramètres du CandleManager en fonction de la période maximale requise
+    // Adjust CandleManager parameters according to the maximum required period
     int max_period = indicator_manager->getMaxRequiredPeriods();
     if (base_config.sl_method == StopLossMethod::MinMax) 
         max_period = std::max(max_period, base_config.sl_minmax_periods);
     
-    // Configurer le CandleManager avec la taille minimale requise
-    // La méthode setMinimalBufferSize gère automatiquement les paramètres internes
-    // pour garantir un fonctionnement optimal et sûr
+    // Configure the CandleManager with the minimal required size
+    // The setMinimalBufferSize method automatically handles internal parameters
+    // to ensure optimal and safe operation
     candle_manager->setMinimalBufferSize(max_period);
     
-    STRATEGY_LOG(logger, log_general, "CandleManager configuré avec taille minimale: " + 
-                       std::to_string(max_period) + " bougies", LogLevel::INFO);
+    STRATEGY_LOG(logger, log_general, "CandleManager configured with minimal size: " + 
+                       std::to_string(max_period) + " candles", LogLevel::INFO);
 
-    // Générer la configuration complète
+    // Generate the full configuration
     std::ostringstream config_stream;
     config_stream << base_config;
     std::string config_str = config_stream.str();
 
     STRATEGY_LOG(logger, log_general, config_str, LogLevel::INFO);
-    STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Forcer l'envoi immédiat
+    STRATEGY_LOG_VOID(logger, finalize_and_send_logs);  // Force immediate send
 }
 
 // Main update method
@@ -677,7 +677,7 @@ Signal Strategy::update_candle(const Candle& candle) {
     // Store the last trade P&L if provided in candle
     if (position_info.closed_trade_pnl != 0.0) {
         last_trade_pnl = position_info.closed_trade_pnl;
-        STRATEGY_LOG(logger, log_general, "PnL du trade fermé: " + logger->fast_double_to_string(last_trade_pnl));
+        STRATEGY_LOG(logger, log_general, "Closed trade PnL: " + logger->fast_double_to_string(last_trade_pnl));
     }
 
     // Add to buffer for historical calculations
@@ -707,19 +707,19 @@ bool Strategy::load_ml_model() {
         bool loaded = ml_entry_model->load(base_config.ml_entry_model_path);
         
         if (!loaded || !ml_entry_model->initialized()) {
-            logger->log_general("Échec du chargement du modèle ML", LogLevel::ERROR);
+            logger->log_general("Failed to load ML model", LogLevel::ERROR);
             return false;
         }
         
         ml_model_loaded = true;
-        logger->log_general("Modèle ML chargé: " + base_config.ml_entry_model_path, LogLevel::INFO);
+        logger->log_general("ML model loaded: " + base_config.ml_entry_model_path, LogLevel::INFO);
         logger->log_general("Lookback periods: " + std::to_string(base_config.ml_entry_lookback_periods), LogLevel::INFO);
         logger->log_general("Threshold: " + std::to_string(base_config.ml_entry_threshold), LogLevel::INFO);
-        logger->log_general("Normalisation: " + std::string(base_config.ml_entry_normalize ? "activée" : "désactivée"), LogLevel::INFO);
+        logger->log_general("Normalization: " + std::string(base_config.ml_entry_normalize ? "enabled" : "disabled"), LogLevel::INFO);
         
         return true;
     } catch (const std::exception& e) {
-        logger->log_general("Exception lors du chargement du modèle ML: " + std::string(e.what()), LogLevel::ERROR);
+        logger->log_general("Exception while loading ML model: " + std::string(e.what()), LogLevel::ERROR);
         return false;
     }
 }
@@ -727,20 +727,20 @@ bool Strategy::load_ml_model() {
 std::vector<float> Strategy::prepare_ml_features() {
     std::vector<float> features;
     
-    // Vérifier qu'on a assez de bougies historiques
+    // Check that we have enough historical candles
     if (candle_manager->size() < static_cast<size_t>(base_config.ml_entry_lookback_periods)) {
         logger->log_general(
-            "Pas assez de données historiques pour ML: " + std::to_string(candle_manager->size()) + 
+            "Not enough historical data for ML: " + std::to_string(candle_manager->size()) + 
             " < " + std::to_string(base_config.ml_entry_lookback_periods), 
             LogLevel::DEBUG
         );
-        return features;  // Retourne un vecteur vide
+        return features;  // Return empty vector
     }
     
-    // Récupérer les N dernières bougies
+    // Get the last N candles
     auto recent_candles = candle_manager->get_last_candles(base_config.ml_entry_lookback_periods);
     
-    // Construire le vecteur de features à partir des données OHLC
+    // Build the feature vector from OHLC data
     for (const auto& candle : recent_candles) {
         if (base_config.ml_entry_normalize) {
             features.push_back(candle.open);
@@ -756,8 +756,8 @@ std::vector<float> Strategy::prepare_ml_features() {
     }
     
     logger->log_general(
-        "Features ML préparées: " + std::to_string(features.size()) + " valeurs (" + 
-        std::to_string(recent_candles.size()) + " bougies × 4)", 
+        "ML features prepared: " + std::to_string(features.size()) + " values (" + 
+        std::to_string(recent_candles.size()) + " candles × 4)", 
         LogLevel::DEBUG
     );
     
@@ -765,58 +765,58 @@ std::vector<float> Strategy::prepare_ml_features() {
 }
 
 int Strategy::interpret_ml_prediction(float prediction) {
-    // Interprétation de la sortie du modèle
+    // Interpretation of model output
     // prediction > threshold => BUY (1)
     // prediction < -threshold => SELL (2)  
-    // sinon => pas de signal (0)
+    // otherwise => no signal (0)
     
     if (prediction > base_config.ml_entry_threshold) 
         return 1;  // BUY
     else if (prediction < -base_config.ml_entry_threshold) 
         return 2;  // SELL
     
-    return 0;  // Pas de signal
+    return 0;  // No signal
 }
 
 int Strategy::execute_ml_filters() {
     if (!ml_model_loaded) {
-        logger->log_general("Modèle ML non chargé", LogLevel::ERROR);
+        logger->log_general("ML model not loaded", LogLevel::ERROR);
         return false;
     }
     
-    // Préparer les features pour l'inférence
+    // Prepare features for inference
     std::vector<float> features = prepare_ml_features();
     
     if (features.empty()) {
-        logger->log_general("Features ML vides, pas d'inférence possible", LogLevel::DEBUG);
+        logger->log_general("ML features empty, no inference possible", LogLevel::DEBUG);
         return false;
     }
     
-        // Effectuer l'inférence
+        // Perform inference
             float prediction = ml_entry_model->predict(features);
         
-            logger->log_general("Prédiction ML: " + std::to_string(prediction), LogLevel::DEBUG);
+            logger->log_general("ML prediction: " + std::to_string(prediction), LogLevel::DEBUG);
         
-            // Interpréter la prédiction
+            // Interpret prediction
             int signal_type = interpret_ml_prediction(prediction);
 
             if (signal_type == 1) {
                 logger->log_general(
-                    "Signal BUY détecté par ML (prédiction: " + std::to_string(prediction) + ")",
+                    "BUY signal detected by ML (prediction: " + std::to_string(prediction) + ")",
                     LogLevel::INFO
                 );
                 return 1;
             } else if (signal_type == 2) {
                 logger->log_general(
-                    "Signal SELL détecté par ML (prédiction: " + std::to_string(prediction) + ")",
+                    "SELL signal detected by ML (prediction: " + std::to_string(prediction) + ")",
                     LogLevel::INFO
                 );
                 return 2;
             }
 
-            // Pas de signal
+            // No signal
             logger->log_general(
-                "Pas de signal ML (prédiction: " + std::to_string(prediction) + 
+                "No ML signal (prediction: " + std::to_string(prediction) + 
                 ", threshold: ±" + std::to_string(base_config.ml_entry_threshold) + ")",
                 LogLevel::DEBUG
             );

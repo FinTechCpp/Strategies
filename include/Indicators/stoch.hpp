@@ -15,23 +15,23 @@ private:
     const int slowk_period;
     const int slowd_period;
     
-    // Buffer de bougies pour le calcul du %K (seulement fastk_period nécessaire)
+    // Candle buffer for the calculation of %K (only fastk_period needed)
     std::deque<BasicCandle> candle_buffer;
     
-    // Buffer des valeurs brutes %K pour le lissage
+    // Buffer of raw %K values for smoothing
     std::deque<double> raw_k_values;
     
-    // Buffer des valeurs %K lissées pour le calcul de %D
+    // Buffer of smoothed %K values for the calculation of %D
     std::deque<double> k_values;
     
-    // Sommes cumulatives pour calculs incrémentaux O(1)
-    double sum_raw_k = 0.0;  // Somme des raw_k_period dernières valeurs
-    double sum_k = 0.0;      // Somme des slowd_period dernières valeurs de %K
+    // Cumulative sums for incremental O(1) calculations
+    double sum_raw_k = 0.0;  // Sum of the last raw_k_period values
+    double sum_k = 0.0;      // Sum of the last slowd_period %K values
     
     double current_k = 0.0;
     double current_d = 0.0;
     
-    // Méthode helper pour calculer le raw %K à partir d'un buffer de bougies
+    // Helper method to calculate raw %K from a candle buffer
     double calculate_raw_k(const std::deque<BasicCandle>& buffer) const;
     
 public:
@@ -49,13 +49,13 @@ public:
     std::optional<std::pair<double, double>> get_value() const override;
 };
 
-// Méthode helper pour calculer le raw %K
+// Helper method to calculate raw %K
 inline double STOCH::calculate_raw_k(const std::deque<BasicCandle>& buffer) const {
     if (buffer.size() < static_cast<size_t>(fastk_period)) {
         return 0.0;
     }
     
-    // Trouver le plus haut et le plus bas sur la période
+    // Find the highest high and lowest low over the period
     double period_high = buffer[0].high;
     double period_low = buffer[0].low;
     
@@ -66,7 +66,7 @@ inline double STOCH::calculate_raw_k(const std::deque<BasicCandle>& buffer) cons
     
     double close = buffer[fastk_period - 1].close;
     
-    // Calculer %K brut
+    // Calculate raw %K
     if (period_high > period_low) {
         return 100.0 * ((close - period_low) / (period_high - period_low));
     }
@@ -80,18 +80,18 @@ inline std::optional<std::pair<double, double>> STOCH::initialize_with_history(c
         return std::nullopt;
     }
 
-    // Réinitialiser tous les buffers
+    // Reset all buffers
     candle_buffer.clear();
     raw_k_values.clear();
     k_values.clear();
     sum_raw_k = 0.0;
     sum_k = 0.0;
 
-    // Phase 1: Calculer les raw %K pour avoir assez de données pour lisser
+    // Phase 1: Calculate raw %K to have enough data for smoothing
     const size_t num_raw_k_needed = slowk_period + slowd_period - 1;
     
     for (size_t i = 0; i < num_raw_k_needed; ++i) {
-        // Remplir le buffer avec fastk_period bougies
+        // Fill the buffer with fastk_period candles
         candle_buffer.clear();
         for (int j = 0; j < fastk_period; ++j) {
             candle_buffer.push_back(history[i + j]);
@@ -101,7 +101,7 @@ inline std::optional<std::pair<double, double>> STOCH::initialize_with_history(c
         raw_k_values.push_back(raw_k);
     }
 
-    // Phase 2: Calculer les premiers %K lissés (SMA des raw_k sur slowk_period)
+    // Phase 2: Calculate the first smoothed %K (SMA of raw_k over slowk_period)
     for (size_t i = 0; i <= num_raw_k_needed - slowk_period; ++i) {
         double sum = 0.0;
         for (int j = 0; j < slowk_period; ++j) {
@@ -111,7 +111,7 @@ inline std::optional<std::pair<double, double>> STOCH::initialize_with_history(c
         k_values.push_back(smooth_k);
     }
 
-    // Phase 3: Calculer le premier %D (SMA des %K sur slowd_period)
+    // Phase 3: Calculate the first %D (SMA of %K over slowd_period)
     if (k_values.size() >= static_cast<size_t>(slowd_period)) {
         sum_k = 0.0;
         for (int i = 0; i < slowd_period; ++i) {
@@ -121,19 +121,19 @@ inline std::optional<std::pair<double, double>> STOCH::initialize_with_history(c
         current_k = k_values.back();
     }
 
-    // Préparer le buffer de bougies avec les dernières fastk_period bougies
+    // Prepare the candle buffer with the last fastk_period candles
     candle_buffer.clear();
     for (int i = 0; i < fastk_period; ++i) {
         candle_buffer.push_back(history[history.size() - fastk_period + i]);
     }
 
-    // Préparer sum_raw_k avec les dernières slowk_period valeurs
+    // Prepare sum_raw_k with the last slowk_period values
     sum_raw_k = 0.0;
     for (int i = 0; i < slowk_period; ++i) {
         sum_raw_k += raw_k_values[raw_k_values.size() - slowk_period + i];
     }
 
-    // Garder seulement les buffers nécessaires pour les calculs futurs
+    // Keep only the buffers necessary for future calculations
     while (raw_k_values.size() > static_cast<size_t>(slowk_period)) {
         raw_k_values.pop_front();
     }
@@ -151,42 +151,42 @@ inline std::optional<std::pair<double, double>> STOCH::update(const BasicCandle&
         return std::nullopt;
     }
 
-    // ===== Étape 1: Mise à jour incrémentale du buffer de bougies =====
+    // ===== Step 1: Incremental update of the candle buffer =====
     candle_buffer.push_back(candle);
     if (candle_buffer.size() > static_cast<size_t>(fastk_period)) {
         candle_buffer.pop_front();
     }
 
-    // ===== Étape 2: Calcul du nouveau raw %K =====
+    // ===== Step 2: Calculate the new raw %K =====
     double new_raw_k = calculate_raw_k(candle_buffer);
 
-    // ===== Étape 3: Mise à jour incrémentale de %K lissé (SMA) =====
-    // Ajouter le nouveau raw_k
+    // ===== Step 3: Incremental update of smoothed %K (SMA) =====
+    // Add the new raw_k
     raw_k_values.push_back(new_raw_k);
     sum_raw_k += new_raw_k;
     
-    // Retirer l'ancien raw_k si le buffer est plein
+    // Remove the old raw_k if the buffer is full
     if (raw_k_values.size() > static_cast<size_t>(slowk_period)) {
         sum_raw_k -= raw_k_values.front();
         raw_k_values.pop_front();
     }
     
-    // Calculer le nouveau %K lissé (moyenne mobile simple incrémentale O(1))
+    // Calculate the new smoothed %K (incremental simple moving average O(1))
     double new_k = sum_raw_k / slowk_period;
     current_k = new_k;
 
-    // ===== Étape 4: Mise à jour incrémentale de %D (SMA de %K) =====
-    // Ajouter le nouveau %K
+    // ===== Step 4: Incremental update of %D (SMA of %K) =====
+    // Add the new %K
     k_values.push_back(new_k);
     sum_k += new_k;
     
-    // Retirer l'ancien %K si le buffer est plein
+    // Remove the old %K if the buffer is full
     if (k_values.size() > static_cast<size_t>(slowd_period)) {
         sum_k -= k_values.front();
         k_values.pop_front();
     }
     
-    // Calculer le nouveau %D (moyenne mobile simple incrémentale O(1))
+    // Calculate the new %D (incremental simple moving average O(1))
     current_d = sum_k / slowd_period;
 
     return std::make_pair(current_k, current_d);

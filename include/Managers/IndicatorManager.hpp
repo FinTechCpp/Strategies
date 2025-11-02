@@ -19,7 +19,7 @@
 using MACDResult = filter::MACDResult;
 using BBResult = filter::BBResult;
 
-// Interface commune pour tous les gestionnaires d'indicateurs
+// Common interface for all indicator managers
 class IIndicatorHandlerBase {
 public:
     virtual ~IIndicatorHandlerBase() = default;
@@ -30,12 +30,12 @@ public:
     virtual int getRequiredPeriods() const = 0;
 };
 
-// Gestionnaire typé pour chaque type d'indicateur
+// Typed manager for each type of indicator
 template<typename T, typename R>
 class IndicatorHandler : public IIndicatorHandlerBase {
 private:
     std::shared_ptr<T> m_indicator;
-    std::deque<R> m_history; // Stockage des valeurs historiques
+    std::deque<R> m_history; // Storage for historical values
     static constexpr size_t MAX_HISTORY_SIZE = 100;
     
 public:
@@ -45,18 +45,18 @@ public:
     }
     
     bool initialize(const std::vector<BasicCandle>& history, ILogger* logger) override {
-        STRATEGY_LOG(logger, log_general, "Initialisation de " + m_indicator->get_name(), LogLevel::DEBUG);
+        STRATEGY_LOG(logger, log_general, "Initializing " + m_indicator->get_name(), LogLevel::DEBUG);
         
         std::optional<R> result = m_indicator->initialize_with_history(history);
         
         if (result.has_value()) {
-            // Stocker la valeur initiale
+            // Store the initial value
             m_history.clear();
             m_history.push_back(result.value());
 
             STRATEGY_LOG(logger, log_indicator_value, m_indicator->get_name(), result.value());
         } else {
-            STRATEGY_LOG(logger, log_general, "Échec de l'initialisation de " + m_indicator->get_name(), LogLevel::ERROR);
+            STRATEGY_LOG(logger, log_general, "Failed to initialize " + m_indicator->get_name(), LogLevel::ERROR);
         }
         
         return result.has_value();
@@ -66,16 +66,16 @@ public:
         std::optional<R> result = m_indicator->update(candle);
 
         if (result.has_value()) {
-            // Stocker la valeur mise à jour
+            // Store the updated value
             m_history.push_back(result.value());
-            // Limiter l'historique (optionnel)
+            // Limit the history (optional)
             if (m_history.size() > MAX_HISTORY_SIZE) {
                 m_history.pop_front();
             }
             
             STRATEGY_LOG(logger, log_indicator_value, m_indicator->get_name(), result.value());
         } else {
-            STRATEGY_LOG(logger, log_general, "Échec de la mise à jour de " + m_indicator->get_name(), LogLevel::ERROR);
+            STRATEGY_LOG(logger, log_general, "Failed to update " + m_indicator->get_name(), LogLevel::ERROR);
         }
         
         return result.has_value();
@@ -105,12 +105,12 @@ public:
             return std::nullopt;
         }
         
-        // Retourner la valeur à l'offset spécifié (0 = plus récent)
+        // Return the value at the specified offset (0 = most recent)
         size_t idx = m_history.size() - 1 - offset;
         return m_history[idx];
     }
     
-    // Accès direct à l'indicateur sous-jacent (pour compatibilité)
+    // Direct access to the underlying indicator (for compatibility)
     std::shared_ptr<T> getIndicator() const {
         return m_indicator;
     }
@@ -119,7 +119,7 @@ public:
 
 class IndicatorManager {
 private:    
-    // Maps pour stocker les handlers par type de paramètres
+    // Maps to store handlers by parameter type
     std::map<filter::EMAParams, std::unique_ptr<IndicatorHandler<EMA, double>>> m_emaHandlers;
     std::map<filter::RSIParams, std::unique_ptr<IndicatorHandler<RSI, double>>> m_rsiHandlers;
     std::map<filter::StochasticParams, std::unique_ptr<IndicatorHandler<STOCH, std::pair<double, double>>>> m_stochHandlers;
@@ -130,107 +130,15 @@ private:
     std::map<filter::BBParams, std::unique_ptr<IndicatorHandler<BB, filter::BBResult>>> m_bbHandlers;
     std::map<filter::TimeCyclicParams, std::unique_ptr<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>> m_timeCyclicHandlers;
 
-    // Liste de tous les handlers pour les opérations en masse
+    // List of all handlers for bulk operations
     std::vector<IIndicatorHandlerBase*> m_allHandlers;
     
 public:
 
-    // template<typename IndicatorT, typename ParamT, typename ReturnT>
-    // void registerIndicator(const ParamT& params) {
-    //     auto& handlers = getHandlerMapImpl<IndicatorT, ParamT, ReturnT>();
-
-    //     if (handlers.find(params) != handlers.end()) {
-    //         return; // Déjà enregistré
-    //     }
-
-    //     auto handler = std::make_unique<IndicatorHandler<IndicatorT, ReturnT>>(params);
-    //     m_allHandlers.push_back(handler.get());
-    //     handlers[params] = std::move(handler);
-    // }
-
-    // // Méthode générique d'accès aux valeurs
-    // template<typename IndicatorT, typename ParamT, typename ReturnT>
-    // std::optional<ReturnT> getIndicatorValue(const ParamT& params, int offset = 0) const {
-    //     const auto& handlers = getHandlerMapImpl<IndicatorT, ParamT, ReturnT>();
-        
-    //     auto it = handlers.find(params);
-    //     if (it != handlers.end()) {
-    //         return offset == 0 ? 
-    //             it->second->getCurrentValue() : 
-    //             it->second->getHistoricalValue(offset);
-    //     }
-    //     return std::nullopt;
-    // }
-
-    // // helper interne (implémentation)
-    // template<typename IndicatorT, typename ParamT, typename ReturnT>
-    // auto& getHandlerMapImpl() {
-    //     if constexpr (std::is_same_v<IndicatorT, EMA> &&
-    //                   std::is_same_v<ParamT, filter::EMAParams> &&
-    //                   std::is_same_v<ReturnT, double>) {
-    //         return m_emaHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, RSI> &&
-    //                          std::is_same_v<ParamT, filter::RSIParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_rsiHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, STOCH> &&
-    //                          std::is_same_v<ParamT, filter::StochasticParams> &&
-    //                          std::is_same_v<ReturnT, std::pair<double, double>>) {
-    //         return m_stochHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, ATR> &&
-    //                          std::is_same_v<ParamT, filter::ATRParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_atrHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, SUPERTREND> &&
-    //                          std::is_same_v<ParamT, filter::SuperTrendParams> &&
-    //                          std::is_same_v<ReturnT, std::pair<double, int>>) {
-    //         return m_supertrendHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, CCI> &&
-    //                          std::is_same_v<ParamT, filter::CCIParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_cciHandlers;
-    //     } else {
-    //         static_assert(always_false_v<IndicatorT>, "getHandlerMap: combinaison IndicatorT/ParamT/ReturnT non supportée");
-    //     }
-    // }
-
-    // template<typename IndicatorT, typename ParamT, typename ReturnT>
-    // const auto& getHandlerMapImpl() const {
-    //     if constexpr (std::is_same_v<IndicatorT, EMA> &&
-    //                   std::is_same_v<ParamT, filter::EMAParams> &&
-    //                   std::is_same_v<ReturnT, double>) {
-    //         return m_emaHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, RSI> &&
-    //                          std::is_same_v<ParamT, filter::RSIParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_rsiHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, STOCH> &&
-    //                          std::is_same_v<ParamT, filter::StochasticParams> &&
-    //                          std::is_same_v<ReturnT, std::pair<double, double>>) {
-    //         return m_stochHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, ATR> &&
-    //                          std::is_same_v<ParamT, filter::ATRParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_atrHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, SUPERTREND> &&
-    //                          std::is_same_v<ParamT, filter::SuperTrendParams> &&
-    //                          std::is_same_v<ReturnT, std::pair<double, int>>) {
-    //         return m_supertrendHandlers;
-    //     } else if constexpr (std::is_same_v<IndicatorT, CCI> &&
-    //                          std::is_same_v<ParamT, filter::CCIParams> &&
-    //                          std::is_same_v<ReturnT, double>) {
-    //         return m_cciHandlers;
-    //     } else {
-    //         static_assert(always_false_v<IndicatorT>, "getHandlerMap (const): combinaison IndicatorT/ParamT/ReturnT non supportée");
-    //     }
-    // }
-    
-
-
-    // Méthodes d'enregistrement par type d'indicateur
+    // Methods for registering indicators by type
     void registerEMA(const filter::EMAParams& params) {
         if (m_emaHandlers.find(params) != m_emaHandlers.end()) {
-            return; // Déjà enregistré
+            return; // Already registered
         }
         
         auto handler = std::make_unique<IndicatorHandler<EMA, double>>(params);
@@ -240,7 +148,7 @@ public:
     
     void registerRSI(const filter::RSIParams& params) {
         if (m_rsiHandlers.find(params) != m_rsiHandlers.end()) {
-            return; // Déjà enregistré
+            return; // Already registered
         }
         
         auto handler = std::make_unique<IndicatorHandler<RSI, double>>(params);
@@ -250,7 +158,7 @@ public:
     
     void registerStochastic(const filter::StochasticParams& params) {
         if (m_stochHandlers.find(params) != m_stochHandlers.end()) {
-            return; // Déjà enregistré
+            return; // Already registered
         }
         
         auto handler = std::make_unique<IndicatorHandler<STOCH, std::pair<double, double>>>(
@@ -261,7 +169,7 @@ public:
     
     void registerATR(const filter::ATRParams& params) {
         if (m_atrHandlers.find(params) != m_atrHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
         
         auto handler = std::make_unique<IndicatorHandler<ATR, double>>(params);
         m_allHandlers.push_back(handler.get());
@@ -270,7 +178,7 @@ public:
     
     void registerSuperTrend(const filter::SuperTrendParams& params) {
         if (m_supertrendHandlers.find(params) != m_supertrendHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
         
         auto handler = std::make_unique<IndicatorHandler<SUPERTREND, std::pair<double, int>>>(
             params);
@@ -280,7 +188,7 @@ public:
     
     void registerCCI(const filter::CCIParams& params) {
         if (m_cciHandlers.find(params) != m_cciHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
     
         auto handler = std::make_unique<IndicatorHandler<CCI, double>>(params);
         m_allHandlers.push_back(handler.get());
@@ -289,7 +197,7 @@ public:
 
     void registerMACD(const filter::MACDParams& params) {
         if (m_macdHandlers.find(params) != m_macdHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
         
         auto handler = std::make_unique<IndicatorHandler<MACD, MACDResult>>(params);
         m_allHandlers.push_back(handler.get());
@@ -298,7 +206,7 @@ public:
 
     void registerBB(const filter::BBParams& params) {
         if (m_bbHandlers.find(params) != m_bbHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
         
         auto handler = std::make_unique<IndicatorHandler<BB, filter::BBResult>>(params);
         m_allHandlers.push_back(handler.get());
@@ -307,7 +215,7 @@ public:
 
     void registerTimeCyclic(const filter::TimeCyclicParams& params = filter::TimeCyclicParams()) {
         if (m_timeCyclicHandlers.find(params) != m_timeCyclicHandlers.end()) 
-            return; // Déjà enregistré
+            return; // Already registered
         
         auto handler = std::make_unique<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>(params);
         m_allHandlers.push_back(handler.get());
@@ -535,7 +443,7 @@ public:
     
     // Méthodes de gestion en masse
     bool initializeAll(const std::vector<BasicCandle>& history, ILogger* logger) {
-        STRATEGY_LOG(logger, log_general, "Initialisation de tous les indicateurs", LogLevel::DEBUG);
+        STRATEGY_LOG(logger, log_general, "Initializing all indicators", LogLevel::DEBUG);
         
         bool success = true;
         for (auto handler : m_allHandlers) {
@@ -543,8 +451,8 @@ public:
             success = success && indSuccess;
         }
 
-        STRATEGY_LOG(logger, log_general, "Initialisation des indicateurs: " + 
-            std::string(success ? "TOUS INITIALISÉS AVEC SUCCÈS" : "CERTAINS ONT ÉCHOUÉ"), 
+        STRATEGY_LOG(logger, log_general, "Indicator initialization: " + 
+            std::string(success ? "ALL SUCCESSFULLY INITIALIZED" : "SOME FAILED"), 
             success ? LogLevel::INFO : LogLevel::WARNING);
         
         return success;
