@@ -17,6 +17,7 @@
 #include <iomanip>
 #include <iostream>
 #include <sstream>
+#include <cmath>
 #include "Indicators/indicators.hpp"
 
 // Utility function to parse an ISO date string

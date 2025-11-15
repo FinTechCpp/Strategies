@@ -198,6 +198,13 @@ bool Strategy::is_trade_risk_acceptable(double risk) {
         return true;  // If the limit is not enabled, all trades are acceptable
     }
 
+    // Safety check: ensure percentage is valid (not uninitialized garbage)
+    if (std::isnan(base_config.daily_max_loss_percentage) || 
+        std::isinf(base_config.daily_max_loss_percentage) ||
+        base_config.daily_max_loss_percentage < 0.0) {
+        return true;  // Invalid value, treat as disabled (all trades acceptable)
+    }
+
     // Calculate the daily loss limit
     double max_loss_amount = base_config.cash * base_config.daily_max_loss_percentage / 100.0;
 
@@ -212,6 +219,13 @@ bool Strategy::is_daily_max_profit_reached() {
         return false;  // If the limit is not enabled, profit limit never reached
     }
 
+    // Safety check: ensure percentage is valid (not uninitialized garbage)
+    if (std::isnan(base_config.daily_max_profit_percentage) || 
+        std::isinf(base_config.daily_max_profit_percentage) ||
+        base_config.daily_max_profit_percentage < 0.0) {
+        return false;  // Invalid value, treat as disabled
+    }
+
     // Calculate the daily profit limit
     double max_profit_amount = base_config.cash * base_config.daily_max_profit_percentage / 100.0;
 
@@ -224,13 +238,20 @@ bool Strategy::is_daily_drawdown_reached() {
     if (!base_config.use_daily_max_drawdown) 
         return false;  // If the limit is not enabled, drawdown limit never reached
     
+    // Safety check: ensure percentage is valid (not uninitialized garbage)
+    if (std::isnan(base_config.daily_max_drawdown_percentage) || 
+        std::isinf(base_config.daily_max_drawdown_percentage) ||
+        base_config.daily_max_drawdown_percentage < 0.0) {
+        return false;  // Invalid value, treat as disabled
+    }
+    
     // Calculate the daily drawdown limit
     double max_drawdown_amount = base_config.cash * base_config.daily_max_drawdown_percentage / 100.0;
 
     // Calculate current drawdown: difference between max PnL and current PnL
     double current_drawdown = daily_max_pnl - daily_pnl;
 
-    // Check if the current drawdown has reached the limit
+    // Check if the drawdown has reached the limit
     return current_drawdown >= max_drawdown_amount;
 }
 
