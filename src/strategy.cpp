@@ -36,8 +36,13 @@ int get_day_of_week(const DateTime& date) {
     timeinfo.tm_mday = date.day;
     
     std::time_t time = std::mktime(&timeinfo);
-    std::tm* local_tm = std::localtime(&time);
-    int weekday = local_tm->tm_wday;
+    std::tm local_tm = {};
+#ifdef _WIN32
+    localtime_s(&local_tm, &time);  // Windows secure version
+#else
+    localtime_r(&time, &local_tm);  // POSIX secure version
+#endif
+    int weekday = local_tm.tm_wday;
     // Convert from Sunday=0 to Sunday=6
     return (weekday == 0) ? 6 : weekday - 1;
 }
@@ -45,9 +50,8 @@ int get_day_of_week(const DateTime& date) {
 void Strategy::registerFiltersIndicators() {
     // Helper function to register an indicator only once
     auto registerIfNeeded = [this](const filter::ValueSource& source) {
-        if (source.category != filter::ValueCategory::INDICATOR) {
+        if (source.category != filter::ValueCategory::INDICATOR) 
             return;
-        }
         
         switch (source.indicatorType) {
             case filter::IndicatorType::EMA:
@@ -743,10 +747,10 @@ std::vector<float> Strategy::prepare_ml_features() {
     // Build the feature vector from OHLC data
     for (const auto& candle : recent_candles) {
         if (base_config.ml_entry_normalize) {
-            features.push_back(candle.open);
-            features.push_back(candle.high);
-            features.push_back(candle.low);
-            features.push_back(candle.close);
+            features.push_back(static_cast<float>(candle.open));
+            features.push_back(static_cast<float>(candle.high));
+            features.push_back(static_cast<float>(candle.low));
+            features.push_back(static_cast<float>(candle.close));
         } else {
             features.push_back(static_cast<float>(candle.open));
             features.push_back(static_cast<float>(candle.high));
