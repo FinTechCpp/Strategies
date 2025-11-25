@@ -746,12 +746,12 @@ namespace filter {
 
             // Describe temporal logic
             std::string timeLogicStr;
-            if (temporalLogic == TemporalLogic::ANY_OF) {
-                timeLogicStr = " (at least one period)";
-            } else {
-                timeLogicStr = " (all periods)";
-            }
             if (lookbackPeriods > 1) {
+                if (temporalLogic == TemporalLogic::ANY_OF) {
+                    timeLogicStr = " (at least one period)";
+                } else {
+                    timeLogicStr = " (all periods)";
+                }
                 timeLogicStr += " over " + std::to_string(lookbackPeriods) + " periods";
             }
 
@@ -759,9 +759,9 @@ namespace filter {
             std::string leftDesc = ValueSource::description(leftValue);
             std::string rightDesc;
             if (op == ComparisonOperator::TRUE) {
-                rightDesc = "TRUE";
+                rightDesc = "";
             } else if (op == ComparisonOperator::FALSE) {
-                rightDesc = "FALSE";
+                rightDesc = "";
             } else {
                 rightDesc = ValueSource::description(rightValue);
             }
