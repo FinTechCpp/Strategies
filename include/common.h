@@ -88,6 +88,8 @@ namespace filter {
         LESS_OR_EQUAL,         // <=
         EQUAL,                 // ==
         NOT_EQUAL,             // !=
+        DISTANCE_LESS,         // |left - right| < threshold
+        DISTANCE_GREATER,      // |left - right| > threshold
         CROSSES_ABOVE,         // Crosses above (current vs previous period)
         CROSSES_BELOW,         // Crosses below (current vs previous period)
         TRUE,                  // Shortcut for == Constant 1.0
@@ -736,6 +738,8 @@ namespace filter {
                 case ComparisonOperator::NOT_EQUAL: opStr = "≠"; break;
                 case ComparisonOperator::CROSSES_ABOVE: opStr = "crosses above"; break;
                 case ComparisonOperator::CROSSES_BELOW: opStr = "crosses below"; break;
+                case ComparisonOperator::DISTANCE_LESS: opStr = "distance <"; break;
+                case ComparisonOperator::DISTANCE_GREATER: opStr = "distance >"; break;
                 case ComparisonOperator::TRUE: opStr = "is true"; break;
                 case ComparisonOperator::FALSE: opStr = "is false"; break;
             }

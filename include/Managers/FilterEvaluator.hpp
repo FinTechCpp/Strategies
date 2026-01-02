@@ -154,6 +154,16 @@ private:
             case filter::ComparisonOperator::NOT_EQUAL:
                 return std::abs(left - right) >= 0.00001;
             
+            case filter::ComparisonOperator::DISTANCE_LESS: {
+                // absolute distance less than threshold
+                return std::abs(left - right) < threshold;
+            }
+
+            case filter::ComparisonOperator::DISTANCE_GREATER: {
+                // absolute distance greater than threshold
+                return std::abs(left - right) > threshold;
+            }
+            
             case filter::ComparisonOperator::CROSSES_ABOVE:
             case filter::ComparisonOperator::CROSSES_BELOW:
                 return false;
