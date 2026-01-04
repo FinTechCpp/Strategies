@@ -165,17 +165,53 @@ bool Strategy::update_indicators()
         if (base_config.sl_method == StopLossMethod::MinMax) 
             max_period = std::max(max_period, base_config.sl_minmax_periods);
         
-        size_t available_candles = candle_manager->size();
+        size_t available_candles;
+        std::vector<BasicCandle> candles;
         
-        if (available_candles < static_cast<size_t>(max_period)) {
-            int remaining = max_period - static_cast<int>(available_candles);
-            STRATEGY_LOG(logger, log_general, "Insufficient history: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
+        // If reset on new day is enabled and we've reset today, only use candles from today
+        if (base_config.reset_indicators_on_new_day && last_indicator_reset_day.is_valid()) {
+            // Count candles from the start of the current day
+            const DateTime& current_date = candle_manager->get_latest_candle().date;
+            size_t candles_today = 0;
+            
+            // Get all candles and count from today
+            auto all_candles = candle_manager->get_last_candles(candle_manager->size());
+            for (auto it = all_candles.rbegin(); it != all_candles.rend(); ++it) {
+                if (it->date.year == current_date.year &&
+                    it->date.month == current_date.month &&
+                    it->date.day == current_date.day) {
+                    candles_today++;
+                } else {
+                    break; // Stop when we reach a different day
+                }
+            }
+            
+            available_candles = candles_today;
+            
+            if (available_candles < static_cast<size_t>(max_period)) {
+                // Not enough candles yet today - no indicator values
+                STRATEGY_LOG(logger, log_general, "Insufficient history for today: " + 
+                              logger->fast_int_to_string(static_cast<int>(available_candles)) + 
+                              "/" + logger->fast_int_to_string(max_period) + " candles");
+                return false;
+            }
+            
+            candles = candle_manager->get_last_candles(available_candles);
+        } else {
+            // Normal mode: use all available history
+            available_candles = candle_manager->size();
+            
+            if (available_candles < static_cast<size_t>(max_period)) {
+                int remaining = max_period - static_cast<int>(available_candles);
+                STRATEGY_LOG(logger, log_general, "Insufficient history: " + logger->fast_int_to_string(static_cast<int>(available_candles)) + 
                               "/" + logger->fast_int_to_string(max_period) + " candles (missing " + 
                               logger->fast_int_to_string(remaining) + " candles)");
-            return false;
+                return false;
+            }
+            
+            candles = candle_manager->get_last_candles(candle_manager->size());
         }
         
-        auto candles = candle_manager->get_last_candles(candle_manager->size());
         STRATEGY_LOG(logger, log_general, "Initialization with " + logger->fast_int_to_string(static_cast<int>(candles.size())) + " candles");
         return indicator_manager->initializeAll(candles, logger.get());
     }
@@ -317,6 +353,32 @@ void Strategy::update_daily_pnl_tracking() {
                           " - Daily max P&L: " + logger->fast_double_to_string(daily_max_pnl), LogLevel::INFO);
 
         last_trade_pnl = 0.0;
+    }
+}
+
+// Method to check and reset indicators at the start of a new trading day
+void Strategy::check_and_reset_indicators_for_new_day() {
+    if (!base_config.reset_indicators_on_new_day) {
+        return;  // Feature disabled
+    }
+
+    const DateTime& current_date = candle_manager->get_latest_candle().date;
+    
+    // Check if we're on a new day compared to last indicator reset
+    bool is_new_day = !last_indicator_reset_day.is_valid() ||
+                      current_date.year != last_indicator_reset_day.year ||
+                      current_date.month != last_indicator_reset_day.month ||
+                      current_date.day != last_indicator_reset_day.day;
+    
+    if (is_new_day) {
+        STRATEGY_LOG(logger, log_general, "New trading day detected: " + current_date.to_string() + 
+                          " - Resetting all indicators", LogLevel::INFO);
+        
+        // Reset all indicators
+        indicator_manager->resetAll(logger.get());
+        
+        // Update the last reset day
+        last_indicator_reset_day = current_date;
     }
 }
 
@@ -525,6 +587,9 @@ bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {
 Signal Strategy::execute() {
     // Update daily PnL tracking
     update_daily_pnl_tracking();
+
+    // Check and reset indicators if new trading day (to handle overnight/weekend gaps)
+    check_and_reset_indicators_for_new_day();
 
     bool indicators_ready = update_indicators();
     before();

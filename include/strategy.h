@@ -54,6 +54,7 @@ protected:
     
     // Cache for time checking
     DateTime last_check_date;
+    DateTime last_indicator_reset_day; // Track last day indicators were reset
     bool weekday_check = false;
     int weekday = -1;
     bool time_check = false;
@@ -87,6 +88,7 @@ private:
     bool is_daily_drawdown_reached();
     bool is_new_trading_day();
     void update_daily_pnl_tracking();
+    void check_and_reset_indicators_for_new_day();
 
     // Method to check if we are within trading hours
     bool check_time();

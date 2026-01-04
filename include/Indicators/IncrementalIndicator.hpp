@@ -20,6 +20,9 @@ public:
     bool requires_initialization() const { return !is_initialized; }
     bool initialized() const { return is_initialized; }
 
+    // Reset the indicator to uninitialized state
+    virtual void reset() { is_initialized = false; }
+
     // Getters for the name
     const std::string& get_name() const { return name; }
     int get_required_periods() const { return required_periods; }

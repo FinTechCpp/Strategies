@@ -28,6 +28,7 @@ public:
     virtual bool isInitialized() const = 0;
     virtual const std::string& getName() const = 0;
     virtual int getRequiredPeriods() const = 0;
+    virtual void reset() = 0; // Reset indicator to uninitialized state
 };
 
 // Typed manager for each type of indicator
@@ -113,6 +114,12 @@ public:
     // Direct access to the underlying indicator (for compatibility)
     std::shared_ptr<T> getIndicator() const {
         return m_indicator;
+    }
+
+    // Reset the indicator to uninitialized state
+    void reset() override {
+        m_history.clear();
+        m_indicator->reset();
     }
 };
 
@@ -474,6 +481,12 @@ public:
             }
         }
         return true;
+    }
+
+    // Reset all indicators to uninitialized state (for new trading day handling)
+    void resetAll(ILogger* logger = nullptr) {
+        if (logger) STRATEGY_LOG(logger, log_general, "Resetting all indicators for new trading day", LogLevel::INFO);
+        for (auto handler : m_allHandlers) handler->reset();
     }
     
     bool needsInitialization() const {
