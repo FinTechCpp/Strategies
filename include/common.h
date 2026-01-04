@@ -1005,7 +1005,7 @@ struct StrategyConfig {
     double daily_max_drawdown_percentage;
 
     // Indicator reset on new day (to handle overnight/weekend gaps)
-    bool reset_indicators_on_new_day = false; // Reset and reinitialize indicators at the start of each trading day
+    bool reset_indicators_on_new_day = true; // Reset and reinitialize indicators at the start of each trading day
 
     // Machine Learning parameters for entry signals
     bool use_ml_entry = false; // Use ML model instead of filters for entry signals
