@@ -945,6 +945,10 @@ struct StrategyConfig {
     std::vector<filter::GenericFilter> resaleFilters;
     std::vector<filter::GenericFilter> rebuyFilters;
 
+    // Optional advanced scripting (executed in addition to filter-based logic)
+    bool use_lua_script = false;
+    std::string lua_script;
+
     // Time settings
     Time trading_from;
     Time trading_to;
@@ -1117,6 +1121,9 @@ inline std::ostream& operator<<(std::ostream& os, const StrategyConfig& config) 
     os << "  Name: " << config.name << "\n";
     os << "  Log level: " << config.logLevel << "\n";
     os << "  Logging enabled: " << (config.enable_logging ? "Yes" : "No") << "\n";
+    os << "  Lua script enabled: " << (config.use_lua_script ? "Yes" : "No") << "\n";
+    if (config.use_lua_script)
+        os << "  Lua script length: " << config.lua_script.size() << " characters\n";
     
     os << "\nBUY FILTERS\n";
     if (config.buyFilters.empty()) {

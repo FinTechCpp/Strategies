@@ -5,6 +5,7 @@
 #include "Managers/PositionManager.hpp"
 #include "Managers/IndicatorManager.hpp"
 #include "Managers/FilterEvaluator.hpp"
+#include "Managers/LuaScriptEngine.hpp"
 
 #include "MachineLearning/InferenceModel.hpp"
 #include <string>
@@ -72,6 +73,9 @@ protected:
     std::unique_ptr<InferenceModel> ml_entry_model;
     bool ml_model_loaded = false;
 
+    // Optional Lua scripting engine
+    std::unique_ptr<LuaScriptEngine> lua_script_engine;
+
     // Core strategy methods to implement in derived classes
     virtual void registerFiltersIndicators();
     virtual void before() {}
@@ -98,6 +102,7 @@ private:
     
     std::optional<Signal> execute_long();
     std::optional<Signal> execute_short();
+    std::optional<Signal> execute_lua_script();
     bool executeFilters(std::vector<filter::GenericFilter>& filters);
     Signal execute();
     

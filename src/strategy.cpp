@@ -163,6 +163,10 @@ bool Strategy::update_indicators()
         
         // Also consider the period for Stop Loss if needed
         if (base_config.sl_method == StopLossMethod::MinMax) 
+    //TODO : implement a parsing method to determine the minimum number of histry candles required by lua script
+    if (base_config.use_lua_script) {
+        max_period = std::max(max_period, 200);
+    }
             max_period = std::max(max_period, base_config.sl_minmax_periods);
         
         size_t available_candles;
@@ -562,6 +566,39 @@ std::optional<Signal> Strategy::execute_short() {
     return signal;
 }
 
+std::optional<Signal> Strategy::execute_lua_script() {
+    if (!lua_script_engine || !lua_script_engine->is_ready()) {
+        return std::nullopt;
+    }
+
+    std::optional<Signal> lua_signal = lua_script_engine->evaluate();
+    if (!lua_signal || lua_signal->type == SignalType::NONE) {
+        return std::nullopt;
+    }
+
+    // Directement compléter le signal Lua avec les calculs de base (TP, SL, Quantity) 
+    // sans recréer de la logique de vérification d'état (position déjà ouverte, etc.) 
+    // car le Broker gère ces règles.
+    if (lua_signal->type == SignalType::BUY || lua_signal->type == SignalType::SELL) {
+        TradeDirection direction = (lua_signal->type == SignalType::BUY) ? TradeDirection::LONG : TradeDirection::SHORT;
+        Signal base_signal = go(direction);
+        
+        if (lua_signal->quantity > 0.0) base_signal.quantity = lua_signal->quantity;
+        if (lua_signal->price > 0.0) base_signal.price = lua_signal->price;
+        if (lua_signal->take_profit > 0.0) base_signal.take_profit = lua_signal->take_profit;
+        if (lua_signal->stop_loss > 0.0) base_signal.stop_loss = lua_signal->stop_loss;
+
+        return base_signal;
+    }
+
+    // Liquidation par défaut à 1.0 (100% de la position) si non spécifiée
+    if (lua_signal->type == SignalType::LIQUIDATE && lua_signal->quantity <= 0.0) {
+        lua_signal->quantity = 1.0;
+    }
+
+    return lua_signal;
+}
+
 bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {
     // If empty, always false
     if (filters.empty()) 
@@ -650,6 +687,13 @@ Signal Strategy::execute() {
         return *be_signal;
     }
 
+    auto lua_signal = execute_lua_script();
+    if (lua_signal) {
+        STRATEGY_LOG(logger, log_execution_step, "Lua script generated signal", true);
+        STRATEGY_LOG(logger, log_signal, *lua_signal);
+        return *lua_signal;
+    }
+
     if (position_info.entry_price > 0.0) {
         // TODO differentiate normal liquidation signals and rebuy/resale signals
         if (executeFilters(resaleFilters)) {
@@ -714,6 +758,21 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
 
     registerFiltersIndicators();
 
+    if (base_config.use_lua_script && !base_config.lua_script.empty()) {
+        lua_script_engine = std::make_unique<LuaScriptEngine>(
+            base_config.lua_script,
+            *candle_manager,
+            position_info,
+            logger.get());
+
+        if (!lua_script_engine->initialize()) {
+            STRATEGY_LOG(logger, log_general, "Lua script disabled after initialization failure", LogLevel::WARNING);
+            lua_script_engine.reset();
+        } else {
+            STRATEGY_LOG(logger, log_general, "Lua script enabled", LogLevel::INFO);
+        }
+    }
+
     if (base_config.sl_method == StopLossMethod::ATR || base_config.tp_method == TakeProfitMethod::ATR || base_config.sl_method == StopLossMethod::MinMax) 
         indicator_manager->registerATR(filter::ATRParams(base_config.atr_period, true));
     
@@ -729,6 +788,13 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     // Adjust CandleManager parameters according to the maximum required period
     int max_period = indicator_manager->getMaxRequiredPeriods();
     if (base_config.sl_method == StopLossMethod::MinMax) 
+    
+    if (base_config.use_lua_script) {
+        max_period = std::max(max_period, 200);
+    }
+    if (base_config.use_lua_script) {
+        max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
+    }
         max_period = std::max(max_period, base_config.sl_minmax_periods);
     
     // Configure the CandleManager with the minimal required size

@@ -2,7 +2,7 @@
 add_subdirectory(ThirdParty/ONNXRuntime)
 
 # Add library src files to the library
-file(GLOB SOURCES "src/*.cpp" "src/Managers/*.cpp")
+file(GLOB SOURCES CONFIGURE_DEPENDS "src/*.cpp" "src/Managers/*.cpp")
 
 # Create the library
 add_library(strategies STATIC ${SOURCES})
@@ -20,6 +20,7 @@ if(TARGET onnxruntime)
     # Add spdlog and ONNX Runtime for headers that use them
     target_link_libraries(strategies PUBLIC 
         spdlog::spdlog
+        lua_vendor
         onnxruntime
     )
 else()
@@ -27,5 +28,6 @@ else()
     # Add only spdlog
     target_link_libraries(strategies PUBLIC 
         spdlog::spdlog
+        lua_vendor
     )
 endif()
