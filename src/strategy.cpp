@@ -163,11 +163,14 @@ bool Strategy::update_indicators()
         
         // Also consider the period for Stop Loss if needed
         if (base_config.sl_method == StopLossMethod::MinMax) 
-    //TODO : implement a parsing method to determine the minimum number of histry candles required by lua script
-    if (base_config.use_lua_script) {
-        max_period = std::max(max_period, 200);
-    }
             max_period = std::max(max_period, base_config.sl_minmax_periods);
+
+        // TODO: remove this hardcoded value and find a way to make it dynamic based on the Lua script's needs : 
+        // either by analyzing the script to detect which indicators it uses and their parameters, 
+        // or by allowing the user to specify a required history length for Lua scripts in the strategy configuration.
+        if (base_config.use_lua_script) {
+            max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
+        }
         
         size_t available_candles;
         std::vector<BasicCandle> candles;
@@ -567,18 +570,18 @@ std::optional<Signal> Strategy::execute_short() {
 }
 
 std::optional<Signal> Strategy::execute_lua_script() {
+    // If Lua script is not enabled or not ready, return no signal
     if (!lua_script_engine || !lua_script_engine->is_ready()) {
         return std::nullopt;
     }
 
+    // Evaluate the Lua script to get a signal
     std::optional<Signal> lua_signal = lua_script_engine->evaluate();
     if (!lua_signal || lua_signal->type == SignalType::NONE) {
         return std::nullopt;
     }
 
-    // Directement compléter le signal Lua avec les calculs de base (TP, SL, Quantity) 
-    // sans recréer de la logique de vérification d'état (position déjà ouverte, etc.) 
-    // car le Broker gère ces règles.
+    // If the Lua script returned a BUY or SELL signal, we can enrich it with default values for missing parameters
     if (lua_signal->type == SignalType::BUY || lua_signal->type == SignalType::SELL) {
         TradeDirection direction = (lua_signal->type == SignalType::BUY) ? TradeDirection::LONG : TradeDirection::SHORT;
         Signal base_signal = go(direction);
@@ -591,7 +594,7 @@ std::optional<Signal> Strategy::execute_lua_script() {
         return base_signal;
     }
 
-    // Liquidation par défaut à 1.0 (100% de la position) si non spécifiée
+    // Liquidate signals by default will have quantity 1.0 if not specified, to ensure they are actionable
     if (lua_signal->type == SignalType::LIQUIDATE && lua_signal->quantity <= 0.0) {
         lua_signal->quantity = 1.0;
     }
@@ -788,14 +791,9 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     // Adjust CandleManager parameters according to the maximum required period
     int max_period = indicator_manager->getMaxRequiredPeriods();
     if (base_config.sl_method == StopLossMethod::MinMax) 
-    
-    if (base_config.use_lua_script) {
-        max_period = std::max(max_period, 200);
-    }
-    if (base_config.use_lua_script) {
-        max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
-    }
         max_period = std::max(max_period, base_config.sl_minmax_periods);
+    if (base_config.use_lua_script) 
+        max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
     
     // Configure the CandleManager with the minimal required size
     // The setMinimalBufferSize method automatically handles internal parameters
