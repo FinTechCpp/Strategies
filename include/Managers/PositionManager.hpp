@@ -21,7 +21,10 @@ public:
         const CandleManager& candle_manager,
         ILogger* logger
     ) {
-        if (config.sl_method == StopLossMethod::ATR && current_atr > 0.0) {
+        if (config.sl_method == StopLossMethod::Unset) {
+            return 0.0;
+        }
+        else if (config.sl_method == StopLossMethod::ATR && current_atr > 0.0) {
             return calculateStopLossWithATR(config, current_atr, logger);
         } 
         else if (config.sl_method == StopLossMethod::MinMax && candle_manager.size() >= static_cast<size_t>(config.sl_minmax_periods)) {
@@ -44,7 +47,9 @@ public:
         const CandleManager& candle_manager,
         ILogger* logger
     ) {
-        if (config.tp_method == TakeProfitMethod::SuperTrend) {
+        if (config.tp_method == TakeProfitMethod::Unset) {
+            return 0.0;
+        } else if (config.tp_method == TakeProfitMethod::SuperTrend) {
             // SuperTrend TP: no fixed TP at open, exit based on trend reversal
             if (logger) logger->log_general("Using SuperTrend for TP - no fixed distance", LogLevel::INFO);
             return 0.0;  // No fixed TP
@@ -268,19 +273,24 @@ private:
 
         logger->log_risk_calculation(risk_amount, risk_percentage);
         
-        // Calculate position size for SL to represent exactly risk_amount
-        double risk_based_position_size = risk_amount / stop_loss_distance;
-
-        logger->log_position_sizing(risk_based_position_size, risk_based_position_size, 
-            "based on risk", LogLevel::DEBUG);
-        
         // Use total available capital with leverage
         double leveraged_capital = initial_capital * config.leverage_limit;
         
         // Limit max position size to a percentage of capital with leverage
         double max_position_value = leveraged_capital;
         double max_position_size = max_position_value / current_price;
+        
+        double risk_based_position_size = max_position_size;
+        if (stop_loss_distance > 0.0) {
+            // Calculate position size for SL to represent exactly risk_amount
+            risk_based_position_size = risk_amount / stop_loss_distance;
+        } else {
+            logger->log_general("Using max possible position size since no positive SL distance is defined for risk calculation.", LogLevel::WARNING);
+        }
 
+        logger->log_position_sizing(risk_based_position_size, risk_based_position_size, 
+            "based on risk", LogLevel::DEBUG);
+        
         logger->log_position_sizing(max_position_size, max_position_size, 
             "maximum limit", LogLevel::DEBUG);
         
