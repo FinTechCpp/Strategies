@@ -22,7 +22,11 @@ public:
     bool is_ready() const { return m_ready; }
     int get_required_history() const { return m_required_history; }
 
+    const std::string& get_last_error() const { return m_last_error; }
+
     std::optional<Signal> evaluate();
+
+    static bool validate_script(const std::string& script, std::string& error_message);
 
 private:
     static LuaScriptEngine* self_from_upvalue(lua_State* L);
@@ -50,5 +54,6 @@ private:
 
     lua_State* m_lua_state = nullptr;
     bool m_ready = false;
-    int m_required_history;
+    int m_required_history;    
+    std::string m_last_error;
 };

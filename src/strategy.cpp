@@ -767,8 +767,9 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
             logger.get());
 
         if (!lua_script_engine->initialize()) {
-            STRATEGY_LOG(logger, log_general, "Lua script disabled after initialization failure", LogLevel::WARNING);
-            lua_script_engine.reset();
+            std::string err = lua_script_engine->get_last_error();
+            STRATEGY_LOG(logger, log_general, "Lua script disabled after initialization failure: " + err, LogLevel::ERROR);
+            throw std::runtime_error("Lua script execution failed at initialization: " + err);
         } else {
             STRATEGY_LOG(logger, log_general, "Lua script enabled", LogLevel::INFO);
         }

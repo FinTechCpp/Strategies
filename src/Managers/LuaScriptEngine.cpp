@@ -69,7 +69,8 @@ bool LuaScriptEngine::initialize()
 
     if (load_status != LUA_OK) {
         const char* error_message = lua_tostring(m_lua_state, -1);
-        log_error(std::string("Lua compile error: ") + (error_message ? error_message : "unknown error"));
+        m_last_error = std::string("Lua compile error: ") + (error_message ? error_message : "unknown error");
+        log_error(m_last_error);
         lua_pop(m_lua_state, 1);
         m_ready = false;
         return false;
@@ -77,8 +78,9 @@ bool LuaScriptEngine::initialize()
 
     if (lua_pcall(m_lua_state, 0, 0, 0) != LUA_OK) {
         const char* error_message = lua_tostring(m_lua_state, -1);
-        log_error(std::string("Lua execution error during initialization: ") +
-                  (error_message ? error_message : "unknown error"));
+        m_last_error = std::string("Lua execution error during initialization: ") +
+                  (error_message ? error_message : "unknown error");
+        log_error(m_last_error);
         lua_pop(m_lua_state, 1);
         m_ready = false;
         return false;
@@ -89,13 +91,71 @@ bool LuaScriptEngine::initialize()
     lua_pop(m_lua_state, 1);
 
     if (!valid_function) {
-        log_error("Lua script must define function on_candle(candle, position)");
+        m_last_error = "Lua script must define function on_candle(candle, position)";
+        log_error(m_last_error);
         m_ready = false;
         return false;
     }
 
     log_debug("Lua script initialized successfully");
     m_ready = true;
+    return true;
+}
+
+bool LuaScriptEngine::validate_script(const std::string& script, std::string& error_message)
+{
+    if (script.empty()) {
+        error_message = "Script is empty.";
+        return false;
+    }
+
+    lua_State* L = luaL_newstate();
+    if (!L) {
+        error_message = "Failed to allocate Lua state.";
+        return false;
+    }
+
+    luaL_openlibs(L);
+
+    // Provide the minimum global env
+    lua_newtable(L);
+    lua_pushstring(L, "NONE"); lua_setfield(L, -2, "NONE");
+    lua_pushstring(L, "BUY"); lua_setfield(L, -2, "BUY");
+    lua_pushstring(L, "SELL"); lua_setfield(L, -2, "SELL");
+    lua_pushstring(L, "LIQUIDATE"); lua_setfield(L, -2, "LIQUIDATE");
+    lua_pushstring(L, "MOVE_SL"); lua_setfield(L, -2, "MOVE_SL");
+    lua_setglobal(L, "SignalType");
+
+    // Dummy helper functions to avoid runtime errors on script load
+    auto dummy = [](lua_State*) -> int { return 0; };
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "get_candle");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "candles_count");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "get_position");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "log");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "set_required_history");
+
+    if (luaL_loadbuffer(L, script.c_str(), script.size(), "strategy_script") != LUA_OK) {
+        const char* msg = lua_tostring(L, -1);
+        error_message = std::string("Compile error: ") + (msg ? msg : "unknown error");
+        lua_close(L);
+        return false;
+    }
+
+    if (lua_pcall(L, 0, 0, 0) != LUA_OK) {
+        const char* msg = lua_tostring(L, -1);
+        error_message = std::string("Execution error during initialization: ") + (msg ? msg : "unknown error");
+        lua_close(L);
+        return false;
+    }
+
+    lua_getglobal(L, "on_candle");
+    if (!lua_isfunction(L, -1)) {
+        error_message = "Lua script must define function on_candle(candle, position)";
+        lua_close(L);
+        return false;
+    }
+
+    lua_close(L);
     return true;
 }
 
@@ -108,8 +168,9 @@ std::optional<Signal> LuaScriptEngine::evaluate()
     lua_getglobal(m_lua_state, "on_candle");
     if (!lua_isfunction(m_lua_state, -1)) {
         lua_pop(m_lua_state, 1);
-        log_error("Lua runtime error: on_candle is no longer a valid function");
-        return std::nullopt;
+        m_last_error = "Lua runtime error: on_candle is no longer a valid function";
+        log_error(m_last_error);
+        throw std::runtime_error(m_last_error);
     }
 
     push_candle_table(m_lua_state, m_candle_manager.get_latest_candle());
@@ -117,9 +178,10 @@ std::optional<Signal> LuaScriptEngine::evaluate()
 
     if (lua_pcall(m_lua_state, 2, 1, 0) != LUA_OK) {
         const char* error_message = lua_tostring(m_lua_state, -1);
-        log_error(std::string("Lua runtime error: ") + (error_message ? error_message : "unknown error"));
+        m_last_error = std::string("Lua runtime error: ") + (error_message ? error_message : "unknown error");
+        log_error(m_last_error);
         lua_pop(m_lua_state, 1);
-        return std::nullopt;
+        throw std::runtime_error(m_last_error);
     }
 
     std::optional<Signal> signal = parse_signal_from_stack(m_lua_state, -1);
