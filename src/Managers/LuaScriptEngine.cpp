@@ -193,6 +193,19 @@ int LuaScriptEngine::lua_log(lua_State* L)
     return 0;
 }
 
+int LuaScriptEngine::lua_set_required_history(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        return 0;
+    }
+
+    const int history = luaL_optinteger(L, 1, 200);
+    self->m_required_history = std::max(1, history);
+    self->log_debug(std::string("[Lua] Required history set to: ") + std::to_string(self->m_required_history));
+    return 0;
+}
+
 void LuaScriptEngine::register_helpers()
 {
     lua_pushlightuserdata(m_lua_state, this);
@@ -210,6 +223,10 @@ void LuaScriptEngine::register_helpers()
     lua_pushlightuserdata(m_lua_state, this);
     lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_log, 1);
     lua_setglobal(m_lua_state, "log");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_set_required_history, 1);
+    lua_setglobal(m_lua_state, "set_required_history");
 }
 
 void LuaScriptEngine::push_candle_table(lua_State* L, const BasicCandle& candle) const

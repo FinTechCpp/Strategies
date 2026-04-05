@@ -165,11 +165,9 @@ bool Strategy::update_indicators()
         if (base_config.sl_method == StopLossMethod::MinMax) 
             max_period = std::max(max_period, base_config.sl_minmax_periods);
 
-        // TODO: remove this hardcoded value and find a way to make it dynamic based on the Lua script's needs : 
-        // either by analyzing the script to detect which indicators it uses and their parameters, 
-        // or by allowing the user to specify a required history length for Lua scripts in the strategy configuration.
-        if (base_config.use_lua_script) {
-            max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
+        // Use the dynamic history value requested by the Lua script (default 200)
+        if (base_config.use_lua_script && lua_script_engine) {
+            max_period = std::max(max_period, lua_script_engine->get_required_history());
         }
         
         size_t available_candles;

@@ -20,6 +20,7 @@ public:
 
     bool initialize();
     bool is_ready() const { return m_ready; }
+    int get_required_history() const { return m_required_history; }
 
     std::optional<Signal> evaluate();
 
@@ -30,6 +31,7 @@ private:
     static int lua_candles_count(lua_State* L);
     static int lua_get_position(lua_State* L);
     static int lua_log(lua_State* L);
+    static int lua_set_required_history(lua_State* L);
 
     void register_helpers();
     void push_candle_table(lua_State* L, const BasicCandle& candle) const;
@@ -48,4 +50,5 @@ private:
 
     lua_State* m_lua_state = nullptr;
     bool m_ready = false;
+    int m_required_history;
 };
