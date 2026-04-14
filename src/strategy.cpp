@@ -791,8 +791,10 @@ Strategy::Strategy(const StrategyConfig& config, std::function<void(const std::s
     int max_period = indicator_manager->getMaxRequiredPeriods();
     if (base_config.sl_method == StopLossMethod::MinMax) 
         max_period = std::max(max_period, base_config.sl_minmax_periods);
-    if (base_config.use_lua_script) 
-        max_period = std::max(max_period, 200); // Allow Lua to access up to 200 past candles
+    if (base_config.use_lua_script && lua_script_engine) {
+        // Respect dynamic history requested by Lua script via set_required_history().
+        max_period = std::max(max_period, lua_script_engine->get_required_history());
+    }
     
     // Configure the CandleManager with the minimal required size
     // The setMinimalBufferSize method automatically handles internal parameters
