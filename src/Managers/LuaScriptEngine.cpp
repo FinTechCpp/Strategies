@@ -262,7 +262,7 @@ int LuaScriptEngine::lua_set_required_history(lua_State* L)
         return 0;
     }
 
-    const int history = luaL_optinteger(L, 1, 200);
+    const int history = static_cast<int>(luaL_optinteger(L, 1, 200));
     self->m_required_history = std::max(1, history);
     self->log_debug(std::string("[Lua] Required history set to: ") + std::to_string(self->m_required_history));
     return 0;
