@@ -952,7 +952,7 @@ struct StrategyConfig {
     // Time settings
     Time trading_from;
     Time trading_to;
-    bool trading_days_array[7]; // (0 = Monday, 6 = Sunday)
+    bool trading_days_array[7] = {true, true, true, true, true, true, true}; // (0 = Monday, 6 = Sunday)
 
     // Fixed SL/TP values
     double take_profit_distance;
