@@ -2,6 +2,7 @@
 
 #include "Managers/CandleManager.hpp"
 #include "Managers/LoggerManager.hpp"
+#include "Indicators/indicators.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -19,7 +20,8 @@ LuaScriptEngine::LuaScriptEngine(const std::string& script,
     : m_script(script),
       m_candle_manager(candle_manager),
       m_position_info(position_info),
-      m_logger(logger)
+    m_logger(logger),
+    m_required_history()
 {
 }
 
@@ -133,6 +135,16 @@ bool LuaScriptEngine::validate_script(const std::string& script, std::string& er
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "get_position");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "log");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "set_required_history");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "ema");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "rsi");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "stoch");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "atr");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "atrc");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "cci");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "macd");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "bb");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "supertrend");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "time_cyclic");
 
     if (luaL_loadbuffer(L, script.c_str(), script.size(), "strategy_script") != LUA_OK) {
         const char* msg = lua_tostring(L, -1);
@@ -268,6 +280,400 @@ int LuaScriptEngine::lua_set_required_history(lua_State* L)
     return 0;
 }
 
+int LuaScriptEngine::lua_ema(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 20));
+    const int offset = static_cast<int>(luaL_optinteger(L, 2, 0));
+    if (period <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    EMA indicator{filter::EMAParams(period)};
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushnumber(L, value.value());
+    return 1;
+}
+
+int LuaScriptEngine::lua_rsi(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 14));
+    const int offset = static_cast<int>(luaL_optinteger(L, 2, 0));
+    if (period <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    RSI indicator{filter::RSIParams(period)};
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushnumber(L, value.value());
+    return 1;
+}
+
+int LuaScriptEngine::lua_stoch(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int fast_k = static_cast<int>(luaL_optinteger(L, 1, 14));
+    const int slow_k = static_cast<int>(luaL_optinteger(L, 2, 3));
+    const int slow_d = static_cast<int>(luaL_optinteger(L, 3, 3));
+    const int offset = static_cast<int>(luaL_optinteger(L, 4, 0));
+    if (fast_k <= 0 || slow_k <= 0 || slow_d <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    STOCH indicator(filter::StochasticParams(fast_k, slow_k, slow_d));
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    lua_pushnumber(L, value->first);
+    lua_setfield(L, -2, "k");
+    lua_pushnumber(L, value->second);
+    lua_setfield(L, -2, "d");
+    return 1;
+}
+
+int LuaScriptEngine::lua_atr(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 14));
+    bool use_log = false;
+    int offset = 0;
+
+    if (lua_gettop(L) >= 2) {
+        if (lua_isboolean(L, 2)) {
+            use_log = lua_toboolean(L, 2) != 0;
+        } else if (lua_isnumber(L, 2)) {
+            offset = static_cast<int>(lua_tointeger(L, 2));
+        }
+    }
+    if (lua_gettop(L) >= 3 && lua_isnumber(L, 3)) {
+        offset = static_cast<int>(lua_tointeger(L, 3));
+    }
+
+    if (period <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    ATR indicator(filter::ATRParams(period, use_log));
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushnumber(L, value.value());
+    return 1;
+}
+
+int LuaScriptEngine::lua_atrc(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 14));
+    const int offset = static_cast<int>(luaL_optinteger(L, 2, 0));
+    if (period <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    ATRC indicator(period);
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushnumber(L, value.value());
+    return 1;
+}
+
+int LuaScriptEngine::lua_cci(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 20));
+    const int offset = static_cast<int>(luaL_optinteger(L, 2, 0));
+    if (period <= 0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    CCI indicator{filter::CCIParams(period)};
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_pushnumber(L, value.value());
+    return 1;
+}
+
+int LuaScriptEngine::lua_macd(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int fast = static_cast<int>(luaL_optinteger(L, 1, 12));
+    const int slow = static_cast<int>(luaL_optinteger(L, 2, 26));
+    const int signal = static_cast<int>(luaL_optinteger(L, 3, 9));
+    const int offset = static_cast<int>(luaL_optinteger(L, 4, 0));
+    const std::string source = luaL_optstring(L, 5, "CLOSE");
+    const std::string osc_ma = luaL_optstring(L, 6, "EMA");
+    const std::string signal_ma = luaL_optstring(L, 7, "EMA");
+    const int signal_smoothing = static_cast<int>(luaL_optinteger(L, 8, 0));
+
+    if (fast <= 0 || slow <= 0 || signal <= 0 || fast >= slow) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    filter::MACDParams params(
+        fast,
+        slow,
+        signal,
+        self->parse_price_source(source),
+        self->parse_ma_type(osc_ma),
+        self->parse_ma_type(signal_ma),
+        signal_smoothing);
+
+    MACD indicator(params);
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    lua_pushnumber(L, value->macdLine);
+    lua_setfield(L, -2, "macd_line");
+    lua_pushnumber(L, value->signalLine);
+    lua_setfield(L, -2, "signal_line");
+    lua_pushnumber(L, value->histogram);
+    lua_setfield(L, -2, "histogram");
+    return 1;
+}
+
+int LuaScriptEngine::lua_bb(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int period = static_cast<int>(luaL_optinteger(L, 1, 20));
+    const double stddev = luaL_optnumber(L, 2, 2.0);
+    const int offset = static_cast<int>(luaL_optinteger(L, 3, 0));
+    const std::string source = luaL_optstring(L, 4, "CLOSE");
+    const std::string ma_type = luaL_optstring(L, 5, "SMA");
+
+    if (period <= 0 || stddev <= 0.0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    filter::BBParams params(period, stddev, 0);
+    const filter::PriceType price_source = self->parse_price_source(source);
+    if (price_source == filter::PriceType::OPEN) {
+        params.source = 0;
+    } else if (price_source == filter::PriceType::HIGH) {
+        params.source = 1;
+    } else if (price_source == filter::PriceType::LOW) {
+        params.source = 2;
+    } else {
+        params.source = 3;
+    }
+    params.ma_type = (self->parse_ma_type(ma_type) == filter::MAType::EMA) ? 1 : 0;
+
+    BB indicator(params);
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    lua_pushnumber(L, value->middle);
+    lua_setfield(L, -2, "middle");
+    lua_pushnumber(L, value->upper);
+    lua_setfield(L, -2, "upper");
+    lua_pushnumber(L, value->lower);
+    lua_setfield(L, -2, "lower");
+    lua_pushnumber(L, value->percentB);
+    lua_setfield(L, -2, "percent_b");
+    return 1;
+}
+
+int LuaScriptEngine::lua_supertrend(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int atr_period = static_cast<int>(luaL_optinteger(L, 1, 10));
+    const double multiplier = luaL_optnumber(L, 2, 3.0);
+    const int offset = static_cast<int>(luaL_optinteger(L, 3, 0));
+
+    if (atr_period <= 0 || multiplier <= 0.0) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    SUPERTREND indicator(filter::SuperTrendParams(atr_period, multiplier));
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    lua_pushnumber(L, value->first);
+    lua_setfield(L, -2, "value");
+    lua_pushinteger(L, value->second);
+    lua_setfield(L, -2, "direction");
+    lua_pushboolean(L, value->second > 0);
+    lua_setfield(L, -2, "is_uptrend");
+    lua_pushboolean(L, value->second < 0);
+    lua_setfield(L, -2, "is_downtrend");
+    return 1;
+}
+
+int LuaScriptEngine::lua_time_cyclic(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    const int offset = static_cast<int>(luaL_optinteger(L, 1, 0));
+    const auto history = self->get_history_for_offset(offset);
+    if (history.empty()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    TIMECYCLIC indicator{filter::TimeCyclicParams()};
+    const auto value = indicator.initialize_with_history(history);
+    if (!value.has_value()) {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_newtable(L);
+    lua_pushnumber(L, value->first);
+    lua_setfield(L, -2, "sin");
+    lua_pushnumber(L, value->second);
+    lua_setfield(L, -2, "cos");
+    return 1;
+}
+
 void LuaScriptEngine::register_helpers()
 {
     lua_pushlightuserdata(m_lua_state, this);
@@ -289,6 +695,46 @@ void LuaScriptEngine::register_helpers()
     lua_pushlightuserdata(m_lua_state, this);
     lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_set_required_history, 1);
     lua_setglobal(m_lua_state, "set_required_history");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_ema, 1);
+    lua_setglobal(m_lua_state, "ema");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_rsi, 1);
+    lua_setglobal(m_lua_state, "rsi");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_stoch, 1);
+    lua_setglobal(m_lua_state, "stoch");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_atr, 1);
+    lua_setglobal(m_lua_state, "atr");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_atrc, 1);
+    lua_setglobal(m_lua_state, "atrc");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_cci, 1);
+    lua_setglobal(m_lua_state, "cci");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_macd, 1);
+    lua_setglobal(m_lua_state, "macd");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_bb, 1);
+    lua_setglobal(m_lua_state, "bb");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_supertrend, 1);
+    lua_setglobal(m_lua_state, "supertrend");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_time_cyclic, 1);
+    lua_setglobal(m_lua_state, "time_cyclic");
 }
 
 void LuaScriptEngine::push_candle_table(lua_State* L, const BasicCandle& candle) const
@@ -428,6 +874,62 @@ SignalType LuaScriptEngine::parse_signal_type(const std::string& signal_type) co
     }
 
     return SignalType::NONE;
+}
+
+std::vector<BasicCandle> LuaScriptEngine::get_history_for_offset(int offset) const
+{
+    if (offset < 0) {
+        return {};
+    }
+
+    const size_t count = m_candle_manager.size();
+    if (count == 0 || static_cast<size_t>(offset) >= count) {
+        return {};
+    }
+
+    // offset=0 -> include latest candle
+    // offset=1 -> exclude latest candle (value at previous candle)
+    const size_t target_count = count - static_cast<size_t>(offset);
+    std::vector<BasicCandle> history;
+    history.reserve(target_count);
+
+    for (size_t i = 0; i < target_count; ++i) {
+        history.push_back(m_candle_manager.at(i));
+    }
+
+    return history;
+}
+
+filter::PriceType LuaScriptEngine::parse_price_source(const std::string& source) const
+{
+    std::string upper = source;
+    std::transform(upper.begin(), upper.end(), upper.begin(), [](unsigned char c) {
+        return static_cast<char>(std::toupper(c));
+    });
+
+    if (upper == "OPEN") {
+        return filter::PriceType::OPEN;
+    }
+    if (upper == "HIGH") {
+        return filter::PriceType::HIGH;
+    }
+    if (upper == "LOW") {
+        return filter::PriceType::LOW;
+    }
+    return filter::PriceType::CLOSE;
+}
+
+filter::MAType LuaScriptEngine::parse_ma_type(const std::string& ma_type) const
+{
+    std::string upper = ma_type;
+    std::transform(upper.begin(), upper.end(), upper.begin(), [](unsigned char c) {
+        return static_cast<char>(std::toupper(c));
+    });
+
+    if (upper == "SMA") {
+        return filter::MAType::SMA;
+    }
+    return filter::MAType::EMA;
 }
 
 void LuaScriptEngine::log_debug(const std::string& message) const
