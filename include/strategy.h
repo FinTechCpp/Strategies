@@ -37,6 +37,7 @@ public:
     
     // Getter for strategy name
     std::string getName() const { return base_config.name; }
+    std::vector<LuaDrawPoint> consume_lua_draw_points();
 
 
 protected:
@@ -75,6 +76,7 @@ protected:
 
     // Optional Lua scripting engine
     std::unique_ptr<LuaScriptEngine> lua_script_engine;
+    std::vector<LuaDrawPoint> m_pending_lua_draw_points;
 
     // Core strategy methods to implement in derived classes
     virtual void registerFiltersIndicators();

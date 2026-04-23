@@ -26,6 +26,7 @@ public:
     const std::string& get_last_error() const { return m_last_error; }
 
     std::optional<Signal> evaluate();
+    std::vector<LuaDrawPoint> consume_draw_points();
 
     static bool validate_script(const std::string& script, std::string& error_message);
 
@@ -47,6 +48,7 @@ private:
     static int lua_bb(lua_State* L);
     static int lua_supertrend(lua_State* L);
     static int lua_time_cyclic(lua_State* L);
+    static int lua_drawpoint(lua_State* L);
 
     void register_helpers();
     void push_candle_table(lua_State* L, const BasicCandle& candle) const;
@@ -70,4 +72,5 @@ private:
     bool m_ready = false;
     int m_required_history;    
     std::string m_last_error;
+    std::vector<LuaDrawPoint> m_pending_draw_points;
 };

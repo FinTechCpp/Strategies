@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <cmath>
 
 extern "C" {
 #include "lua.h"
@@ -145,6 +146,7 @@ bool LuaScriptEngine::validate_script(const std::string& script, std::string& er
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "bb");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "supertrend");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "time_cyclic");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "drawpoint");
 
     if (luaL_loadbuffer(L, script.c_str(), script.size(), "strategy_script") != LUA_OK) {
         const char* msg = lua_tostring(L, -1);
@@ -188,6 +190,9 @@ std::optional<Signal> LuaScriptEngine::evaluate()
     push_candle_table(m_lua_state, m_candle_manager.get_latest_candle());
     push_position_table(m_lua_state);
 
+    // Keep only draw requests generated during this on_candle call.
+    m_pending_draw_points.clear();
+
     if (lua_pcall(m_lua_state, 2, 1, 0) != LUA_OK) {
         const char* error_message = lua_tostring(m_lua_state, -1);
         m_last_error = std::string("Lua runtime error: ") + (error_message ? error_message : "unknown error");
@@ -199,6 +204,13 @@ std::optional<Signal> LuaScriptEngine::evaluate()
     std::optional<Signal> signal = parse_signal_from_stack(m_lua_state, -1);
     lua_pop(m_lua_state, 1);
     return signal;
+}
+
+std::vector<LuaDrawPoint> LuaScriptEngine::consume_draw_points()
+{
+    std::vector<LuaDrawPoint> points;
+    points.swap(m_pending_draw_points);
+    return points;
 }
 
 LuaScriptEngine* LuaScriptEngine::self_from_upvalue(lua_State* L)
@@ -674,6 +686,96 @@ int LuaScriptEngine::lua_time_cyclic(lua_State* L)
     return 1;
 }
 
+int LuaScriptEngine::lua_drawpoint(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self || self->m_candle_manager.size() == 0) {
+        return 0;
+    }
+
+    // drawpoint() defaults to the current candle close.
+    double price = self->m_candle_manager.get_latest_candle().close;
+    if (lua_gettop(L) >= 1 && lua_isnumber(L, 1)) {
+        price = lua_tonumber(L, 1);
+    }
+
+    if (!std::isfinite(price)) {
+        return 0;
+    }
+
+    auto parse_color_arg = [](lua_State* state, int index, int& out_color) -> bool {
+        if (lua_isnumber(state, index)) {
+            const int numeric_color = static_cast<int>(lua_tointeger(state, index));
+            if (numeric_color >= 0 && numeric_color <= 0xFFFFFF) {
+                out_color = numeric_color;
+                return true;
+            }
+            return false;
+        }
+
+        if (!lua_isstring(state, index)) {
+            return false;
+        }
+
+        std::string text = lua_tostring(state, index);
+        if (text.empty()) {
+            return false;
+        }
+
+        if (text[0] == '#') {
+            text.erase(0, 1);
+        } else if (text.size() > 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+            text.erase(0, 2);
+        }
+
+        if (text.empty() || text.size() > 6) {
+            return false;
+        }
+
+        try {
+            const int parsed = static_cast<int>(std::stoul(text, nullptr, 16));
+            if (parsed >= 0 && parsed <= 0xFFFFFF) {
+                out_color = parsed;
+                return true;
+            }
+        } catch (...) {
+            return false;
+        }
+
+        return false;
+    };
+
+    LuaDrawPointType point_type = LuaDrawPointType::Check;
+    int color = -1;
+
+    if (lua_gettop(L) >= 2) {
+        if (lua_isstring(L, 2)) {
+            std::string marker_or_color = lua_tostring(L, 2);
+            std::string marker_type = marker_or_color;
+            std::transform(marker_type.begin(), marker_type.end(), marker_type.begin(), [](unsigned char c) {
+                return static_cast<char>(std::toupper(c));
+            });
+
+            if (marker_type == "ERROR" || marker_type == "CROSS") {
+                point_type = LuaDrawPointType::Error;
+            } else if (marker_type == "CHECK" || marker_type == "CIRCLE") {
+                point_type = LuaDrawPointType::Check;
+            } else {
+                parse_color_arg(L, 2, color);
+            }
+        } else {
+            parse_color_arg(L, 2, color);
+        }
+    }
+
+    if (lua_gettop(L) >= 3) {
+        parse_color_arg(L, 3, color);
+    }
+
+    self->m_pending_draw_points.push_back({price, point_type, color});
+    return 0;
+}
+
 void LuaScriptEngine::register_helpers()
 {
     lua_pushlightuserdata(m_lua_state, this);
@@ -735,6 +837,10 @@ void LuaScriptEngine::register_helpers()
     lua_pushlightuserdata(m_lua_state, this);
     lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_time_cyclic, 1);
     lua_setglobal(m_lua_state, "time_cyclic");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_drawpoint, 1);
+    lua_setglobal(m_lua_state, "drawpoint");
 }
 
 void LuaScriptEngine::push_candle_table(lua_State* L, const BasicCandle& candle) const

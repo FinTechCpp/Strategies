@@ -575,6 +575,11 @@ std::optional<Signal> Strategy::execute_lua_script() {
 
     // Evaluate the Lua script to get a signal
     std::optional<Signal> lua_signal = lua_script_engine->evaluate();
+    std::vector<LuaDrawPoint> draw_points = lua_script_engine->consume_draw_points();
+    if (!draw_points.empty()) {
+        m_pending_lua_draw_points.insert(m_pending_lua_draw_points.end(), draw_points.begin(), draw_points.end());
+    }
+
     if (!lua_signal || lua_signal->type == SignalType::NONE) {
         return std::nullopt;
     }
@@ -598,6 +603,13 @@ std::optional<Signal> Strategy::execute_lua_script() {
     }
 
     return lua_signal;
+}
+
+std::vector<LuaDrawPoint> Strategy::consume_lua_draw_points()
+{
+    std::vector<LuaDrawPoint> points;
+    points.swap(m_pending_lua_draw_points);
+    return points;
 }
 
 bool Strategy::executeFilters(std::vector<filter::GenericFilter>& filters) {

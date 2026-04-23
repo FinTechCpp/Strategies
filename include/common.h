@@ -795,6 +795,18 @@ struct Signal {
     double new_sl = 0.0;
 };
 
+enum class LuaDrawPointType {
+    Check,
+    Error
+};
+
+struct LuaDrawPoint {
+    double price = 0.0;
+    LuaDrawPointType type = LuaDrawPointType::Check;
+    // RGB color as 0xRRGGBB. Use -1 to keep renderer default by marker type.
+    int color = -1;
+};
+
 struct Time {
     int hour = 0;
     int minute = 0;
