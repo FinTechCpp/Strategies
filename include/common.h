@@ -797,7 +797,8 @@ struct Signal {
 
 enum class LuaDrawPointType {
     Check,
-    Error
+    Error,
+    VerticalLine
 };
 
 struct LuaDrawPoint {

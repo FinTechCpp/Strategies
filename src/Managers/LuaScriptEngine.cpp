@@ -147,6 +147,7 @@ bool LuaScriptEngine::validate_script(const std::string& script, std::string& er
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "supertrend");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "time_cyclic");
     lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "drawpoint");
+    lua_pushcclosure(L, dummy, 0); lua_setglobal(L, "drawvline");
 
     if (luaL_loadbuffer(L, script.c_str(), script.size(), "strategy_script") != LUA_OK) {
         const char* msg = lua_tostring(L, -1);
@@ -776,6 +777,86 @@ int LuaScriptEngine::lua_drawpoint(lua_State* L)
     return 0;
 }
 
+int LuaScriptEngine::lua_drawvline(lua_State* L)
+{
+    LuaScriptEngine* self = self_from_upvalue(L);
+    if (!self || self->m_candle_manager.size() == 0) {
+        return 0;
+    }
+
+    auto parse_color_arg = [](lua_State* state, int index, int& out_color) -> bool {
+        if (lua_isnumber(state, index)) {
+            const int numeric_color = static_cast<int>(lua_tointeger(state, index));
+            if (numeric_color >= 0 && numeric_color <= 0xFFFFFF) {
+                out_color = numeric_color;
+                return true;
+            }
+            return false;
+        }
+
+        if (!lua_isstring(state, index)) {
+            return false;
+        }
+
+        std::string text = lua_tostring(state, index);
+        if (text.empty()) {
+            return false;
+        }
+
+        if (text[0] == '#') {
+            text.erase(0, 1);
+        } else if (text.size() > 2 && text[0] == '0' && (text[1] == 'x' || text[1] == 'X')) {
+            text.erase(0, 2);
+        }
+
+        if (text.empty() || text.size() > 6) {
+            return false;
+        }
+
+        try {
+            const int parsed = static_cast<int>(std::stoul(text, nullptr, 16));
+            if (parsed >= 0 && parsed <= 0xFFFFFF) {
+                out_color = parsed;
+                return true;
+            }
+        } catch (...) {
+            return false;
+        }
+
+        return false;
+    };
+
+    int color = -1;
+
+    if (lua_gettop(L) >= 1) {
+        if (lua_isstring(L, 1)) {
+            std::string marker_or_color = lua_tostring(L, 1);
+            std::string marker_type = marker_or_color;
+            std::transform(marker_type.begin(), marker_type.end(), marker_type.begin(), [](unsigned char c) {
+                return static_cast<char>(std::toupper(c));
+            });
+
+            if (marker_type == "ERROR" || marker_type == "CROSS") {
+                color = 0xBB0000;
+            } else if (marker_type == "CHECK" || marker_type == "CIRCLE") {
+                color = 0x00BB00;
+            } else {
+                parse_color_arg(L, 1, color);
+            }
+        } else {
+            parse_color_arg(L, 1, color);
+        }
+    }
+
+    if (lua_gettop(L) >= 2) {
+        parse_color_arg(L, 2, color);
+    }
+
+    const double reference_price = self->m_candle_manager.get_latest_candle().close;
+    self->m_pending_draw_points.push_back({reference_price, LuaDrawPointType::VerticalLine, color});
+    return 0;
+}
+
 void LuaScriptEngine::register_helpers()
 {
     lua_pushlightuserdata(m_lua_state, this);
@@ -841,6 +922,10 @@ void LuaScriptEngine::register_helpers()
     lua_pushlightuserdata(m_lua_state, this);
     lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_drawpoint, 1);
     lua_setglobal(m_lua_state, "drawpoint");
+
+    lua_pushlightuserdata(m_lua_state, this);
+    lua_pushcclosure(m_lua_state, &LuaScriptEngine::lua_drawvline, 1);
+    lua_setglobal(m_lua_state, "drawvline");
 }
 
 void LuaScriptEngine::push_candle_table(lua_State* L, const BasicCandle& candle) const

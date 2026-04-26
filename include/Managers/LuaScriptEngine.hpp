@@ -49,6 +49,7 @@ private:
     static int lua_supertrend(lua_State* L);
     static int lua_time_cyclic(lua_State* L);
     static int lua_drawpoint(lua_State* L);
+    static int lua_drawvline(lua_State* L);
 
     void register_helpers();
     void push_candle_table(lua_State* L, const BasicCandle& candle) const;
