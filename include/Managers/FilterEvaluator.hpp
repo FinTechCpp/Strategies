@@ -81,6 +81,12 @@ private:
                         return indicatorManager.getBBValue(source.bbParams, offset).lower;
                     case filter::IndicatorType::BB_PERCENT_B:
                         return indicatorManager.getBBValue(source.bbParams, offset).percentB;
+                    case filter::IndicatorType::SWING_STRUCTURE_HIGH:
+                        return indicatorManager.getSwingStructureValue(source.swingParams, offset).swingHigh;
+                    case filter::IndicatorType::SWING_STRUCTURE_LOW:
+                        return indicatorManager.getSwingStructureValue(source.swingParams, offset).swingLow;
+                    case filter::IndicatorType::SWING_STRUCTURE_TREND:
+                        return static_cast<double>(indicatorManager.getSwingStructureValue(source.swingParams, offset).trend);
                     default:
                         STRATEGY_LOG(logger, log_general, "Unsupported indicator type", LogLevel::ERROR);
                         return 0.0;

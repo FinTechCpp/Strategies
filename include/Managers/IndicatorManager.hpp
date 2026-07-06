@@ -136,6 +136,7 @@ private:
     std::map<filter::MACDParams, std::unique_ptr<IndicatorHandler<MACD, MACDResult>>> m_macdHandlers;
     std::map<filter::BBParams, std::unique_ptr<IndicatorHandler<BB, filter::BBResult>>> m_bbHandlers;
     std::map<filter::TimeCyclicParams, std::unique_ptr<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>> m_timeCyclicHandlers;
+    std::map<filter::SwingStructureParams, std::unique_ptr<IndicatorHandler<SWINGSTRUCTURE, filter::SwingStructureResult>>> m_swingStructureHandlers;
 
     // List of all handlers for bulk operations
     std::vector<IIndicatorHandlerBase*> m_allHandlers;
@@ -221,12 +222,21 @@ public:
     }
 
     void registerTimeCyclic(const filter::TimeCyclicParams& params = filter::TimeCyclicParams()) {
-        if (m_timeCyclicHandlers.find(params) != m_timeCyclicHandlers.end()) 
+        if (m_timeCyclicHandlers.find(params) != m_timeCyclicHandlers.end())
             return; // Already registered
-        
+
         auto handler = std::make_unique<IndicatorHandler<TIMECYCLIC, std::pair<double, double>>>(params);
         m_allHandlers.push_back(handler.get());
         m_timeCyclicHandlers[params] = std::move(handler);
+    }
+
+    void registerSwingStructure(const filter::SwingStructureParams& params) {
+        if (m_swingStructureHandlers.find(params) != m_swingStructureHandlers.end())
+            return; // Already registered
+
+        auto handler = std::make_unique<IndicatorHandler<SWINGSTRUCTURE, filter::SwingStructureResult>>(params);
+        m_allHandlers.push_back(handler.get());
+        m_swingStructureHandlers[params] = std::move(handler);
     }
 
     // Méthodes d'accès aux valeurs avec valeurs par défaut
@@ -337,14 +347,27 @@ public:
     std::pair<double, double> getTimeCyclicValue(const filter::TimeCyclicParams& params = filter::TimeCyclicParams(), int offset = 0) const {
         auto it = m_timeCyclicHandlers.find(params);
         if (it != m_timeCyclicHandlers.end()) {
-            auto value = offset == 0 ? 
-                it->second->getCurrentValue() : 
+            auto value = offset == 0 ?
+                it->second->getCurrentValue() :
                 it->second->getHistoricalValue(offset);
             if (value.has_value()) {
                 return value.value();
             }
         }
         return {0.0, 0.0};
+    }
+
+    filter::SwingStructureResult getSwingStructureValue(const filter::SwingStructureParams& params, int offset = 0) const {
+        auto it = m_swingStructureHandlers.find(params);
+        if (it != m_swingStructureHandlers.end()) {
+            auto value = offset == 0 ?
+                it->second->getCurrentValue() :
+                it->second->getHistoricalValue(offset);
+            if (value.has_value()) {
+                return value.value();
+            }
+        }
+        return filter::SwingStructureResult{};
     }
 
 
@@ -447,7 +470,18 @@ public:
         }
         return nullptr;
     }
-    
+
+    std::shared_ptr<SWINGSTRUCTURE> getSwingStructureCalculator(const filter::SwingStructureParams& params) {
+        auto it = m_swingStructureHandlers.find(params);
+        if (it != m_swingStructureHandlers.end()) {
+            auto* handler = dynamic_cast<IndicatorHandler<SWINGSTRUCTURE, filter::SwingStructureResult>*>(it->second.get());
+            if (handler) {
+                return handler->getIndicator();
+            }
+        }
+        return nullptr;
+    }
+
     // Méthodes de gestion en masse
     bool initializeAll(const std::vector<BasicCandle>& history, ILogger* logger) {
         STRATEGY_LOG(logger, log_general, "Initializing all indicators", LogLevel::DEBUG);

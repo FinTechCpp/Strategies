@@ -84,6 +84,11 @@ void Strategy::registerFiltersIndicators() {
             case filter::IndicatorType::BB_PERCENT_B:
                 indicator_manager->registerBB(source.bbParams);
                 break;
+            case filter::IndicatorType::SWING_STRUCTURE_HIGH:
+            case filter::IndicatorType::SWING_STRUCTURE_LOW:
+            case filter::IndicatorType::SWING_STRUCTURE_TREND:
+                indicator_manager->registerSwingStructure(source.swingParams);
+                break;
             default:
                 break;
         }

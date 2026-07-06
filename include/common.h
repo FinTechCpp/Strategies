@@ -56,6 +56,9 @@ namespace filter {
         BB_UPPER,
         BB_LOWER,
         BB_PERCENT_B,
+        SWING_STRUCTURE_HIGH,
+        SWING_STRUCTURE_LOW,
+        SWING_STRUCTURE_TREND,
         TIME_SIN,           // Cyclical time encoding (sin)
         TIME_COS            // Cyclical time encoding (cos)
     };
@@ -319,6 +322,41 @@ namespace filter {
         }
     };
 
+    // Result struct for Swing Structure Trend
+    struct SwingStructureResult {
+        double swingHigh = 0.0;  // Price of the last confirmed swing high
+        double swingLow = 0.0;   // Price of the last confirmed swing low
+        int trend = 0;           // 1 = uptrend, -1 = downtrend, 0 = unknown/uncertain
+
+        SwingStructureResult() = default;
+        SwingStructureResult(double sh, double sl, int t) : swingHigh(sh), swingLow(sl), trend(t) {}
+    };
+
+    // Parameters for Swing Structure Trend
+    struct SwingStructureParams {
+        double highMove;   // Minimum price move (in price units) required for each swing-high leg
+        double lowMove;    // Minimum price move (in price units) required for each swing-low leg
+        int minPeriods;    // Minimum duration (in bars) of each leg
+        int maxPeriods;    // Maximum duration (in bars) of each leg
+
+        explicit SwingStructureParams(double highMovePrice, double lowMovePrice, int minP = 3, int maxP = 20)
+            : highMove(highMovePrice), lowMove(lowMovePrice), minPeriods(minP), maxPeriods(maxP) {}
+
+        bool operator==(const SwingStructureParams& other) const {
+            return std::abs(highMove - other.highMove) < 1e-9 &&
+                   std::abs(lowMove - other.lowMove) < 1e-9 &&
+                   minPeriods == other.minPeriods &&
+                   maxPeriods == other.maxPeriods;
+        }
+
+        bool operator<(const SwingStructureParams& other) const {
+            if (std::abs(highMove - other.highMove) >= 1e-9) return highMove < other.highMove;
+            if (std::abs(lowMove - other.lowMove) >= 1e-9) return lowMove < other.lowMove;
+            if (minPeriods != other.minPeriods) return minPeriods < other.minPeriods;
+            return maxPeriods < other.maxPeriods;
+        }
+    };
+
     // Parameters for TimeCyclic (cyclical time encoding)
     struct TimeCyclicParams {
         // No parameters needed for now
@@ -358,6 +396,7 @@ namespace filter {
             CCIParams cciParams;
             MACDParams macdParams;
             BBParams bbParams;
+            SwingStructureParams swingParams;
             TimeCyclicParams timeCyclicParams;
         };
 
@@ -558,6 +597,39 @@ namespace filter {
             return source;
         }
 
+        // For Swing Structure Trend (last swing high price)
+        static ValueSource SwingStructureHigh(double highMove, double lowMove, int minPeriods = 3, int maxPeriods = 20, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::SWING_STRUCTURE_HIGH;
+            source.swingParams = SwingStructureParams(highMove, lowMove, minPeriods, maxPeriods);
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // For Swing Structure Trend (last swing low price)
+        static ValueSource SwingStructureLow(double highMove, double lowMove, int minPeriods = 3, int maxPeriods = 20, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::SWING_STRUCTURE_LOW;
+            source.swingParams = SwingStructureParams(highMove, lowMove, minPeriods, maxPeriods);
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
+        // For Swing Structure Trend (trend direction: 1 = up, -1 = down, 0 = uncertain)
+        static ValueSource SwingStructureTrend(double highMove, double lowMove, int minPeriods = 3, int maxPeriods = 20, int offset = 0) {
+            ValueSource source;
+            source.category = ValueCategory::INDICATOR;
+            source.indicatorType = IndicatorType::SWING_STRUCTURE_TREND;
+            source.swingParams = SwingStructureParams(highMove, lowMove, minPeriods, maxPeriods);
+            source.historicalOffset = offset;
+            source.transform = TransformType::NONE;
+            return source;
+        }
+
         // For candle properties
         static ValueSource CandleProperty(CandlePropertyType type, int offset = 0) {
             ValueSource source;
@@ -661,10 +733,28 @@ namespace filter {
                             desc = "Bollinger Bands Lower(" + std::to_string(source.bbParams.period) + "," +
                                 std::to_string(source.bbParams.stddev_multiplier) + ")";
                             break;
-                        case IndicatorType::BB_PERCENT_B:   
+                        case IndicatorType::BB_PERCENT_B:
                             desc = "Bollinger Bands %B(" + std::to_string(source.bbParams.period) + "," +
-                                std::to_string(source.bbParams.stddev_multiplier) + ")"; 
-                            break;                        
+                                std::to_string(source.bbParams.stddev_multiplier) + ")";
+                            break;
+                        case IndicatorType::SWING_STRUCTURE_HIGH:
+                            desc = "Swing Structure High(" + std::to_string(source.swingParams.highMove) + "," +
+                                std::to_string(source.swingParams.lowMove) + "," +
+                                std::to_string(source.swingParams.minPeriods) + "," +
+                                std::to_string(source.swingParams.maxPeriods) + ")";
+                            break;
+                        case IndicatorType::SWING_STRUCTURE_LOW:
+                            desc = "Swing Structure Low(" + std::to_string(source.swingParams.highMove) + "," +
+                                std::to_string(source.swingParams.lowMove) + "," +
+                                std::to_string(source.swingParams.minPeriods) + "," +
+                                std::to_string(source.swingParams.maxPeriods) + ")";
+                            break;
+                        case IndicatorType::SWING_STRUCTURE_TREND:
+                            desc = "Swing Structure Trend(" + std::to_string(source.swingParams.highMove) + "," +
+                                std::to_string(source.swingParams.lowMove) + "," +
+                                std::to_string(source.swingParams.minPeriods) + "," +
+                                std::to_string(source.swingParams.maxPeriods) + ")";
+                            break;
                         default:
                             break;
                         }
