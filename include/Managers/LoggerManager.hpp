@@ -46,6 +46,8 @@ public:
     virtual void log_indicator_value(const std::string& name, const filter::MACDResult& values, int level = LogLevel::DEBUG) = 0;
     // Bollinger Bands result (middle, upper, lower)
     virtual void log_indicator_value(const std::string& name, const filter::BBResult& values, int level = LogLevel::DEBUG) = 0;
+    // Swing Structure result (swingHigh, swingLow, trend)
+    virtual void log_indicator_value(const std::string& name, const filter::SwingStructureResult& values, int level = LogLevel::DEBUG) = 0;
     virtual void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) = 0;
     
     // Filter logs
@@ -249,6 +251,11 @@ public:
         std::string msg = "Indicator " + name + " = [middle=" + fast_double_to_string(values.middle) + ", upper=" + fast_double_to_string(values.upper) + ", lower=" + fast_double_to_string(values.lower) + "]";
         add_log(LogCategory::INDICATOR, std::move(msg), level);
     }
+
+    void log_indicator_value(const std::string& name, const filter::SwingStructureResult& values, int level = LogLevel::DEBUG) override {
+        std::string msg = "Indicator " + name + " = [swingHigh=" + fast_double_to_string(values.swingHigh) + ", swingLow=" + fast_double_to_string(values.swingLow) + ", trend=" + fast_int_to_string(values.trend) + "]";
+        add_log(LogCategory::INDICATOR, std::move(msg), level);
+    }
     
     void log_indicator_comparison(const std::string& name, double value, double threshold, const std::string& comparison_op, bool result, int level = LogLevel::DEBUG) override {
         std::string status = result ? "VALID" : "REJECTED";
@@ -432,6 +439,7 @@ public:
     void log_indicator_value(const std::string&, std::pair<double, int>, int) override {}
     void log_indicator_value(const std::string&, const filter::MACDResult&, int) override {}
     void log_indicator_value(const std::string&, const filter::BBResult&, int) override {}
+    void log_indicator_value(const std::string&, const filter::SwingStructureResult&, int) override {}
     void log_indicator_comparison(const std::string&, double, double, const std::string&, bool, int) override {}
     void log_filter_result(const std::string&, bool, const std::string&, int) override {}
     void log_filter_result(const filter::GenericFilter& filter, double leftValue, double rightValue, bool result, int offset, int level = LogLevel::INFO) override {}
